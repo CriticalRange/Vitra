@@ -16,10 +16,10 @@ public class VitraRenderer {
     private boolean initialized = false;
 
     /**
-     * Initialize the renderer with the default configuration
+     * Initialize the renderer with Direct3D as default (replacing OpenGL)
      */
     public void initialize() {
-        initialize(RendererType.OPENGL);
+        initialize(RendererType.OPENGL); // Will be switched to D3D11 via mixin
     }
 
     /**
@@ -63,6 +63,35 @@ public class VitraRenderer {
             LOGGER.error("Failed to prepare Vitra renderer", e);
             throw new RuntimeException("Vitra renderer initialization failed", e);
         }
+    }
+
+    /**
+     * Force immediate BGFX initialization (for replacing OpenGL)
+     */
+    public boolean initializeImmediately() {
+        if (currentContext != null && currentContext instanceof com.vitra.render.backend.BgfxRenderContext) {
+            com.vitra.render.backend.BgfxRenderContext bgfxContext = (com.vitra.render.backend.BgfxRenderContext) currentContext;
+            return bgfxContext.forceInitialization();
+        }
+        return false;
+    }
+
+    /**
+     * Initialize BGFX with a specific window handle
+     */
+    public boolean initializeWithWindowHandle(long windowHandle) {
+        if (currentContext != null && currentContext instanceof com.vitra.render.backend.BgfxRenderContext) {
+            com.vitra.render.backend.BgfxRenderContext bgfxContext = (com.vitra.render.backend.BgfxRenderContext) currentContext;
+            return bgfxContext.initializeWithWindowHandle(windowHandle);
+        }
+        return false;
+    }
+
+    /**
+     * Check if the renderer is fully initialized
+     */
+    public boolean isFullyInitialized() {
+        return initialized && currentContext != null;
     }
 
     /**

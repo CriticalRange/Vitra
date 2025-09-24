@@ -5,7 +5,10 @@
   "minVersion": "0.8",
   "client": [
     "GameRendererMixin",
-    "WindowMixin"
+    "WindowMixin",
+    "MinecraftRenderSystemMixin",
+    "VirtualScreenMixin",
+    "GLFWWindowMixin"
   ],
   "mixins": [
   ],

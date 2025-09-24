@@ -54,54 +54,53 @@ public class BgfxRenderContext implements RenderContext {
 
     @Override
     public boolean initialize(int width, int height, long windowHandle) {
-        LOGGER.info("Deferring BGFX initialization - will initialize on first frame");
+        LOGGER.info("Preparing BGFX context for Direct3D renderer replacement");
         this.currentWidth = width;
         this.currentHeight = height;
+        // Don't initialize yet - wait for forceInitialization call
         return true;
     }
 
+    /**
+     * Force immediate BGFX initialization (called from mixin before OpenGL init)
+     */
+    public boolean forceInitialization() {
+        LOGGER.info("Force initializing BGFX D3D11 to replace OpenGL backend");
+        return initializeBgfx();
+    }
+
+    /**
+     * Initialize BGFX with a specific window handle
+     */
+    public boolean initializeWithWindowHandle(long windowHandle) {
+        LOGGER.info("Initializing BGFX D3D11 with window handle: 0x{}", Long.toHexString(windowHandle));
+        // Reset initialization state for retry with proper window handle
+        initializationAttempted = false;
+        initialized = false;
+        // Use the provided window handle
+        return initializeBgfxWithHandle(windowHandle);
+    }
+
     private boolean initializeBgfx() {
+        return initializeBgfxWithHandle(0L);
+    }
+
+    private boolean initializeBgfxWithHandle(long windowHandle) {
         if (initialized || initializationAttempted) {
             return initialized;
         }
 
         initializationAttempted = true;
-        LOGGER.info("Initializing BGFX render context for {} ({}x{})",
-                   rendererType.getDisplayName(), currentWidth, currentHeight);
+        LOGGER.info("Initializing BGFX render context for {} ({}x{}) with handle 0x{}",
+                   rendererType.getDisplayName(), currentWidth, currentHeight, Long.toHexString(windowHandle));
 
         try {
             // Based on BGFX source analysis, we need to use the single-threaded approach
             // The key insight is to avoid multi-threading conflicts by using simpler initialization
             LOGGER.info("Using BGFX single-threaded compatible initialization");
 
-            // Initialize BGFX with proper configuration based on source code analysis
-            try (MemoryStack stack = stackPush()) {
-                BGFXInit init = BGFXInit.malloc(stack);
-                bgfx_init_ctor(init);
-
-                // Try Direct3D 11 first (avoids OpenGL context conflicts)
-                init.type(BGFX_RENDERER_TYPE_DIRECT3D11);
-                init.resolution().width(currentWidth).height(currentHeight).reset(BGFX_RESET_VSYNC);
-
-                // Set platform data if available
-                if (WindowUtil.hasValidWindowHandle()) {
-                    setPlatformDataOnInit(init, stack);
-                }
-
-                boolean success = bgfx_init(init);
-                if (success) {
-                    LOGGER.info("BGFX initialization successful with {} backend",
-                               getRendererName(bgfx_get_renderer_type()));
-
-                    // Set debug flags
-                    bgfx_set_debug(BGFX_DEBUG_TEXT);
-                    this.initialized = true;
-                    return true;
-                } else {
-                    LOGGER.error("BGFX initialization failed");
-                    return false;
-                }
-            }
+            // Try multiple backends in order of preference
+            return tryMultipleBackendsWithHandle(windowHandle);
 
         } catch (Exception e) {
             LOGGER.error("Failed to initialize BGFX render context", e);
@@ -112,24 +111,165 @@ public class BgfxRenderContext implements RenderContext {
         }
     }
 
-    private void setPlatformDataOnInit(BGFXInit init, MemoryStack stack) {
+    private boolean tryMultipleBackends() {
+        return tryMultipleBackendsWithHandle(0L);
+    }
+
+    private boolean tryMultipleBackendsWithHandle(long windowHandle) {
+        // Focus on Direct3D as requested
+        int[] backendPriority = {
+            BGFX_RENDERER_TYPE_DIRECT3D11,    // Primary choice - Direct3D as requested
+            BGFX_RENDERER_TYPE_DIRECT3D12     // Fallback Direct3D option
+        };
+
+        for (int backend : backendPriority) {
+            try (MemoryStack stack = stackPush()) {
+                LOGGER.info("Attempting BGFX initialization with {} backend", getRendererTypeName(backend));
+
+                BGFXInit init = BGFXInit.malloc(stack);
+                bgfx_init_ctor(init);
+
+                init.type(backend);
+                init.resolution().width(currentWidth).height(currentHeight).reset(BGFX_RESET_VSYNC);
+
+                // Set platform data with window handle if provided
+                if (windowHandle != 0L) {
+                    BGFXPlatformData platformData = init.platformData();
+                    platformData.nwh(windowHandle);
+                    LOGGER.info("Set platform data with window handle: 0x{}", Long.toHexString(windowHandle));
+                }
+
+                // Enable maximum debugging for D3D11
+                if (backend == BGFX_RENDERER_TYPE_DIRECT3D11 || backend == BGFX_RENDERER_TYPE_DIRECT3D12) {
+                    LOGGER.info("Configuring D3D debug flags and parameters");
+                    // These will help us see where the crash occurs
+                }
+
+                // Skip platform data setup for D3D11 to avoid context conflicts
+                if (WindowUtil.hasValidWindowHandle() && backend != BGFX_RENDERER_TYPE_NOOP && backend != BGFX_RENDERER_TYPE_DIRECT3D11) {
+                    setPlatformDataOnInit(init, stack, backend);
+                }
+
+                boolean success;
+                try {
+                    LOGGER.info("=== BGFX {} Initialization Debug Steps ===", getRendererTypeName(backend));
+                    LOGGER.info("Step 1: Pre-init state check - about to call bgfx_init()");
+                    LOGGER.info("Step 2: Window Handle = 0x{}", Long.toHexString(WindowUtil.getMinecraftWindowHandle()));
+                    LOGGER.info("Step 3: Resolution = {}x{}", currentWidth, currentHeight);
+                    LOGGER.info("Step 4: Backend Type = {} ({})", getRendererTypeName(backend), backend);
+
+                    // Try minimal configuration to avoid conflicts
+                    if (backend == BGFX_RENDERER_TYPE_DIRECT3D11 || backend == BGFX_RENDERER_TYPE_DIRECT3D12) {
+                        LOGGER.info("Step 5: Configuring {} with window handle for separate device creation", getRendererTypeName(backend));
+                        // Use the provided window handle instead of WindowUtil (which returns 0 with GLFW_NO_API)
+                        long actualWindowHandle = windowHandle != 0L ? windowHandle : WindowUtil.getMinecraftWindowHandle();
+                        init.platformData().nwh(actualWindowHandle).ndt(0).context(0).backBuffer(0).backBufferDS(0);
+                        LOGGER.info("Set window handle: 0x{} for {} backend", Long.toHexString(actualWindowHandle), getRendererTypeName(backend));
+                    }
+
+                    LOGGER.info("Step 6: Calling bgfx_init() now...");
+                    success = bgfx_init(init);
+                    LOGGER.info("Step 7: bgfx_init() returned: {}", success);
+
+                } catch (Exception | Error e) {
+                    LOGGER.error("=== NATIVE CRASH DETECTED ===");
+                    LOGGER.error("Crash occurred during {} backend initialization", getRendererTypeName(backend));
+                    LOGGER.error("Exception type: {}", e.getClass().getSimpleName());
+                    LOGGER.error("Exception message: {}", e.getMessage());
+                    if (e.getCause() != null) {
+                        LOGGER.error("Cause: {}", e.getCause().getMessage());
+                    }
+                    LOGGER.error("=== END CRASH INFO ===");
+                    continue; // Try next backend
+                }
+
+                if (success) {
+                    LOGGER.info("BGFX initialization successful with {} backend",
+                               getRendererName(bgfx_get_renderer_type()));
+
+                    // Set debug flags safely
+                    try {
+                        bgfx_set_debug(BGFX_DEBUG_TEXT);
+                    } catch (Exception e) {
+                        LOGGER.warn("Failed to set debug flags: {}", e.getMessage());
+                    }
+
+                    this.initialized = true;
+                    return true;
+                } else {
+                    LOGGER.warn("BGFX initialization failed with {} backend", getRendererTypeName(backend));
+                }
+
+            } catch (Exception e) {
+                LOGGER.warn("Exception during {} backend initialization: {}", getRendererTypeName(backend), e.getMessage());
+            }
+        }
+
+        LOGGER.error("All BGFX backend initialization attempts failed");
+        return false;
+    }
+
+    private String getRendererTypeName(int rendererType) {
+        switch (rendererType) {
+            case BGFX_RENDERER_TYPE_DIRECT3D11: return "Direct3D 11";
+            case BGFX_RENDERER_TYPE_DIRECT3D12: return "Direct3D 12";
+            case BGFX_RENDERER_TYPE_VULKAN: return "Vulkan";
+            case BGFX_RENDERER_TYPE_OPENGL: return "OpenGL";
+            case BGFX_RENDERER_TYPE_NOOP: return "NOOP";
+            default: return "Unknown (" + rendererType + ")";
+        }
+    }
+
+    private void setPlatformDataOnInit(BGFXInit init, MemoryStack stack, int backend) {
         try {
-            LOGGER.info("Setting BGFX platform data during initialization");
+            LOGGER.info("=== PLATFORM DATA SETUP DEBUG ===");
+            LOGGER.info("Setting BGFX platform data for {} backend", getRendererTypeName(backend));
 
             // Get the window handle from Minecraft
             long windowHandle = WindowUtil.getMinecraftWindowHandle();
-            LOGGER.info("Using Minecraft window handle: 0x{}", Long.toHexString(windowHandle));
+            LOGGER.info("Minecraft window handle: 0x{} (decimal: {})", Long.toHexString(windowHandle), windowHandle);
 
-            // Set platform data directly on the init structure
+            // Validate window handle
+            if (windowHandle == 0) {
+                LOGGER.error("ERROR: Window handle is NULL/0!");
+                return;
+            }
+
+            // Set platform data with backend-specific configuration
             BGFXPlatformData platformData = init.platformData();
-            platformData.nwh(windowHandle);
-            platformData.ndt(0); // Default display
-            platformData.context(0); // Will use existing OpenGL context
+            LOGGER.info("Platform data structure obtained: {}", (platformData != null ? "OK" : "NULL"));
 
-            LOGGER.info("BGFX platform data set successfully on init structure");
+            // nwh: Native Window Handle - required for all backends
+            platformData.nwh(windowHandle);
+            LOGGER.info("Set platformData.nwh = 0x{}", Long.toHexString(windowHandle));
+
+            // Backend-specific configuration
+            if (backend == BGFX_RENDERER_TYPE_OPENGL) {
+                // OpenGL: Share context with Minecraft
+                LOGGER.info("Configuring for OpenGL context sharing with Minecraft");
+
+                // For OpenGL, let BGFX create its own context instead of sharing
+                // Context sharing can cause conflicts - better to let BGFX manage its own
+                platformData.context(0);
+                LOGGER.info("Letting BGFX create its own OpenGL context for stability");
+
+                platformData.ndt(0);
+                platformData.backBuffer(0);
+                platformData.backBufferDS(0);
+
+            } else {
+                // D3D11/D3D12: Create separate device
+                LOGGER.info("Configuring for {} - separate device creation", getRendererTypeName(backend));
+                platformData.ndt(0);
+                platformData.context(0);
+                platformData.backBuffer(0);
+                platformData.backBufferDS(0);
+            }
+
+            LOGGER.info("=== PLATFORM DATA SETUP COMPLETE ===");
 
         } catch (Exception e) {
-            LOGGER.warn("Failed to set BGFX platform data: {}", e.getMessage());
+            LOGGER.error("EXCEPTION in platform data setup: {}", e.getMessage(), e);
         }
     }
 
