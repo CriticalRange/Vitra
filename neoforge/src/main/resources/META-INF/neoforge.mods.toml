@@ -1,15 +1,15 @@
 modLoader = "javafml"
 loaderVersion = "[9,)"
 #issueTrackerURL = ""
-license = "Insert License Here"
+license = "MIT"
 
 [[mods]]
 modId = "vitra"
 version = "${version}"
 displayName = "Vitra"
-authors = "Me!"
+authors = "Vitra Team"
 description = '''
-This is an example description! Tell everyone what your mod is about!
+High-performance optimization and multi-backend rendering mod for Minecraft
 '''
 #logoFile = ""
 

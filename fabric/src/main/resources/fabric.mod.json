@@ -3,15 +3,15 @@
   "id": "vitra",
   "version": "${version}",
   "name": "Vitra",
-  "description": "This is an example description! Tell everyone what your mod is about!",
+  "description": "High-performance optimization and multi-backend rendering mod for Minecraft",
   "authors": [
-    "Me!"
+    "Vitra Team"
   ],
   "contact": {
-    "homepage": "https://fabricmc.net/",
-    "sources": "https://github.com/FabricMC/fabric-example-mod"
+    "homepage": "https://github.com/your-repo/vitra",
+    "sources": "https://github.com/your-repo/vitra"
   },
-  "license": "CC0-1.0",
+  "license": "MIT",
   "icon": "assets/vitra/icon.png",
   "environment": "*",
   "entrypoints": {

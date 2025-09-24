@@ -1,0 +1,92 @@
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+bin/
+out/
+CLAUDE.md
+
+# Minecraft Development
+run/
+logs/
+.mixin.out/
+
+# Java
+*.class
+*.log
+*.ctxt
+.mtj.tmp/
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+
+# Package Files
+*.jar
+!gradle-wrapper.jar
+
+# Fabric/NeoForge specific
+remappedSrc/
+.fabric/
+.neoforge/
+
+# Generated files
+src/generated/
+
+# Runtime directories
+run*/
+minecraft*/
+
+# Mod development
+*.dev.jar
+*-dev.jar
+*-sources.jar
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+~$*
+*.swp
+*.swo
+*~
+
+# Configuration (keep template but ignore user config)
+config/vitra.properties
+
+# Native libraries
+*.so
+*.dylib
+*.dll
+
+# Crash reports
+crash-reports/
+
+# Profiler output
+*.hprof
+CLAUDE.md
