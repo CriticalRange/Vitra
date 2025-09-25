@@ -42,9 +42,7 @@ public class ShaderManager {
         this.currentRenderer = rendererType;
 
         // Initialize compilers for different backends
-        compilers.put(RendererType.OPENGL, new GLSLCompiler());
-        compilers.put(RendererType.VULKAN, new SPIRVCompiler());
-        compilers.put(RendererType.DIRECTX12, new HLSLCompiler());
+        compilers.put(RendererType.DIRECTX11, new HLSLCompiler());
 
         initialized = true;
         LOGGER.info("ShaderManager initialized for {}", rendererType.getDisplayName());

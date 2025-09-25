@@ -5,24 +5,9 @@ package com.vitra.core.config;
  */
 public enum RendererType {
     /**
-     * OpenGL backend - default, maximum compatibility
+     * DirectX 11 backend - Windows only, primary supported backend
      */
-    OPENGL("OpenGL", true, true, true),
-
-    /**
-     * DirectX 12 backend - Windows only, modern features
-     */
-    DIRECTX12("DirectX 12", true, false, false),
-
-    /**
-     * Vulkan backend - cross-platform, maximum performance
-     */
-    VULKAN("Vulkan", true, true, true),
-
-    /**
-     * Software renderer - fallback, CPU-based
-     */
-    SOFTWARE("Software", true, true, true);
+    DIRECTX11("DirectX 11", true, false, false);
 
     private final String displayName;
     private final boolean supportsWindows;
@@ -58,13 +43,11 @@ public enum RendererType {
      * Get the best available renderer for the current platform
      */
     public static RendererType getBestAvailable() {
-        // Prefer Vulkan if available, fallback to OpenGL, then others
-        for (RendererType type : new RendererType[]{VULKAN, OPENGL, DIRECTX12, SOFTWARE}) {
-            if (type.isSupported()) {
-                return type;
-            }
+        // Only DirectX 11 is supported
+        if (DIRECTX11.isSupported()) {
+            return DIRECTX11;
         }
-        return OPENGL; // Fallback
+        throw new RuntimeException("DirectX 11 is not supported on this platform. Vitra requires Windows.");
     }
 
     public boolean supportsWindows() { return supportsWindows; }

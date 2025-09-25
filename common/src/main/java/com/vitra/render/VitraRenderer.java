@@ -16,10 +16,10 @@ public class VitraRenderer {
     private boolean initialized = false;
 
     /**
-     * Initialize the renderer with Direct3D as default (replacing OpenGL)
+     * Initialize the renderer with Direct3D 11 as default
      */
     public void initialize() {
-        initialize(RendererType.OPENGL); // Will be switched to D3D11 via mixin
+        initialize(RendererType.DIRECTX11);
     }
 
     /**
@@ -37,8 +37,7 @@ public class VitraRenderer {
         try {
             // Check if the requested renderer is supported
             if (!rendererType.isSupported()) {
-                LOGGER.warn("Renderer {} not supported on this platform, falling back to OpenGL", rendererType.getDisplayName());
-                rendererType = RendererType.OPENGL;
+                throw new RuntimeException("DirectX 11 is not supported on this platform. Vitra requires Windows.");
             }
 
             // Create the render context based on the selected backend
@@ -166,14 +165,8 @@ public class VitraRenderer {
      */
     private RenderContext createRenderContext(RendererType rendererType) {
         switch (rendererType) {
-            case OPENGL:
-                return new BgfxRenderContext(RendererType.OPENGL);
-            case VULKAN:
-                return new BgfxRenderContext(RendererType.VULKAN);
-            case DIRECTX12:
-                return new BgfxRenderContext(RendererType.DIRECTX12);
-            case SOFTWARE:
-                return new BgfxRenderContext(RendererType.SOFTWARE);
+            case DIRECTX11:
+                return new BgfxRenderContext(RendererType.DIRECTX11);
             default:
                 LOGGER.error("Unknown renderer type: {}", rendererType);
                 return null;

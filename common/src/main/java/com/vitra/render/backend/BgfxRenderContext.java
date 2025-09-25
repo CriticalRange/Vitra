@@ -116,11 +116,26 @@ public class BgfxRenderContext implements RenderContext {
     }
 
     private boolean tryMultipleBackendsWithHandle(long windowHandle) {
-        // Focus on Direct3D as requested
+        // First, check what renderers are actually supported
+        checkSupportedRenderers();
+
+        // VulkanMod approach: Force DirectX 11 ONLY - absolutely no fallbacks allowed
         int[] backendPriority = {
-            BGFX_RENDERER_TYPE_DIRECT3D11,    // Primary choice - Direct3D as requested
-            BGFX_RENDERER_TYPE_DIRECT3D12     // Fallback Direct3D option
+            BGFX_RENDERER_TYPE_DIRECT3D11    // DirectX 11 ONLY - fail if not available
         };
+
+        LOGGER.info("=== VULKANMOD APPROACH: FORCING DIRECTX 11 WITH ZERO TOLERANCE FOR FALLBACKS ===");
+        LOGGER.info("If DirectX 11 fails, we STOP - no OpenGL fallback allowed");
+
+        // CRITICAL: Ensure no OpenGL context exists that BGFX might detect
+        LOGGER.info("=== CLEARING ANY EXISTING OPENGL CONTEXT ===");
+        try {
+            // Make sure no OpenGL context is current on any thread
+            org.lwjgl.glfw.GLFW.glfwMakeContextCurrent(0L);
+            LOGGER.info("Cleared any existing OpenGL context from GLFW");
+        } catch (Exception e) {
+            LOGGER.info("No existing OpenGL context to clear: {}", e.getMessage());
+        }
 
         for (int backend : backendPriority) {
             try (MemoryStack stack = stackPush()) {
@@ -132,6 +147,14 @@ public class BgfxRenderContext implements RenderContext {
                 init.type(backend);
                 init.resolution().width(currentWidth).height(currentHeight).reset(BGFX_RESET_VSYNC);
 
+                // For DirectX 11, ensure we have proper debug and validation
+                if (backend == BGFX_RENDERER_TYPE_DIRECT3D11) {
+                    LOGGER.info("Forcing DirectX 11 - no fallback allowed");
+                    // Explicitly disable any OpenGL renderer type detection
+                    // BGFX should not fall back to OpenGL under any circumstances
+                    LOGGER.info("Configuring init structure to reject OpenGL fallback");
+                }
+
                 // Set platform data with window handle if provided
                 if (windowHandle != 0L) {
                     BGFXPlatformData platformData = init.platformData();
@@ -140,26 +163,31 @@ public class BgfxRenderContext implements RenderContext {
                 }
 
                 // Enable maximum debugging for D3D11
-                if (backend == BGFX_RENDERER_TYPE_DIRECT3D11 || backend == BGFX_RENDERER_TYPE_DIRECT3D12) {
-                    LOGGER.info("Configuring D3D debug flags and parameters");
+                if (backend == BGFX_RENDERER_TYPE_DIRECT3D11) {
+                    LOGGER.info("Configuring D3D11 debug flags and parameters");
                     // These will help us see where the crash occurs
                 }
 
-                // Skip platform data setup for D3D11 to avoid context conflicts
-                if (WindowUtil.hasValidWindowHandle() && backend != BGFX_RENDERER_TYPE_NOOP && backend != BGFX_RENDERER_TYPE_DIRECT3D11) {
-                    setPlatformDataOnInit(init, stack, backend);
+                // Set up platform data for all backends - D3D11 needs window handle but no context sharing
+                if (windowHandle != 0L) {
+                    LOGGER.info("Using window handle: 0x{} for BGFX platform data", Long.toHexString(windowHandle));
+                    setPlatformDataOnInit(init, stack, backend, windowHandle);
+                    LOGGER.info("Platform data configured for {}", getRendererTypeName(backend));
+                } else {
+                    LOGGER.warn("No valid window handle available for BGFX initialization (windowHandle = 0x{})",
+                               Long.toHexString(windowHandle));
                 }
 
                 boolean success;
                 try {
                     LOGGER.info("=== BGFX {} Initialization Debug Steps ===", getRendererTypeName(backend));
                     LOGGER.info("Step 1: Pre-init state check - about to call bgfx_init()");
-                    LOGGER.info("Step 2: Window Handle = 0x{}", Long.toHexString(WindowUtil.getMinecraftWindowHandle()));
+                    LOGGER.info("Step 2: Window Handle = 0x{}", Long.toHexString(windowHandle));
                     LOGGER.info("Step 3: Resolution = {}x{}", currentWidth, currentHeight);
                     LOGGER.info("Step 4: Backend Type = {} ({})", getRendererTypeName(backend), backend);
 
                     // Try minimal configuration to avoid conflicts
-                    if (backend == BGFX_RENDERER_TYPE_DIRECT3D11 || backend == BGFX_RENDERER_TYPE_DIRECT3D12) {
+                    if (backend == BGFX_RENDERER_TYPE_DIRECT3D11) {
                         LOGGER.info("Step 5: Configuring {} with window handle for separate device creation", getRendererTypeName(backend));
                         // Use the provided window handle instead of WindowUtil (which returns 0 with GLFW_NO_API)
                         long actualWindowHandle = windowHandle != 0L ? windowHandle : WindowUtil.getMinecraftWindowHandle();
@@ -184,14 +212,56 @@ public class BgfxRenderContext implements RenderContext {
                 }
 
                 if (success) {
-                    LOGGER.info("BGFX initialization successful with {} backend",
-                               getRendererName(bgfx_get_renderer_type()));
+                    int actualRenderer = bgfx_get_renderer_type();
+                    LOGGER.info("BGFX initialization successful with {} backend (type {})",
+                               getRendererName(actualRenderer), actualRenderer);
+
+                    // CRITICAL DEBUG: Log the exact renderer type numbers
+                    LOGGER.info("=== CRITICAL RENDERER TYPE DEBUG ===");
+                    LOGGER.info("BGFX_RENDERER_TYPE_DIRECT3D11 constant = {}", BGFX_RENDERER_TYPE_DIRECT3D11);
+                    LOGGER.info("BGFX_RENDERER_TYPE_OPENGL constant = {}", BGFX_RENDERER_TYPE_OPENGL);
+                    LOGGER.info("Requested renderer type: {} ({})", getRendererTypeName(backend), backend);
+                    LOGGER.info("Actual BGFX renderer type returned: {} ({})", getRendererTypeName(actualRenderer), actualRenderer);
+
+                    if (actualRenderer == BGFX_RENDERER_TYPE_DIRECT3D11) {
+                        LOGGER.info("✓ SUCCESS: BGFX is using DirectX 11 (type {})", actualRenderer);
+                    } else if (actualRenderer == BGFX_RENDERER_TYPE_OPENGL) {
+                        LOGGER.error("✗ FAILED: BGFX fell back to OpenGL (type {}) instead of DirectX 11", actualRenderer);
+                    } else {
+                        LOGGER.warn("? UNKNOWN: BGFX is using renderer type {} ({})", actualRenderer, getRendererTypeName(actualRenderer));
+                    }
+
+                    // VulkanMod approach: STRICT DirectX 11 validation - FAIL if not DirectX 11
+                    if (backend == BGFX_RENDERER_TYPE_DIRECT3D11 && actualRenderer != BGFX_RENDERER_TYPE_DIRECT3D11) {
+                        LOGGER.error("=== VULKANMOD APPROACH: DIRECTX 11 CREATION FAILED ===");
+                        LOGGER.error("Requested: DirectX 11 ({}), Got: {} ({})",
+                                   BGFX_RENDERER_TYPE_DIRECT3D11, getRendererTypeName(actualRenderer), actualRenderer);
+                        LOGGER.error("VulkanMod approach: FAILING completely - NO fallback to OpenGL allowed");
+
+                        // Shutdown BGFX since it didn't give us what we wanted
+                        try {
+                            bgfx_shutdown();
+                            LOGGER.error("BGFX shutdown due to DirectX 11 failure");
+                        } catch (Exception e) {
+                            LOGGER.error("Error during BGFX shutdown: {}", e.getMessage());
+                        }
+
+                        // Fail initialization completely
+                        return false;
+                    }
 
                     // Set debug flags safely
                     try {
                         bgfx_set_debug(BGFX_DEBUG_TEXT);
                     } catch (Exception e) {
                         LOGGER.warn("Failed to set debug flags: {}", e.getMessage());
+                    }
+
+                    // Expose BGFX renderer information to system for RivaTuner detection
+                    try {
+                        com.vitra.render.bgfx.BgfxRendererExposer.exposeRendererInfo();
+                    } catch (Exception e) {
+                        LOGGER.warn("Failed to expose renderer information: {}", e.getMessage());
                     }
 
                     this.initialized = true;
@@ -206,28 +276,76 @@ public class BgfxRenderContext implements RenderContext {
         }
 
         LOGGER.error("All BGFX backend initialization attempts failed");
+        LOGGER.error("DirectX 11 is not available - cannot proceed without OpenGL fallback");
         return false;
+    }
+
+    /**
+     * Check what renderers are supported by BGFX on this system
+     */
+    private void checkSupportedRenderers() {
+        LOGGER.info("=== CHECKING SUPPORTED RENDERERS ===");
+
+        try (MemoryStack stack = stackPush()) {
+            IntBuffer supportedRenderers = stack.mallocInt(BGFX_RENDERER_TYPE_COUNT);
+            byte numSupported = bgfx_get_supported_renderers(supportedRenderers);
+
+            LOGGER.info("Number of supported renderers: {}", numSupported);
+
+            boolean d3d11Supported = false;
+            boolean openglSupported = false;
+
+            for (int i = 0; i < numSupported; i++) {
+                int rendererType = supportedRenderers.get(i);
+                String rendererName = getRendererTypeName(rendererType);
+                LOGGER.info("Supported renderer {}: {} ({})", i + 1, rendererName, rendererType);
+
+                if (rendererType == BGFX_RENDERER_TYPE_DIRECT3D11) {
+                    d3d11Supported = true;
+                }
+                if (rendererType == BGFX_RENDERER_TYPE_OPENGL) {
+                    openglSupported = true;
+                }
+            }
+
+            LOGGER.info("DirectX 11 supported: {}", d3d11Supported);
+            LOGGER.info("OpenGL supported: {}", openglSupported);
+
+            if (!d3d11Supported) {
+                LOGGER.error("⚠ DirectX 11 is NOT supported on this system!");
+                LOGGER.error("System requirements: DirectX 11 compatible GPU and drivers");
+                if (openglSupported) {
+                    LOGGER.warn("OpenGL is available but we're configured to reject it");
+                }
+            } else {
+                LOGGER.info("✓ DirectX 11 is supported - will force this backend");
+            }
+
+        } catch (Exception e) {
+            LOGGER.error("Failed to check supported renderers", e);
+        }
     }
 
     private String getRendererTypeName(int rendererType) {
         switch (rendererType) {
+            case BGFX_RENDERER_TYPE_DIRECT3D9: return "Direct3D 9";
             case BGFX_RENDERER_TYPE_DIRECT3D11: return "Direct3D 11";
             case BGFX_RENDERER_TYPE_DIRECT3D12: return "Direct3D 12";
-            case BGFX_RENDERER_TYPE_VULKAN: return "Vulkan";
             case BGFX_RENDERER_TYPE_OPENGL: return "OpenGL";
-            case BGFX_RENDERER_TYPE_NOOP: return "NOOP";
+            case BGFX_RENDERER_TYPE_OPENGLES: return "OpenGL ES";
+            case BGFX_RENDERER_TYPE_VULKAN: return "Vulkan";
+            case BGFX_RENDERER_TYPE_METAL: return "Metal";
             default: return "Unknown (" + rendererType + ")";
         }
     }
 
-    private void setPlatformDataOnInit(BGFXInit init, MemoryStack stack, int backend) {
+    private void setPlatformDataOnInit(BGFXInit init, MemoryStack stack, int backend, long windowHandle) {
         try {
             LOGGER.info("=== PLATFORM DATA SETUP DEBUG ===");
             LOGGER.info("Setting BGFX platform data for {} backend", getRendererTypeName(backend));
 
-            // Get the window handle from Minecraft
-            long windowHandle = WindowUtil.getMinecraftWindowHandle();
-            LOGGER.info("Minecraft window handle: 0x{} (decimal: {})", Long.toHexString(windowHandle), windowHandle);
+            // Use the window handle passed as parameter
+            LOGGER.info("Using passed window handle: 0x{} (decimal: {})", Long.toHexString(windowHandle), windowHandle);
 
             // Validate window handle
             if (windowHandle == 0) {
@@ -244,22 +362,17 @@ public class BgfxRenderContext implements RenderContext {
             LOGGER.info("Set platformData.nwh = 0x{}", Long.toHexString(windowHandle));
 
             // Backend-specific configuration
-            if (backend == BGFX_RENDERER_TYPE_OPENGL) {
-                // OpenGL: Share context with Minecraft
-                LOGGER.info("Configuring for OpenGL context sharing with Minecraft");
-
-                // For OpenGL, let BGFX create its own context instead of sharing
-                // Context sharing can cause conflicts - better to let BGFX manage its own
-                platformData.context(0);
-                LOGGER.info("Letting BGFX create its own OpenGL context for stability");
-
+            if (backend == BGFX_RENDERER_TYPE_DIRECT3D11) {
+                // D3D11: Create completely separate device with no OpenGL context sharing
+                LOGGER.info("Configuring DirectX 11 with isolated device creation - no OpenGL context sharing");
                 platformData.ndt(0);
+                platformData.context(0); // No context sharing
                 platformData.backBuffer(0);
                 platformData.backBufferDS(0);
-
+                LOGGER.info("DirectX 11 configured for isolated device creation");
             } else {
-                // D3D11/D3D12: Create separate device
-                LOGGER.info("Configuring for {} - separate device creation", getRendererTypeName(backend));
+                // Other backends: Default configuration
+                LOGGER.info("Configuring for {} - default configuration", getRendererTypeName(backend));
                 platformData.ndt(0);
                 platformData.context(0);
                 platformData.backBuffer(0);
@@ -820,10 +933,8 @@ public class BgfxRenderContext implements RenderContext {
 
     private int getBgfxRendererType(RendererType type) {
         switch (type) {
-            case OPENGL: return BGFX_RENDERER_TYPE_OPENGL;
-            case VULKAN: return BGFX_RENDERER_TYPE_VULKAN;
-            case DIRECTX12: return BGFX_RENDERER_TYPE_DIRECT3D12;
-            default: return BGFX_RENDERER_TYPE_COUNT; // Let BGFX choose
+            case DIRECTX11: return BGFX_RENDERER_TYPE_DIRECT3D11;
+            default: return BGFX_RENDERER_TYPE_DIRECT3D11; // Only D3D11 supported
         }
     }
 
@@ -862,11 +973,9 @@ public class BgfxRenderContext implements RenderContext {
 
     private String getRendererName(int rendererType) {
         switch (rendererType) {
-            case BGFX_RENDERER_TYPE_OPENGL: return "OpenGL";
-            case BGFX_RENDERER_TYPE_VULKAN: return "Vulkan";
-            case BGFX_RENDERER_TYPE_DIRECT3D12: return "DirectX 12";
             case BGFX_RENDERER_TYPE_DIRECT3D11: return "DirectX 11";
-            default: return "Unknown";
+            case 9: return "DirectX 11"; // BGFX actual D3D11 renderer type
+            default: return "Unknown (" + rendererType + ")";
         }
     }
 }

@@ -15,24 +15,11 @@ dependencies {
     implementation "org.lwjgl:lwjgl:$rootProject.lwjgl_version"
     implementation "org.lwjgl:lwjgl-bgfx:$rootProject.lwjgl_version"
     implementation "org.lwjgl:lwjgl-glfw:$rootProject.lwjgl_version"
-    implementation "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version"
 
-    // Platform-specific natives - will be included by the platform modules
+    // Platform-specific natives - Windows only for DirectX 11 support
     runtimeOnly "org.lwjgl:lwjgl:$rootProject.lwjgl_version:natives-windows"
-    runtimeOnly "org.lwjgl:lwjgl:$rootProject.lwjgl_version:natives-linux"
-    runtimeOnly "org.lwjgl:lwjgl:$rootProject.lwjgl_version:natives-macos"
-
     runtimeOnly "org.lwjgl:lwjgl-bgfx:$rootProject.lwjgl_version:natives-windows"
-    runtimeOnly "org.lwjgl:lwjgl-bgfx:$rootProject.lwjgl_version:natives-linux"
-    runtimeOnly "org.lwjgl:lwjgl-bgfx:$rootProject.lwjgl_version:natives-macos"
-
     runtimeOnly "org.lwjgl:lwjgl-glfw:$rootProject.lwjgl_version:natives-windows"
-    runtimeOnly "org.lwjgl:lwjgl-glfw:$rootProject.lwjgl_version:natives-linux"
-    runtimeOnly "org.lwjgl:lwjgl-glfw:$rootProject.lwjgl_version:natives-macos"
-
-    runtimeOnly "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version:natives-windows"
-    runtimeOnly "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version:natives-linux"
-    runtimeOnly "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version:natives-macos"
 
     // SLF4J for logging
     implementation "org.slf4j:slf4j-api:$rootProject.slf4j_version"

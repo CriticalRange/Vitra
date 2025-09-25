@@ -21,7 +21,7 @@ public class VitraConfig {
     private final Path configPath;
 
     // Rendering Configuration
-    private RendererType rendererType = RendererType.OPENGL;
+    private RendererType rendererType = RendererType.DIRECTX11;
     private boolean vsyncEnabled = true;
     private int maxFPS = 144;
     private boolean debugMode = false;
@@ -89,7 +89,7 @@ public class VitraConfig {
 
     private void loadFromProperties() {
         // Rendering settings
-        rendererType = RendererType.valueOf(properties.getProperty("renderer.type", "OPENGL"));
+        rendererType = RendererType.valueOf(properties.getProperty("renderer.type", "DIRECTX11"));
         vsyncEnabled = Boolean.parseBoolean(properties.getProperty("renderer.vsync", "true"));
         maxFPS = Integer.parseInt(properties.getProperty("renderer.maxFPS", "144"));
         debugMode = Boolean.parseBoolean(properties.getProperty("renderer.debug", "false"));
