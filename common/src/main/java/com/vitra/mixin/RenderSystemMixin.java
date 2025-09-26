@@ -3,13 +3,22 @@ package com.vitra.mixin;
 import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.TracyFrameCapture;
 import com.vitra.VitraMod;
 import com.vitra.render.bgfx.BgfxGpuDevice;
+import com.vitra.render.backend.BgfxWindow;
+import com.vitra.render.MatrixUtil;
 import net.minecraft.util.TimeSource;
 import net.minecraft.client.renderer.DynamicUniforms;
+import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +39,10 @@ public class RenderSystemMixin {
     // Static fields to track BGFX device state
     private static DynamicUniforms dynamicUniforms;
     private static GpuBuffer globalSettingsUniform;
+
+    // Store Minecraft's matrices for BGFX
+    private static float[] lastProjectionMatrix = null;
+    private static float[] lastModelViewMatrix = null;
 
     /**
      * Complete replacement of initRenderer to bypass GlDevice creation entirely
@@ -187,4 +200,47 @@ public class RenderSystemMixin {
         renderThread = Thread.currentThread();
         renderThread.setName("Render thread");
     }
+
+    /**
+     * Block flipFrame to prevent glfwSwapBuffers causing dual framebuffer
+     * @author Vitra
+     * @reason Prevent OpenGL glfwSwapBuffers, use BGFX DirectX 11 frame submission only
+     */
+    @Overwrite(remap = false)
+    public static void flipFrame(long window, TracyFrameCapture frameCapture) {
+        LOGGER.debug("*** BLOCKED RenderSystem.flipFrame() - preventing glfwSwapBuffers, using BGFX DirectX 11 instead ***");
+        LOGGER.debug("This eliminates the dual framebuffer issue causing dual RivaTuner attachments");
+
+        // Use BGFX frame submission instead of OpenGL swap
+        BgfxWindow.getInstance().handleUpdateDisplay();
+
+        // Handle Tracy frame capture if provided
+        if (frameCapture != null) {
+            frameCapture.endFrame();
+        }
+
+        // Reset dynamic uniforms like original flipFrame does
+        getDynamicUniforms().reset();
+
+        // Poll events like original flipFrame does
+        org.lwjgl.glfw.GLFW.glfwPollEvents();
+    }
+
+
+    /**
+     * Update BGFX view matrices using captured Minecraft matrices
+     */
+    private static void updateBgfxViewMatrices() {
+        if (lastProjectionMatrix != null && lastModelViewMatrix != null) {
+            try {
+                // Apply captured matrices to BGFX view 0
+                org.lwjgl.bgfx.BGFX.bgfx_set_view_transform(0, lastModelViewMatrix, lastProjectionMatrix);
+                LOGGER.debug("*** MATRIX FIX: Applied Minecraft matrices to BGFX view 0 - projection + modelview");
+            } catch (Exception e) {
+                LOGGER.error("Error updating BGFX view matrices", e);
+            }
+        }
+    }
+
+
 }

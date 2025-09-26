@@ -29,7 +29,7 @@ public class BgfxGpuDevice implements GpuDevice {
     private static BgfxGpuDevice instance;
 
     public BgfxGpuDevice() {
-        LOGGER.info("BgfxGpuDevice created - replacing OpenGL GpuDevice with BGFX DirectX 11");
+        LOGGER.debug("BgfxGpuDevice created - replacing OpenGL GpuDevice with BGFX DirectX 11");
     }
 
     public static BgfxGpuDevice getInstance() {
@@ -80,14 +80,16 @@ public class BgfxGpuDevice implements GpuDevice {
 
     @Override
     public GpuBuffer createBuffer(Supplier<String> name, int usage, int size) {
-        LOGGER.debug("createBuffer() called with supplier: size {}, usage {}", size, usage);
-        return new BgfxGpuBuffer(size, mapUsageToBgfxBufferType(usage));
+        BgfxGpuBuffer.BufferType bufferType = mapUsageToBgfxBufferType(usage);
+        LOGGER.debug("*** createBuffer() called with supplier: size={}, usage={}, bufferType={}", size, usage, bufferType);
+        return new BgfxGpuBuffer(size, bufferType);
     }
 
     @Override
     public GpuBuffer createBuffer(Supplier<String> name, int usage, ByteBuffer data) {
-        LOGGER.debug("createBuffer() called with supplier and ByteBuffer: size {}, usage {}", data.remaining(), usage);
-        return new BgfxGpuBuffer(data.remaining(), mapUsageToBgfxBufferType(usage));
+        BgfxGpuBuffer.BufferType bufferType = mapUsageToBgfxBufferType(usage);
+        LOGGER.debug("*** createBuffer() called with supplier and ByteBuffer: size={}, usage={}, bufferType={}", data.remaining(), usage, bufferType);
+        return new BgfxGpuBuffer(data.remaining(), bufferType);
     }
 
     private BgfxGpuBuffer.BufferType mapUsageToBgfxBufferType(int usage) {
@@ -176,7 +178,7 @@ public class BgfxGpuDevice implements GpuDevice {
 
     @Override
     public void close() {
-        LOGGER.info("BgfxGpuDevice.close() called - shutting down BGFX DirectX 11");
+        LOGGER.debug("BgfxGpuDevice.close() called - shutting down BGFX DirectX 11");
         try {
             if (VitraMod.getRenderer() != null) {
                 VitraMod.getRenderer().shutdown();

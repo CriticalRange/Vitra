@@ -70,18 +70,18 @@ public class BgfxGpuBuffer extends GpuBuffer {
      * Calculate the actual buffer size that BGFX will allocate
      */
     private static int calculateActualBufferSize(int requestedSize, BufferType type) {
-        LOGGER.info("calculateActualBufferSize: requestedSize={}, type={}", requestedSize, type);
+        LOGGER.debug("calculateActualBufferSize: requestedSize={}, type={}", requestedSize, type);
 
         // For uniform buffers, always preserve exact size
         if (type == BufferType.UNIFORM_BUFFER) {
-            LOGGER.info("Preserving exact size for UNIFORM_BUFFER: {}", requestedSize);
+            LOGGER.debug("Preserving exact size for UNIFORM_BUFFER: {}", requestedSize);
             return requestedSize;
         }
 
         // For uniform buffer sizes (like projection matrices), preserve the exact requested size
         // These are typically 64, 128, 256 bytes and should not be modified
         if (requestedSize == 64 || requestedSize == 128 || requestedSize == 256 || requestedSize == 512) {
-            LOGGER.info("Preserving exact size for uniform buffer: {}", requestedSize);
+            LOGGER.debug("Preserving exact size for uniform buffer: {}", requestedSize);
             return requestedSize;
         }
 
@@ -152,7 +152,7 @@ public class BgfxGpuBuffer extends GpuBuffer {
         this.type = type;
         this.actualSize = calculateActualBufferSize(size, type);  // Store the intended size
 
-        LOGGER.info("CONSTRUCTOR DEBUG: requestedSize={}, calculatedSize={}, superSize={}, type={}", size, actualSize, size(), type);
+        LOGGER.debug("CONSTRUCTOR DEBUG: requestedSize={}, calculatedSize={}, superSize={}, type={}", size, actualSize, size(), type);
 
         // Create BGFX buffer based on type
         // Note: BGFX expects counts (vertices/indices/draw calls), not byte sizes
@@ -160,7 +160,7 @@ public class BgfxGpuBuffer extends GpuBuffer {
             case UNIFORM_BUFFER -> {
                 // Uniform buffers: Create as dynamic vertex buffer but with minimal vertex layout
                 // Use a simple layout with just raw bytes to avoid stride calculations
-                LOGGER.info("Creating UNIFORM_BUFFER with actualSize: {}", actualSize);
+                LOGGER.debug("Creating UNIFORM_BUFFER with actualSize: {}", actualSize);
                 BGFXVertexLayout layout = BGFXVertexLayout.create();
 
                 // Create a minimal layout with 1-byte elements to match the exact buffer size
@@ -171,10 +171,10 @@ public class BgfxGpuBuffer extends GpuBuffer {
                 int stride = layout.stride(); // Should be 1 byte
                 int vertexCount = actualSize; // Each "vertex" is 1 byte, so count = actualSize
 
-                LOGGER.info("UNIFORM_BUFFER: stride={}, vertexCount={}, actualSize={}", stride, vertexCount, actualSize);
+                LOGGER.debug("UNIFORM_BUFFER: stride={}, vertexCount={}, actualSize={}", stride, vertexCount, actualSize);
 
                 this.bgfxHandle = BGFX.bgfx_create_dynamic_vertex_buffer(vertexCount, layout, BGFX.BGFX_BUFFER_NONE);
-                LOGGER.info("Created BGFX uniform buffer (as dynamic vertex buffer) - handle: {}, vertexCount: {}, stride: {}, actualSize: {}",
+                LOGGER.debug("Created BGFX uniform buffer (as dynamic vertex buffer) - handle: {}, vertexCount: {}, stride: {}, actualSize: {}",
                            bgfxHandle, vertexCount, stride, actualSize);
             }
             case DYNAMIC_VERTEX_BUFFER -> {
@@ -192,9 +192,23 @@ public class BgfxGpuBuffer extends GpuBuffer {
                 int indexSize = 2; // 2 bytes per 16-bit index
                 int indexCount = Math.max(1, (size() + indexSize - 1) / indexSize); // Round up
 
+                LOGGER.debug("*** CREATING DYNAMIC INDEX BUFFER: requestedSize={}, size()={}, actualSize={}, indexSize={}, indexCount={}",
+                           size, size(), actualSize, indexSize, indexCount);
+
+                // Check BGFX state before creating buffer
+                int rendererType = BGFX.bgfx_get_renderer_type();
+                LOGGER.debug("*** BGFX renderer type at buffer creation: {} (3=DirectX11, 9=OpenGL)", rendererType);
+
+                // Create empty dynamic index buffer - will be updated later via CommandEncoder
                 this.bgfxHandle = BGFX.bgfx_create_dynamic_index_buffer(indexCount, BGFX.BGFX_BUFFER_NONE);
-                LOGGER.debug("Created BGFX dynamic index buffer - handle: {}, indexCount: {}, indexSize: {}, requestedSize: {}, actualSize: {}",
+
+                LOGGER.debug("*** DYNAMIC INDEX BUFFER CREATED: handle={}, indexCount={}, indexSize={}, requestedSize={}, actualSize={}",
                            bgfxHandle, indexCount, indexSize, size, size());
+
+                if (bgfxHandle == BGFX.BGFX_INVALID_HANDLE) {
+                    LOGGER.error("*** FAILED TO CREATE DYNAMIC INDEX BUFFER: indexCount={}, rendererType={}, returned INVALID_HANDLE", indexCount, rendererType);
+                    LOGGER.error("*** This indicates BGFX buffer creation failed - check if BGFX is properly initialized");
+                }
             }
             case VERTEX_BUFFER -> {
                 // Static vertex buffer - use dynamic for now

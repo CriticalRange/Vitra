@@ -68,6 +68,9 @@ compile_shader "bgfx-shaders/core/fs_sky.sc" "f" "bgfx-shaders/core/position_fog
 compile_shader "bgfx-shaders/core/vs_terrain.sc" "v" "bgfx-shaders/core/terrain_varying.def.sc"
 compile_shader "bgfx-shaders/core/fs_terrain.sc" "f" "bgfx-shaders/core/terrain_varying.def.sc"
 
+compile_shader "bgfx-shaders/core/vs_rendertype_text.sc" "v" "bgfx-shaders/core/rendertype_text_varying.def.sc"
+compile_shader "bgfx-shaders/core/fs_rendertype_text.sc" "f" "bgfx-shaders/core/rendertype_text_varying.def.sc"
+
 # Simple shaders with basic varying
 compile_shader "bgfx-shaders/core/vs_blit_screen.sc" "v" "bgfx-shaders/core/varying.def.sc"
 compile_shader "bgfx-shaders/core/fs_blit_screen.sc" "f" "bgfx-shaders/core/varying.def.sc"

@@ -1,10 +1,13 @@
 package com.vitra.mixin;
 
 import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.TracyFrameCapture;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.vitra.render.backend.BgfxWindow;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,14 +34,9 @@ public class WindowMixin {
         Window window = (Window)(Object)this;
         long windowHandle = window.getWindow();
 
-        // Initialize our custom context that properly exposes Direct3D 11
-        boolean contextSuccess = com.vitra.render.context.VitraContextManager.initializeCustomContext(windowHandle);
-
-        if (contextSuccess) {
-            LOGGER.info("✓ Custom Vitra context initialized");
-        } else {
-            LOGGER.error("✗ Failed to initialize custom Vitra context");
-        }
+        // Skip VitraContextManager initialization - BgfxRenderContext handles BGFX initialization
+        // VitraContextManager.initializeCustomContext() interferes with DirectX 11 backend selection
+        LOGGER.info("✓ Skipping VitraContextManager - BgfxRenderContext will handle BGFX DirectX 11 initialization");
 
         // Also register with BGFX wrapper
         BgfxWindow.getInstance().wrapWindow(window);
@@ -46,15 +44,29 @@ public class WindowMixin {
 
     @Inject(method = "updateDisplay", at = @At("HEAD"), cancellable = true)
     private void redirectUpdateDisplay(CallbackInfo ci) {
-        LOGGER.debug("Intercepting updateDisplay - using custom Vitra context");
+        LOGGER.debug("*** WINDOW MIXIN INTERCEPT: Blocking original updateDisplay - using BGFX DirectX 11 instead ***");
 
-        // Cancel the original OpenGL swap and use our custom context instead
+        // Cancel the original OpenGL swap and use our BGFX DirectX 11 instead
         ci.cancel();
 
-        // Handle frame rendering through our custom context
-        com.vitra.render.context.VitraContextManager.handleFrameRender();
-
-        // Also call BGFX window handler
+        // Only use the working BGFX window handler (no duplicate frame submission)
         BgfxWindow.getInstance().handleUpdateDisplay();
+    }
+
+    @Redirect(method = "updateDisplay", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;flipFrame(JLcom/mojang/blaze3d/TracyFrameCapture;)V"))
+    private void redirectFlipFrame(long window, TracyFrameCapture frameCapture) {
+        LOGGER.debug("*** BLOCKED RenderSystem.flipFrame() inside updateDisplay - preventing glfwSwapBuffers ***");
+        LOGGER.debug("This eliminates the dual framebuffer issue causing dual RivaTuner attachments");
+
+        // Use BGFX frame submission instead of OpenGL swap
+        BgfxWindow.getInstance().handleUpdateDisplay();
+
+        // Handle Tracy frame capture if provided
+        if (frameCapture != null) {
+            frameCapture.endFrame();
+        }
+
+        // Poll events like original flipFrame does
+        org.lwjgl.glfw.GLFW.glfwPollEvents();
     }
 }

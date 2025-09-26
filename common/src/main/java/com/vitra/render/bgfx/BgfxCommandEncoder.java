@@ -63,16 +63,29 @@ public class BgfxCommandEncoder implements CommandEncoder {
 
     public void updateBuffer(GpuBuffer buffer, int offset, ByteBuffer data) {
         if (buffer instanceof BgfxGpuBuffer bgfxBuffer) {
-            LOGGER.debug("Updating BGFX buffer handle: {}, offset: {}, size: {} bytes",
-                        bgfxBuffer.getBgfxHandle(), offset, data.remaining());
+            LOGGER.debug("*** UPDATING BGFX BUFFER: handle={}, type={}, offset={}, size={} bytes",
+                        bgfxBuffer.getBgfxHandle(), bgfxBuffer.getType(), offset, data.remaining());
 
             // Copy data to BGFX memory format
             BGFXMemory bgfxMemory = BGFX.bgfx_copy(data);
 
-            // Update the dynamic vertex buffer
-            BGFX.bgfx_update_dynamic_vertex_buffer(bgfxBuffer.getBgfxHandle(), offset, bgfxMemory);
+            // Update the buffer based on its type
+            switch (bgfxBuffer.getType()) {
+                case DYNAMIC_INDEX_BUFFER, INDEX_BUFFER -> {
+                    LOGGER.debug("*** UPDATING DYNAMIC INDEX BUFFER with {} bytes", data.remaining());
+                    BGFX.bgfx_update_dynamic_index_buffer(bgfxBuffer.getBgfxHandle(), offset, bgfxMemory);
+                }
+                case DYNAMIC_VERTEX_BUFFER, VERTEX_BUFFER, UNIFORM_BUFFER -> {
+                    LOGGER.debug("*** UPDATING DYNAMIC VERTEX BUFFER with {} bytes", data.remaining());
+                    BGFX.bgfx_update_dynamic_vertex_buffer(bgfxBuffer.getBgfxHandle(), offset, bgfxMemory);
+                }
+                default -> {
+                    LOGGER.error("*** UNSUPPORTED BUFFER TYPE for update: {}", bgfxBuffer.getType());
+                    throw new IllegalArgumentException("Unsupported buffer type for update: " + bgfxBuffer.getType());
+                }
+            }
 
-            LOGGER.debug("Successfully updated BGFX buffer");
+            LOGGER.debug("*** Successfully updated BGFX {} buffer", bgfxBuffer.getType());
         } else {
             LOGGER.error("Expected BgfxGpuBuffer, got: {}", buffer.getClass());
             throw new IllegalArgumentException("Expected BgfxGpuBuffer, got: " + buffer.getClass());
@@ -91,12 +104,11 @@ public class BgfxCommandEncoder implements CommandEncoder {
     }
 
     public void presentTexture(GpuTextureView textureView) {
-        LOGGER.debug("Presenting texture view via BGFX");
-        // In BGFX, presentation is handled by bgfx_frame()
+        LOGGER.debug("Presenting texture view via BGFX - no frame submission here (handled by BgfxWindow)");
+        // In BGFX, presentation is handled by bgfx_frame() - but we delegate that to BgfxWindow
+        // to avoid duplicate frame submissions that cause yellow screen
         // The texture should already be rendered to the backbuffer
-        // This method is likely called when we want to present the final frame
-        BGFX.bgfx_frame(false);
-        LOGGER.debug("BGFX frame presented");
+        LOGGER.debug("Texture presentation prepared - frame will be submitted by BgfxWindow");
     }
 
     public void copyTextureToTexture(GpuTexture source, GpuTexture dest, int srcX, int srcY, int dstX, int dstY, int width, int height, int mipLevel) {
@@ -331,17 +343,26 @@ public class BgfxCommandEncoder implements CommandEncoder {
     }
 
     public void writeToBuffer(GpuBufferSlice bufferSlice, ByteBuffer data) {
-        LOGGER.debug("Writing data to buffer slice: {} bytes", data.remaining());
+        LOGGER.debug("*** WRITE TO BUFFER: offset={}, size={} bytes", bufferSlice.offset(), data.remaining());
 
         if (bufferSlice.buffer() instanceof BgfxGpuBuffer bgfxBuffer) {
+            LOGGER.debug("*** WRITING TO BGFX BUFFER: handle={}, type={}, offset={}, size={} bytes",
+                       bgfxBuffer.getBgfxHandle(), bgfxBuffer.getType(), bufferSlice.offset(), data.remaining());
+
             // Copy data to BGFX memory format
             BGFXMemory bgfxMemory = BGFX.bgfx_copy(data);
 
             if (bgfxBuffer.getType() == BgfxGpuBuffer.BufferType.DYNAMIC_VERTEX_BUFFER) {
+                LOGGER.debug("*** UPDATING DYNAMIC VERTEX BUFFER via writeToBuffer with {} bytes", data.remaining());
                 BGFX.bgfx_update_dynamic_vertex_buffer(bgfxBuffer.getBgfxHandle(), (int)bufferSlice.offset(), bgfxMemory);
             } else if (bgfxBuffer.getType() == BgfxGpuBuffer.BufferType.DYNAMIC_INDEX_BUFFER) {
+                LOGGER.debug("*** UPDATING DYNAMIC INDEX BUFFER via writeToBuffer with {} bytes", data.remaining());
                 BGFX.bgfx_update_dynamic_index_buffer(bgfxBuffer.getBgfxHandle(), (int)bufferSlice.offset(), bgfxMemory);
             }
+
+            LOGGER.debug("*** Successfully wrote {} bytes to BGFX {} buffer", data.remaining(), bgfxBuffer.getType());
+        } else {
+            LOGGER.error("Expected BgfxGpuBuffer, got: {}", bufferSlice.buffer().getClass());
         }
     }
 
@@ -478,8 +499,7 @@ public class BgfxCommandEncoder implements CommandEncoder {
     }
 
     public void endFrame() {
-        LOGGER.debug("Ending BGFX frame");
-        // Submit the frame to BGFX
-        BGFX.bgfx_frame(false);
+        LOGGER.debug("Ending BGFX frame - no submission here (handled by BgfxWindow)");
+        // Frame submission delegated to BgfxWindow to avoid duplicates that cause yellow screen
     }
 }

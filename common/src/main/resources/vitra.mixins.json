@@ -10,7 +10,9 @@
     "VirtualScreenMixin",
     "GLFWWindowMixin",
     "RenderSystemMixin",
-    "GlCommandEncoderMixin"
+    "GlCommandEncoderMixin",
+    "BufferBuilderMixin",
+    "OpenGLMixin"
   ],
   "mixins": [
   ],

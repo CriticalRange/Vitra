@@ -103,7 +103,13 @@ public class VitraRenderer {
      * Check if the renderer is fully initialized
      */
     public boolean isFullyInitialized() {
-        return initialized && currentContext != null;
+        boolean fullyInitialized = initialized && currentContext != null && currentContext.isValid();
+        LOGGER.debug("VitraRenderer.isFullyInitialized(): initialized={}, currentContext={}, contextValid={}, result={}",
+            initialized,
+            currentContext != null ? currentContext.getClass().getSimpleName() : "null",
+            currentContext != null ? currentContext.isValid() : false,
+            fullyInitialized);
+        return fullyInitialized;
     }
 
     /**

@@ -165,6 +165,10 @@ public class BgfxRenderContext implements RenderContext {
                 init.type(backend);
                 init.resolution().width(currentWidth).height(currentHeight).reset(BGFX_RESET_VSYNC);
 
+                // CRITICAL DEBUG: Enable BGFX debug mode to see shader compilation errors
+                LOGGER.info("*** ENABLING BGFX DEBUG MODE to diagnose rendering issues ***");
+                init.debug(true);
+
                 // For DirectX 11, ensure we have proper debug and validation
                 if (backend == BGFX_RENDERER_TYPE_DIRECT3D11) {
                     LOGGER.info("Forcing DirectX 11 - no fallback allowed");
@@ -216,6 +220,14 @@ public class BgfxRenderContext implements RenderContext {
                     LOGGER.info("Step 6: Calling bgfx_init() now...");
                     success = bgfx_init(init);
                     LOGGER.info("Step 7: bgfx_init() returned: {}", success);
+
+                    // CRITICAL: Enable BGFX debug output AFTER successful initialization
+                    if (success) {
+                        LOGGER.info("Step 8: Enabling BGFX debug flags for detailed logging...");
+                        int debugFlags = BGFX_DEBUG_TEXT | BGFX_DEBUG_STATS | BGFX_DEBUG_PROFILER;
+                        BGFX.bgfx_set_debug(debugFlags);
+                        LOGGER.info("Step 9: BGFX debug flags enabled: TEXT + STATS + PROFILER");
+                    }
 
                 } catch (Exception | Error e) {
                     LOGGER.error("=== NATIVE CRASH DETECTED ===");
@@ -689,18 +701,26 @@ public class BgfxRenderContext implements RenderContext {
 
         // Set the view rectangle for the main view
         bgfx_set_view_rect(0, 0, 0, currentWidth, currentHeight);
+        LOGGER.debug("*** BGFX VIEW SETUP: Set view rect to {}x{}", currentWidth, currentHeight);
 
-        // This dummy draw call ensures the view is submitted even if no other draw calls are made
+        // Set transparent clear color to let Minecraft content show through
+        int transparentColor = 0x00000000; // Fully transparent (RGBA)
+        bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, transparentColor, 1.0f, 0);
+        LOGGER.info("*** CLEAR TRANSPARENT: Set transparent clear color to allow Minecraft content to show through");
+
+        // Force view 0 to be processed and presented - this should show our clear color
         bgfx_touch(0);
+        LOGGER.debug("*** BGFX VIEW SETUP: Called bgfx_touch(0) to force view processing and presentation");
     }
 
     @Override
     public void endFrame() {
         if (!initialized) return;
 
-        // Advance frame
-        bgfx_frame(false);
+        // Frame submission delegated to BgfxWindow to avoid duplicates that cause yellow screen
+        // bgfx_frame(false); // REMOVED - now handled by BgfxWindow only
         frameNumber++;
+        LOGGER.debug("BgfxRenderContext.endFrame() - frame submission delegated to BgfxWindow (frame: {})", frameNumber);
     }
 
     @Override
@@ -901,12 +921,11 @@ public class BgfxRenderContext implements RenderContext {
     public void clear(float colorR, float colorG, float colorB, float colorA, float depth) {
         if (!initialized) return;
 
-        int clearColor = ((int)(colorA * 255) << 24) |
-                        ((int)(colorR * 255) << 16) |
-                        ((int)(colorG * 255) << 8) |
-                        ((int)(colorB * 255));
-
-        bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clearColor, depth, 0);
+        // Set clear color to fully transparent to let content show through
+        // This prevents solid colored overlays that hide Minecraft content
+        LOGGER.info("*** CLEAR TRANSPARENT: Minecraft requested clear ({},{},{},{}) - using transparent", colorR, colorG, colorB, colorA);
+        int transparentColor = 0x00000000; // Fully transparent
+        bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, transparentColor, depth, 0);
     }
 
     @Override
