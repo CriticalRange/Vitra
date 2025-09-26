@@ -74,6 +74,31 @@ public class BgfxRenderContext implements RenderContext {
      */
     public boolean initializeWithWindowHandle(long windowHandle) {
         LOGGER.info("Initializing BGFX D3D11 with window handle: 0x{}", Long.toHexString(windowHandle));
+
+        // Skip GLFW window size detection due to threading issues
+        // BGFX will handle window sizing internally using the window handle
+        LOGGER.info("Using current BGFX context size: {}x{} - BGFX will handle window sizing internally",
+                   currentWidth, currentHeight);
+
+        // Reset initialization state for retry with proper window handle
+        initializationAttempted = false;
+        initialized = false;
+        // Use the provided window handle
+        return initializeBgfxWithHandle(windowHandle);
+    }
+
+    /**
+     * Initialize BGFX with a specific window handle and dimensions
+     */
+    public boolean initializeWithWindowHandle(long windowHandle, int width, int height) {
+        LOGGER.info("Initializing BGFX D3D11 with window handle: 0x{} and size {}x{}",
+                   Long.toHexString(windowHandle), width, height);
+
+        // Update context size with provided dimensions
+        this.currentWidth = width;
+        this.currentHeight = height;
+        LOGGER.info("Updated BGFX context size to provided dimensions: {}x{}", width, height);
+
         // Reset initialization state for retry with proper window handle
         initializationAttempted = false;
         initialized = false;
@@ -128,14 +153,7 @@ public class BgfxRenderContext implements RenderContext {
         LOGGER.info("If DirectX 11 fails, we STOP - no OpenGL fallback allowed");
 
         // CRITICAL: Ensure no OpenGL context exists that BGFX might detect
-        LOGGER.info("=== CLEARING ANY EXISTING OPENGL CONTEXT ===");
-        try {
-            // Make sure no OpenGL context is current on any thread
-            org.lwjgl.glfw.GLFW.glfwMakeContextCurrent(0L);
-            LOGGER.info("Cleared any existing OpenGL context from GLFW");
-        } catch (Exception e) {
-            LOGGER.info("No existing OpenGL context to clear: {}", e.getMessage());
-        }
+        // Note: GLFW context clearing must be done on main thread, not here
 
         for (int backend : backendPriority) {
             try (MemoryStack stack = stackPush()) {
@@ -594,22 +612,10 @@ public class BgfxRenderContext implements RenderContext {
     }
 
     private boolean isOpenGLContextAvailable() {
-        try {
-            long currentContext = GLFW.glfwGetCurrentContext();
-            if (currentContext == 0L) {
-                LOGGER.debug("No current OpenGL context");
-                return false;
-            }
-
-            // Try to make a simple OpenGL call to verify context is working
-            GL.getCapabilities();
-            LOGGER.debug("OpenGL context verified as working");
-            return true;
-
-        } catch (Exception e) {
-            LOGGER.warn("OpenGL context check failed: {}", e.getMessage());
-            return false;
-        }
+        // OpenGL context checking requires GLFW calls from main thread
+        // This method should not be called from render thread
+        LOGGER.debug("OpenGL context availability check disabled - requires main thread");
+        return false;
     }
 
     private boolean isValidWindowHandle(long windowHandle) {
@@ -617,30 +623,17 @@ public class BgfxRenderContext implements RenderContext {
             return false;
         }
 
-        try {
-            // Basic validation - check if window still exists
-            return GLFW.glfwGetWindowAttrib(windowHandle, GLFW.GLFW_FOCUSED) >= 0;
-        } catch (Exception e) {
-            LOGGER.debug("Window handle validation failed: {}", e.getMessage());
-            return false;
-        }
+        // Window handle validation using GLFW requires main thread
+        // Assume handle is valid if non-zero
+        LOGGER.debug("Window handle validation simplified - assuming valid for non-zero handle");
+        return true;
     }
 
     private void setupOpenGLContext(BGFXPlatformData platformData) {
         try {
-            long currentContext = GLFW.glfwGetCurrentContext();
-            if (currentContext != 0L) {
-                LOGGER.info("Current OpenGL context: 0x{}", Long.toHexString(currentContext));
-
-                // Only set context if it's different from window handle
-                // to avoid potential conflicts
-                if (currentContext != WindowUtil.getMinecraftWindowHandle()) {
-                    platformData.context(currentContext);
-                    LOGGER.debug("OpenGL context configured for BGFX");
-                } else {
-                    LOGGER.debug("OpenGL context same as window handle, skipping explicit context setup");
-                }
-            }
+            // OpenGL context setup requires GLFW calls from main thread
+            // Skip context sharing for now - BGFX will create its own context
+            LOGGER.debug("OpenGL context setup disabled - requires main thread");
 
             // Platform-specific display setup for Linux
             setupDisplayForLinux(platformData);

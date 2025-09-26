@@ -57,12 +57,41 @@ public class VirtualScreenMixin {
                     return;
                 }
 
-                // Initialize BGFX D3D11 with the actual window handle
+                // Initialize BGFX D3D11 with the actual window handle and window size
                 if (VitraMod.getRenderer() != null && windowHandle != 0) {
-                    // Set the window handle for BGFX initialization
-                    boolean success = initializeBgfxWithWindowHandle(windowHandle);
+                    // Clear any existing OpenGL context from main thread (thread-safe)
+                    try {
+                        org.lwjgl.glfw.GLFW.glfwMakeContextCurrent(0L);
+                        LOGGER.info("Cleared any existing OpenGL context from main thread");
+                    } catch (Exception e) {
+                        LOGGER.info("No existing OpenGL context to clear: {}", e.getMessage());
+                    }
+
+                    // Get window size from main thread (safe to call GLFW functions here)
+                    int windowWidth = 1920;  // Default fallback
+                    int windowHeight = 1080; // Default fallback
+
+                    try {
+                        int[] width = new int[1];
+                        int[] height = new int[1];
+                        org.lwjgl.glfw.GLFW.glfwGetWindowSize(glfwWindow, width, height);
+
+                        if (width[0] > 0 && height[0] > 0) {
+                            windowWidth = width[0];
+                            windowHeight = height[0];
+                            LOGGER.info("Detected window size from main thread: {}x{}", windowWidth, windowHeight);
+                        } else {
+                            LOGGER.warn("Invalid window size detected ({}x{}), using defaults", width[0], height[0]);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.warn("Failed to get window size from main thread: {}, using defaults", e.getMessage());
+                    }
+
+                    // Set the window handle and size for BGFX initialization
+                    boolean success = initializeBgfxWithWindowHandle(windowHandle, windowWidth, windowHeight);
                     if (success) {
-                        LOGGER.info("Successfully initialized BGFX D3D11 with window handle");
+                        LOGGER.info("Successfully initialized BGFX D3D11 with window handle and size {}x{}",
+                                  windowWidth, windowHeight);
 
                         // Register the window with our BGFX wrapper
                         BgfxWindow.getInstance().wrapWindow(window);
@@ -77,11 +106,11 @@ public class VirtualScreenMixin {
         }
     }
 
-    private boolean initializeBgfxWithWindowHandle(long windowHandle) {
+    private boolean initializeBgfxWithWindowHandle(long windowHandle, int width, int height) {
         try {
             if (VitraMod.getRenderer() != null) {
-                // Force initialization with the window handle
-                return VitraMod.getRenderer().initializeWithWindowHandle(windowHandle);
+                // Force initialization with the window handle and dimensions
+                return VitraMod.getRenderer().initializeWithWindowHandle(windowHandle, width, height);
             }
         } catch (Exception e) {
             LOGGER.error("Failed to initialize BGFX with window handle", e);

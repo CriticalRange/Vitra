@@ -61,6 +61,7 @@ dependencies {
     runtimeOnly "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version:natives-linux"
     runtimeOnly "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version:natives-macos"
 
+
     include "org.lwjgl:lwjgl:$rootProject.lwjgl_version:natives-windows"
     include "org.lwjgl:lwjgl:$rootProject.lwjgl_version:natives-linux"
     include "org.lwjgl:lwjgl:$rootProject.lwjgl_version:natives-macos"
@@ -76,6 +77,7 @@ dependencies {
     include "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version:natives-windows"
     include "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version:natives-linux"
     include "org.lwjgl:lwjgl-opengl:$rootProject.lwjgl_version:natives-macos"
+
 
     common(project(path: ':common', configuration: 'namedElements')) { transitive = false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')

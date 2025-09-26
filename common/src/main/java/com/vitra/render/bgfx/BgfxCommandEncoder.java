@@ -12,6 +12,7 @@ import org.lwjgl.bgfx.BGFX;
 import org.lwjgl.bgfx.BGFXMemory;
 import org.lwjgl.bgfx.BGFXTransientVertexBuffer;
 import org.lwjgl.bgfx.BGFXTransientIndexBuffer;
+import org.lwjgl.bgfx.BGFXVertexLayout;
 import com.mojang.blaze3d.systems.RenderPass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -252,11 +253,17 @@ public class BgfxCommandEncoder implements CommandEncoder {
             try {
                 // Use BGFX transient buffers for CPU-accessible memory
                 if (bgfxBuffer.getType() == BgfxGpuBuffer.BufferType.DYNAMIC_VERTEX_BUFFER) {
+                    // Create a basic vertex layout for transient buffers
+                    BGFXVertexLayout layout = BGFXVertexLayout.create();
+                    BGFX.bgfx_vertex_layout_begin(layout, BGFX.BGFX_RENDERER_TYPE_NOOP);
+                    BGFX.bgfx_vertex_layout_add(layout, BGFX.BGFX_ATTRIB_POSITION, 3, BGFX.BGFX_ATTRIB_TYPE_FLOAT, false, false);
+                    BGFX.bgfx_vertex_layout_end(layout);
+
                     // Allocate transient vertex buffer for CPU access
                     BGFXTransientVertexBuffer transientBuffer = BGFXTransientVertexBuffer.create();
 
                     // Check if we have enough space
-                    int availableVertices = BGFX.bgfx_get_avail_transient_vertex_buffer(bufferSize, null);
+                    int availableVertices = BGFX.bgfx_get_avail_transient_vertex_buffer(bufferSize, layout);
                     if (availableVertices < bufferSize) {
                         LOGGER.warn("Not enough transient vertex buffer space: need {}, available {}", bufferSize, availableVertices);
                         // Fall back to direct ByteBuffer
@@ -264,7 +271,7 @@ public class BgfxCommandEncoder implements CommandEncoder {
                     }
 
                     // Allocate transient vertex buffer
-                    BGFX.bgfx_alloc_transient_vertex_buffer(transientBuffer, bufferSize, null);
+                    BGFX.bgfx_alloc_transient_vertex_buffer(transientBuffer, bufferSize, layout);
 
                     // Get the data buffer from transient buffer
                     ByteBuffer mappedBuffer = transientBuffer.data();

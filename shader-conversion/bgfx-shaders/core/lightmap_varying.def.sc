@@ -1,0 +1,6 @@
+vec3 a_position  : POSITION;
+vec4 a_color0    : COLOR0;
+vec2 a_texcoord2 : TEXCOORD2;
+
+vec4 v_color     : COLOR1;
+vec2 v_texcoord2 : TEXCOORD3;

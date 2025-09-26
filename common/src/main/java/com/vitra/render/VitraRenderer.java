@@ -49,6 +49,8 @@ public class VitraRenderer {
 
             // Initialize the context without BGFX initialization
             // BGFX initialization will be deferred until first frame
+            // Use default resolution for now - will be updated when window is actually created
+            LOGGER.info("Using default resolution for initial context setup - will be updated with actual screen size later");
             boolean success = currentContext.initialize(1920, 1080, 0L);
 
             if (!success) {
@@ -82,6 +84,17 @@ public class VitraRenderer {
         if (currentContext != null && currentContext instanceof com.vitra.render.backend.BgfxRenderContext) {
             com.vitra.render.backend.BgfxRenderContext bgfxContext = (com.vitra.render.backend.BgfxRenderContext) currentContext;
             return bgfxContext.initializeWithWindowHandle(windowHandle);
+        }
+        return false;
+    }
+
+    /**
+     * Initialize BGFX with a specific window handle and dimensions
+     */
+    public boolean initializeWithWindowHandle(long windowHandle, int width, int height) {
+        if (currentContext != null && currentContext instanceof com.vitra.render.backend.BgfxRenderContext) {
+            com.vitra.render.backend.BgfxRenderContext bgfxContext = (com.vitra.render.backend.BgfxRenderContext) currentContext;
+            return bgfxContext.initializeWithWindowHandle(windowHandle, width, height);
         }
         return false;
     }
@@ -142,8 +155,13 @@ public class VitraRenderer {
                 return false;
             }
 
-            // Initialize new context
-            boolean success = currentContext.initialize(1920, 1080, 0L);
+            // Initialize new context with default resolution
+            // Monitor detection requires main thread - use fallback resolution
+            int width = 1920;  // Default fallback
+            int height = 1080; // Default fallback
+            LOGGER.info("Using fallback resolution for context switch: {}x{} (monitor detection requires main thread)", width, height);
+
+            boolean success = currentContext.initialize(width, height, 0L);
             if (!success) {
                 LOGGER.error("Failed to initialize new render context");
                 currentContext = null;

@@ -35,4 +35,12 @@ public class GLFWWindowMixin {
         LOGGER.info("Set GLFW_CLIENT_API = GLFW_NO_API - No OpenGL context will be created");
     }
 
+    /**
+     * Log window creation completion
+     */
+    @Inject(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J", shift = At.Shift.AFTER))
+    private void logWindowCreationComplete(CallbackInfo ci) {
+        LOGGER.info("GLFW window created successfully - size detection will be done by BGFX initialization");
+    }
+
 }

@@ -95,9 +95,9 @@ public class RenderSystemMixin {
      */
     @Overwrite(remap = false)
     public static GpuDevice getDevice() {
-        LOGGER.info("=== VITRA DEBUG: RenderSystem.getDevice() called - returning BGFX DirectX 11 device (NOT OpenGL) ===");
+        LOGGER.debug("=== VITRA DEBUG: RenderSystem.getDevice() called - returning BGFX DirectX 11 device (NOT OpenGL) ===");
         GpuDevice device = BgfxGpuDevice.getInstance();
-        LOGGER.info("Device class: {}", device.getClass().getName());
+        LOGGER.debug("Device class: {}", device.getClass().getName());
         return device;
     }
 
@@ -108,9 +108,9 @@ public class RenderSystemMixin {
      */
     @Overwrite(remap = false)
     public static GpuDevice tryGetDevice() {
-        LOGGER.info("=== VITRA DEBUG: RenderSystem.tryGetDevice() called - returning BGFX DirectX 11 device (NOT OpenGL) ===");
+        LOGGER.debug("=== VITRA DEBUG: RenderSystem.tryGetDevice() called - returning BGFX DirectX 11 device (NOT OpenGL) ===");
         GpuDevice device = BgfxGpuDevice.getInstance();
-        LOGGER.info("tryGetDevice class: {}", device.getClass().getName());
+        LOGGER.debug("tryGetDevice class: {}", device.getClass().getName());
         return device;
     }
 
