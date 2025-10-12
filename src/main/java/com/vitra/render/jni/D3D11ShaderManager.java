@@ -30,7 +30,7 @@ public class D3D11ShaderManager implements IShaderManager {
         }
 
         try {
-            String resourcePath = "/shaders/dx11/" + name + ((type == VitraNativeRenderer.SHADER_TYPE_VERTEX) ? ".vs" : ".ps") + ".bin";
+            String resourcePath = "/shaders/" + name + ".bin";
             InputStream is = getClass().getResourceAsStream(resourcePath);
 
             if (is == null) {

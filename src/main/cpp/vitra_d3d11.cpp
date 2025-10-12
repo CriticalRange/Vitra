@@ -1,4 +1,4 @@
-#include "vitra_native.h"
+#include "vitra_d3d11.h"
 #include <iostream>
 #include <random>
 
@@ -274,6 +274,7 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_shutdown
     g_d3d11.depthStencilView.Reset();
     g_d3d11.depthStencilBuffer.Reset();
     g_d3d11.renderTargetView.Reset();
+    g_d3d11.infoQueue.Reset(); // Release debug info queue
     g_d3d11.context.Reset();
     g_d3d11.swapChain.Reset();
     g_d3d11.device.Reset();
@@ -340,13 +341,23 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createVert
 
     if (!g_d3d11.initialized) return 0;
 
+    // Null check for data array
+    if (data == nullptr) {
+        std::cerr << "createVertexBuffer: data array is null" << std::endl;
+        return 0;
+    }
+
     jbyte* bytes = env->GetByteArrayElements(data, nullptr);
-    if (!bytes) return 0;
+    if (!bytes) {
+        std::cerr << "createVertexBuffer: failed to get array elements" << std::endl;
+        return 0;
+    }
 
     D3D11_BUFFER_DESC desc = {};
-    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.Usage = D3D11_USAGE_DYNAMIC; // Changed from DEFAULT to DYNAMIC for CPU access
     desc.ByteWidth = size;
     desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // Added CPU write access for mapping
 
     D3D11_SUBRESOURCE_DATA initData = {};
     initData.pSysMem = bytes;
@@ -372,13 +383,23 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createInde
 
     if (!g_d3d11.initialized) return 0;
 
+    // Null check for data array
+    if (data == nullptr) {
+        std::cerr << "createIndexBuffer: data array is null" << std::endl;
+        return 0;
+    }
+
     jbyte* bytes = env->GetByteArrayElements(data, nullptr);
-    if (!bytes) return 0;
+    if (!bytes) {
+        std::cerr << "createIndexBuffer: failed to get array elements" << std::endl;
+        return 0;
+    }
 
     D3D11_BUFFER_DESC desc = {};
-    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.Usage = D3D11_USAGE_DYNAMIC; // Changed from DEFAULT to DYNAMIC for CPU access
     desc.ByteWidth = size;
     desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // Added CPU write access for mapping
 
     D3D11_SUBRESOURCE_DATA initData = {};
     initData.pSysMem = bytes;
@@ -631,8 +652,17 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createText
 
     if (!g_d3d11.initialized) return 0;
 
+    // Null check for data array
+    if (data == nullptr) {
+        std::cerr << "createTexture: data array is null" << std::endl;
+        return 0;
+    }
+
     jbyte* bytes = env->GetByteArrayElements(data, nullptr);
-    if (!bytes) return 0;
+    if (!bytes) {
+        std::cerr << "createTexture: failed to get array elements" << std::endl;
+        return 0;
+    }
 
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = width;
@@ -763,4 +793,262 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setScissorR
     g_d3d11.scissorEnabled = true;
 
     g_d3d11.context->RSSetScissorRects(1, &g_d3d11.scissorRect);
+}
+
+// ==================== DEBUG LAYER IMPLEMENTATION ====================
+
+JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeGetDebugMessages
+    (JNIEnv* env, jclass clazz) {
+
+    if (!g_d3d11.initialized || !g_d3d11.debugEnabled || !g_d3d11.device) {
+        return env->NewStringUTF("");
+    }
+
+    // Query for ID3D11InfoQueue interface if not already cached
+    if (!g_d3d11.infoQueue) {
+        HRESULT hr = g_d3d11.device->QueryInterface(__uuidof(ID3D11InfoQueue), &g_d3d11.infoQueue);
+        if (FAILED(hr)) {
+            std::cerr << "Failed to query ID3D11InfoQueue - debug layer may not be enabled" << std::endl;
+            return env->NewStringUTF("");
+        }
+    }
+
+    // Get number of messages (DirectX 11 uses no category parameter)
+    UINT64 numMessages = g_d3d11.infoQueue->GetNumStoredMessages();
+    if (numMessages == 0) {
+        return env->NewStringUTF("");
+    }
+
+    // Collect all messages into a single string
+    std::string allMessages;
+    for (UINT64 i = 0; i < numMessages; i++) {
+        // Get message length
+        SIZE_T messageLength = 0;
+        g_d3d11.infoQueue->GetMessage(i, nullptr, &messageLength);
+
+        if (messageLength == 0) continue;
+
+        // Allocate and retrieve message
+        D3D11_MESSAGE* message = reinterpret_cast<D3D11_MESSAGE*>(malloc(messageLength));
+        if (!message) continue;
+
+        HRESULT hr = g_d3d11.infoQueue->GetMessage(i, message, &messageLength);
+        if (SUCCEEDED(hr) && message->pDescription) {
+            // Add severity prefix
+            const char* severityStr = "";
+            switch (message->Severity) {
+                case D3D11_MESSAGE_SEVERITY_CORRUPTION:
+                    severityStr = "[CORRUPTION] ";
+                    break;
+                case D3D11_MESSAGE_SEVERITY_ERROR:
+                    severityStr = "[ERROR] ";
+                    break;
+                case D3D11_MESSAGE_SEVERITY_WARNING:
+                    severityStr = "[WARNING] ";
+                    break;
+                case D3D11_MESSAGE_SEVERITY_INFO:
+                    severityStr = "[INFO] ";
+                    break;
+                case D3D11_MESSAGE_SEVERITY_MESSAGE:
+                    severityStr = "[MESSAGE] ";
+                    break;
+            }
+
+            allMessages += severityStr;
+            allMessages += message->pDescription;
+            allMessages += "\n";
+        }
+
+        free(message);
+    }
+
+    // Clear stored messages after retrieval
+    g_d3d11.infoQueue->ClearStoredMessages();
+
+    return env->NewStringUTF(allMessages.c_str());
+}
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeClearDebugMessages
+    (JNIEnv* env, jclass clazz) {
+
+    if (!g_d3d11.infoQueue) return;
+
+    g_d3d11.infoQueue->ClearStoredMessages();
+}
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeSetDebugSeverity
+    (JNIEnv* env, jclass clazz, jint severity) {
+
+    if (!g_d3d11.infoQueue) return;
+
+    // Set message severity filter
+    D3D11_INFO_QUEUE_FILTER filter = {};
+    D3D11_MESSAGE_SEVERITY severities[] = {
+        D3D11_MESSAGE_SEVERITY_INFO,
+        D3D11_MESSAGE_SEVERITY_WARNING,
+        D3D11_MESSAGE_SEVERITY_ERROR,
+        D3D11_MESSAGE_SEVERITY_CORRUPTION
+    };
+
+    // Filter out messages below the specified severity
+    if (severity > 0) {
+        filter.DenyList.NumSeverities = severity;
+        filter.DenyList.pSeverityList = severities;
+    }
+
+    g_d3d11.infoQueue->PushStorageFilter(&filter);
+}
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeBreakOnError
+    (JNIEnv* env, jclass clazz, jboolean enabled) {
+
+    if (!g_d3d11.infoQueue) return;
+
+    // Break on error severity messages
+    g_d3d11.infoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, enabled ? TRUE : FALSE);
+    g_d3d11.infoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, enabled ? TRUE : FALSE);
+}
+
+JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeGetDeviceInfo
+    (JNIEnv* env, jclass clazz) {
+
+    if (!g_d3d11.initialized || !g_d3d11.device) {
+        return env->NewStringUTF("DirectX 11 - Not Initialized");
+    }
+
+    // Get adapter information via DXGI
+    ComPtr<IDXGIDevice> dxgiDevice;
+    HRESULT hr = g_d3d11.device->QueryInterface(__uuidof(IDXGIDevice), &dxgiDevice);
+    if (FAILED(hr)) {
+        return env->NewStringUTF("DirectX 11 - Unknown Adapter");
+    }
+
+    ComPtr<IDXGIAdapter> adapter;
+    hr = dxgiDevice->GetAdapter(&adapter);
+    if (FAILED(hr)) {
+        return env->NewStringUTF("DirectX 11 - Unknown Adapter");
+    }
+
+    DXGI_ADAPTER_DESC adapterDesc;
+    hr = adapter->GetDesc(&adapterDesc);
+    if (FAILED(hr)) {
+        return env->NewStringUTF("DirectX 11 - Unknown Adapter");
+    }
+
+    // Convert wide string description to UTF-8
+    char description[256] = {};
+    wcstombs(description, adapterDesc.Description, sizeof(description) - 1);
+
+    // Format device information
+    char deviceInfo[512];
+    snprintf(deviceInfo, sizeof(deviceInfo),
+        "DirectX 11.0 - %s (VID: 0x%04X, PID: 0x%04X, VRAM: %llu MB)",
+        description,
+        adapterDesc.VendorId,
+        adapterDesc.DeviceId,
+        adapterDesc.DedicatedVideoMemory / (1024 * 1024));
+
+    return env->NewStringUTF(deviceInfo);
+}
+
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeValidateShader
+    (JNIEnv* env, jclass clazz, jbyteArray bytecode, jint size) {
+
+    if (!g_d3d11.initialized || !bytecode) return JNI_FALSE;
+
+    jbyte* bytes = env->GetByteArrayElements(bytecode, nullptr);
+    if (!bytes) return JNI_FALSE;
+
+    // Try to create a temporary vertex shader to validate bytecode
+    ComPtr<ID3D11VertexShader> tempShader;
+    HRESULT hr = g_d3d11.device->CreateVertexShader(bytes, size, nullptr, &tempShader);
+
+    env->ReleaseByteArrayElements(bytecode, bytes, JNI_ABORT);
+
+    return SUCCEEDED(hr) ? JNI_TRUE : JNI_FALSE;
+}
+
+// ==================== BUFFER MAPPING IMPLEMENTATION ====================
+
+JNIEXPORT jobject JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_mapBuffer
+    (JNIEnv* env, jclass clazz, jlong bufferHandle, jint size, jint accessFlags) {
+
+    if (!g_d3d11.initialized) return nullptr;
+
+    uint64_t handle = static_cast<uint64_t>(bufferHandle);
+
+    // Try to find the buffer in vertex or index buffer maps
+    ComPtr<ID3D11Buffer> buffer;
+    auto vbIt = g_vertexBuffers.find(handle);
+    if (vbIt != g_vertexBuffers.end()) {
+        buffer = vbIt->second;
+    } else {
+        auto ibIt = g_indexBuffers.find(handle);
+        if (ibIt != g_indexBuffers.end()) {
+            buffer = ibIt->second;
+        } else {
+            std::cerr << "Buffer handle not found: " << handle << std::endl;
+            return nullptr;
+        }
+    }
+
+    // Determine D3D11_MAP type based on access flags
+    // accessFlags: 1=read, 2=write, 3=read+write
+    D3D11_MAP mapType;
+    if (accessFlags == 1) {
+        mapType = D3D11_MAP_READ;
+    } else if (accessFlags == 2) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+    } else if (accessFlags == 3) {
+        mapType = D3D11_MAP_READ_WRITE;
+    } else {
+        std::cerr << "Invalid access flags: " << accessFlags << std::endl;
+        return nullptr;
+    }
+
+    // Map the buffer
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    HRESULT hr = g_d3d11.context->Map(buffer.Get(), 0, mapType, 0, &mappedResource);
+
+    if (FAILED(hr)) {
+        std::cerr << "Failed to map buffer: " << std::hex << hr << std::endl;
+        return nullptr;
+    }
+
+    // Create a direct ByteBuffer pointing to the mapped memory
+    jobject byteBuffer = env->NewDirectByteBuffer(mappedResource.pData, size);
+
+    if (!byteBuffer) {
+        std::cerr << "Failed to create direct ByteBuffer" << std::endl;
+        g_d3d11.context->Unmap(buffer.Get(), 0);
+        return nullptr;
+    }
+
+    return byteBuffer;
+}
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_unmapBuffer
+    (JNIEnv* env, jclass clazz, jlong bufferHandle) {
+
+    if (!g_d3d11.initialized) return;
+
+    uint64_t handle = static_cast<uint64_t>(bufferHandle);
+
+    // Try to find the buffer in vertex or index buffer maps
+    ComPtr<ID3D11Buffer> buffer;
+    auto vbIt = g_vertexBuffers.find(handle);
+    if (vbIt != g_vertexBuffers.end()) {
+        buffer = vbIt->second;
+    } else {
+        auto ibIt = g_indexBuffers.find(handle);
+        if (ibIt != g_indexBuffers.end()) {
+            buffer = ibIt->second;
+        } else {
+            std::cerr << "Buffer handle not found for unmap: " << handle << std::endl;
+            return;
+        }
+    }
+
+    // Unmap the buffer
+    g_d3d11.context->Unmap(buffer.Get(), 0);
 }

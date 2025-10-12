@@ -116,7 +116,7 @@ task compileNativeDX11(type: Exec) {
 		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
 		"cl /LD /EHsc /I\"src/main/include\" " +
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
-		"\"src/main/cpp/dx11/*.cpp\" " +
+		"\"src/main/cpp/vitra_d3d11.cpp\" " +
 		"/Fe:\"$buildDir/native/vitra-native.dll\" " +
 		"/link d3d11.lib dxgi.lib d3dcompiler.lib user32.lib"
 
@@ -161,9 +161,9 @@ task compileNativeDX12(type: Exec) {
 		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
 		"cl /LD /EHsc /std:c++20 /I\"src/main/include\" " +
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
-		"\"src/main/cpp/dx12/*.cpp\" " +
+		"\"src/main/cpp/vitra_d3d12.cpp\" " +
 		"/Fe:\"$buildDir/native/vitra-d3d12.dll\" " +
-		"/link d3d12.lib dxgi.lib d3dcompiler.lib d3dx12.lib user32.lib"
+		"/link d3d12.lib dxgi.lib d3dcompiler.lib user32.lib"
 
 	workingDir projectDir
 
@@ -185,7 +185,33 @@ task copyNative(type: Copy) {
 	from "$buildDir/native"
 	into "$buildDir/resources/main/native/windows"
 	include "*.dll"
+
+	doFirst {
+		// Ensure the target directory exists
+		file("$buildDir/resources/main/native/windows").mkdirs()
+	}
 }
+
+// Also copy to src/main/resources for development (IDE usage)
+task copyNativeToSrc(type: Copy) {
+	dependsOn compileNative
+	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
+
+	from "$buildDir/native"
+	into "src/main/resources/native/windows"
+	include "*.dll"
+
+	doFirst {
+		// Ensure the target directory exists
+		file("src/main/resources/native/windows").mkdirs()
+	}
+}
+
+// Make processResources depend on both copyNative and copyNativeToSrc
+processResources.dependsOn copyNative, copyNativeToSrc
+
+// Make classes task depend on copyNativeToSrc for IDE development
+classes.dependsOn copyNativeToSrc
 
 // Make sure jar includes the native library
 jar {

@@ -1,7 +1,9 @@
 package com.vitra.mixin;
 
 import com.mojang.blaze3d.shaders.ShaderType;
+import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.vitra.render.dx11.DirectX11GpuDevice;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.TimeSource;
 import com.vitra.VitraMod;
@@ -14,6 +16,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
+import java.lang.reflect.Field;
 import java.util.function.BiFunction;
 
 /**
@@ -60,18 +63,67 @@ public class RenderSystemMixin {
      * @reason Complete replacement of OpenGL device initialization with DirectX 11 JNI
      *
      * Original: Creates GlDevice for OpenGL rendering
-     * Replacement: Do nothing - DirectX 11 JNI handles device initialization
+     * Replacement: Create DirectX11GpuDevice and set it in RenderSystem
      */
     @Overwrite(remap = false)
     public static void initRenderer(long windowHandle, int debugVerbosity, boolean sync,
                                      BiFunction<ResourceLocation, ShaderType, String> shaderSourceGetter,
                                      boolean renderDebugLabels) {
-        LOGGER.info("RenderSystem.initRenderer intercepted - using DirectX 11 JNI instead of OpenGL");
+        LOGGER.info("RenderSystem.initRenderer intercepted - creating DirectX 11 GpuDevice");
         LOGGER.info("Window handle: 0x{}, debugVerbosity: {}, sync: {}, renderDebugLabels: {}",
             Long.toHexString(windowHandle), debugVerbosity, sync, renderDebugLabels);
 
-        // NO-OP: Do not create OpenGL device
-        // DirectX 11 JNI was already initialized in WindowMixin with the window handle
+        try {
+            // Create our DirectX 11 GpuDevice implementation
+            DirectX11GpuDevice device = new DirectX11GpuDevice(windowHandle, debugVerbosity, sync);
+
+            // Set the device in RenderSystem using reflection
+            // We need to access the private static DEVICE field
+            Field deviceField = RenderSystem.class.getDeclaredField("DEVICE");
+            deviceField.setAccessible(true);
+            deviceField.set(null, device);
+
+            LOGGER.info("✓ DirectX 11 GpuDevice created and set in RenderSystem");
+
+            // Also set the apiDescription field
+            try {
+                Field apiDescField = RenderSystem.class.getDeclaredField("apiDescription");
+                apiDescField.setAccessible(true);
+                apiDescField.set(null, device.getImplementationInformation());
+            } catch (Exception e) {
+                LOGGER.warn("Could not set apiDescription field", e);
+            }
+
+            // Initialize dynamicUniforms field (lowercase, not DYNAMIC_UNIFORMS)
+            // This is required by Minecraft 1.21.8's getDynamicUniforms() method
+            try {
+                Field dynamicUniformsField = RenderSystem.class.getDeclaredField("dynamicUniforms");
+                dynamicUniformsField.setAccessible(true);
+
+                Class<?> dynamicUniformsClass = dynamicUniformsField.getType();
+                LOGGER.info("Found dynamicUniforms field of type: {}", dynamicUniformsClass.getName());
+
+                // Create a new DynamicUniforms instance using reflection
+                // DynamicUniforms has a no-arg constructor: public DynamicUniforms()
+                Object dynamicUniforms = dynamicUniformsClass.getDeclaredConstructor().newInstance();
+                dynamicUniformsField.set(null, dynamicUniforms);
+                LOGGER.info("✓ dynamicUniforms initialized with new {} instance", dynamicUniformsClass.getSimpleName());
+            } catch (NoSuchFieldException e) {
+                LOGGER.debug("No dynamicUniforms field found (may not be needed in this version)");
+            } catch (Exception e) {
+                LOGGER.warn("Could not initialize dynamicUniforms field", e);
+            }
+
+        } catch (NoSuchFieldException e) {
+            LOGGER.error("CRITICAL: Could not find DEVICE field in RenderSystem - field name may have changed!", e);
+            throw new RuntimeException("Failed to set DirectX 11 GpuDevice in RenderSystem", e);
+        } catch (IllegalAccessException e) {
+            LOGGER.error("CRITICAL: Could not access DEVICE field in RenderSystem", e);
+            throw new RuntimeException("Failed to set DirectX 11 GpuDevice in RenderSystem", e);
+        } catch (Exception e) {
+            LOGGER.error("CRITICAL: Unexpected error creating DirectX 11 GpuDevice", e);
+            throw new RuntimeException("Failed to create DirectX 11 GpuDevice", e);
+        }
     }
 
     /**

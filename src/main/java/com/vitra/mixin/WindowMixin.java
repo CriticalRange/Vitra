@@ -70,12 +70,7 @@ public class WindowMixin {
                         LOGGER.info("║ Thread:      {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
                         LOGGER.info("╚════════════════════════════════════════════════════════════╝");
 
-                        // CRITICAL: Synchronize OpenGL state with DirectX 11
-                        try {
-                            GlStateManagerMixin.synchronizeDirectXState();
-                        } catch (Exception e) {
-                            LOGGER.error("Failed to synchronize DirectX 11 state", e);
-                        }
+                        // Note: DirectX 11 state is synchronized internally by the renderer
                     } else {
                         LOGGER.error("╔════════════════════════════════════════════════════════════╗");
                         LOGGER.error("║  DIRECTX 11 JNI INITIALIZATION FAILED                     ║");

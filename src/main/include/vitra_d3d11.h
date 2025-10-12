@@ -1,5 +1,5 @@
-#ifndef VITRA_NATIVE_H
-#define VITRA_NATIVE_H
+#ifndef VITRA_D3D11_H
+#define VITRA_D3D11_H
 
 #include <jni.h>
 #include <cstdint>
@@ -59,6 +59,9 @@ struct D3D11Resources {
     int width;
     int height;
     bool debugEnabled;
+
+    // Debug layer support
+    ComPtr<ID3D11InfoQueue> infoQueue;
 
     bool initialized;
 };
@@ -147,8 +150,32 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setViewport
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setScissorRect
     (JNIEnv* env, jclass clazz, jint x, jint y, jint width, jint height);
 
+JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeGetDebugMessages
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeClearDebugMessages
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeSetDebugSeverity
+    (JNIEnv* env, jclass clazz, jint severity);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeBreakOnError
+    (JNIEnv* env, jclass clazz, jboolean enabled);
+
+JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeGetDeviceInfo
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeValidateShader
+    (JNIEnv* env, jclass clazz, jbyteArray bytecode, jint size);
+
+JNIEXPORT jobject JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_mapBuffer
+    (JNIEnv* env, jclass clazz, jlong bufferHandle, jint size, jint accessFlags);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_unmapBuffer
+    (JNIEnv* env, jclass clazz, jlong bufferHandle);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif // VITRA_NATIVE_H
+#endif // VITRA_D3D11_H

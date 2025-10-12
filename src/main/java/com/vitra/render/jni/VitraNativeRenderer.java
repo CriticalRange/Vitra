@@ -484,4 +484,21 @@ public class VitraNativeRenderer {
     public static final int DEBUG_SEVERITY_WARNING = 1;
     public static final int DEBUG_SEVERITY_ERROR = 2;
     public static final int DEBUG_SEVERITY_CORRUPTION = 3;
+
+    // ==================== BUFFER MAPPING METHODS ====================
+
+    /**
+     * Map a buffer for CPU access
+     * @param bufferHandle - Buffer handle
+     * @param size - Buffer size in bytes
+     * @param accessFlags - Access flags: 1=read, 2=write, 3=read+write
+     * @return Direct ByteBuffer pointing to mapped memory, or null on failure
+     */
+    public static native java.nio.ByteBuffer mapBuffer(long bufferHandle, int size, int accessFlags);
+
+    /**
+     * Unmap a previously mapped buffer
+     * @param bufferHandle - Buffer handle
+     */
+    public static native void unmapBuffer(long bufferHandle);
 }

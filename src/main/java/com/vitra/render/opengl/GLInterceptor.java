@@ -38,16 +38,6 @@ public class GLInterceptor {
     private static long interceptedCalls = 0;
     private static long translatedCalls = 0;
 
-    static {
-        try {
-            // Initialize native OpenGL interceptor
-            System.loadLibrary("vitra-gl-interceptor");
-            LOGGER.info("OpenGL interceptor library loaded");
-        } catch (UnsatisfiedLinkError e) {
-            LOGGER.info("OpenGL interceptor library not available - using software interception");
-        }
-    }
-
     /**
      * Initialize the OpenGL interceptor system
      */
@@ -56,13 +46,10 @@ public class GLInterceptor {
             return;
         }
 
-        LOGGER.info("Initializing OpenGL interceptor system");
+        LOGGER.info("Initializing OpenGL interceptor system (Mixin-based)");
 
         try {
-            // Initialize native interception if available
-            nativeInitialize();
-
-            // Set up LWJGL callbacks
+            // Set up mixin-based interception tracking
             setupLWJGLInterception();
 
             active.set(true);
@@ -392,17 +379,10 @@ public class GLInterceptor {
             }
             resources.clear();
 
-            // Native cleanup
-            nativeShutdown();
-
             initialized.set(false);
             LOGGER.info("OpenGL interceptor shutdown complete");
         }
     }
-
-    // Native methods for advanced interception
-    private static native void nativeInitialize();
-    private static native void nativeShutdown();
 
     /**
      * Resource tracking class
