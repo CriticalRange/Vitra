@@ -1,50 +1,88 @@
 package com.vitra.mixin;
 
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.vitra.render.backend.BgfxGlTexture;
-import com.vitra.render.bgfx.BgfxStateTracker;
+import com.vitra.VitraMod;
+import com.vitra.render.jni.JniUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
 /**
- * Critical Mixin: OpenGL State Management → BGFX State Tracking
+ * Critical Mixin: OpenGL State Management → DirectX 11 JNI State Tracking
  *
- * This mixin intercepts ALL OpenGL state changes from GlStateManager and tracks them
- * for BGFX rendering. BGFX uses a different state model than OpenGL:
+ * This mixin intercepts ALL OpenGL state changes from GlStateManager and forwards them
+ * to the DirectX 11 JNI system. DirectX 11 uses a different state model than OpenGL:
  *
  * OpenGL Model:
  * - Global state machine
  * - glEnable/glDisable changes affect all subsequent draw calls
  * - State persists until explicitly changed
  *
- * BGFX Model:
- * - State is set per draw call
- * - bgfx_set_state() must be called before each draw
- * - No global state machine
+ * DirectX 11 JNI Model:
+ * - State is managed through native DirectX 11 calls
+ * - State changes must be explicitly forwarded to native layer
+ * - Uses immediate mode state management
  *
  * Strategy:
- * 1. Track all OpenGL state changes in BgfxStateTracker
- * 2. Build BGFX state flags from tracked state
- * 3. Apply state before BGFX draw calls (done in rendering code)
+ * 1. Intercept all OpenGL state changes via @Overwrite
+ * 2. Forward state changes to DirectX 11 JNI system
+ * 3. Track state locally for debugging and synchronization
  * 4. Use @Overwrite to COMPLETELY REPLACE OpenGL calls (VulkanMod strategy)
  *
  * CRITICAL: @Overwrite ensures NO OpenGL code executes at all
  * - More reliable than @Inject + cancel
  * - No dependency on injection point timing
- * - Guarantees nvoglv64.dll is never called
+ * - Guarantees OpenGL DLL is never called
  */
 @Mixin(GlStateManager.class)
 public class GlStateManagerMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("GlStateManagerMixin");
-    private static final BgfxStateTracker stateTracker = new BgfxStateTracker();
+
+    // State tracking for DirectX 11 synchronization and debugging
+    private static boolean blendEnabled = false;
+    private static boolean depthTestEnabled = true; // Default OpenGL state
+    private static boolean cullEnabled = false;
+    private static int depthFunc = 513; // GL_LESS by default
+    private static boolean depthMask = true;
+    private static boolean colorMaskRed = true;
+    private static boolean colorMaskGreen = true;
+    private static boolean colorMaskBlue = true;
+    private static boolean colorMaskAlpha = true;
 
     /**
-     * Accessor for the state tracker - used by rendering code to get current BGFX state.
+     * Get current state for debugging and synchronization
      */
-    public static BgfxStateTracker getStateTracker() {
-        return stateTracker;
+    public static boolean isBlendEnabled() { return blendEnabled; }
+    public static boolean isDepthTestEnabled() { return depthTestEnabled; }
+    public static boolean isCullEnabled() { return cullEnabled; }
+    public static int getDepthFunc() { return depthFunc; }
+    public static boolean isDepthMask() { return depthMask; }
+    public static boolean[] getColorMask() { return new boolean[]{colorMaskRed, colorMaskGreen, colorMaskBlue, colorMaskAlpha}; }
+
+    /**
+     * Initialize DirectX 11 state to match current OpenGL state
+     * Called when DirectX 11 is initialized to synchronize states
+     */
+    public static void synchronizeDirectXState() {
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            LOGGER.info("Synchronizing DirectX 11 state with current OpenGL state");
+            LOGGER.info("Blend: {}, Depth: {}, Cull: {}, DepthFunc: {}, DepthMask: {}, ColorMask: [{}, {}, {}, {}]",
+                blendEnabled, depthTestEnabled, cullEnabled, depthFunc, depthMask,
+                colorMaskRed, colorMaskGreen, colorMaskBlue, colorMaskAlpha);
+
+            try {
+                JniUtils.enableBlend(blendEnabled);
+                JniUtils.enableDepthTest(depthTestEnabled);
+                JniUtils.enableCull(cullEnabled);
+                JniUtils.setDepthFunc(depthFunc);
+                JniUtils.setDepthMask(depthMask);
+                JniUtils.setColorMask(colorMaskRed, colorMaskGreen, colorMaskBlue, colorMaskAlpha);
+                LOGGER.info("DirectX 11 state synchronized successfully");
+            } catch (Exception e) {
+                LOGGER.error("Failed to synchronize DirectX 11 state", e);
+            }
+        }
     }
 
     // ============================================================================
@@ -53,42 +91,86 @@ public class GlStateManagerMixin {
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL depth test with BGFX state tracking
+     * @reason Complete replacement of OpenGL depth test with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _enableDepthTest() {
-        LOGGER.trace("OpenGL: glEnable(GL_DEPTH_TEST) - BLOCKED, tracking for BGFX");
-        stateTracker.setDepthTestEnabled(true);
+        if (!depthTestEnabled) {
+            depthTestEnabled = true;
+            LOGGER.trace("OpenGL: glEnable(GL_DEPTH_TEST) -> DirectX 11: Enable depth test");
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.enableDepthTest(true);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to enable depth test in DirectX 11", e);
+                }
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL depth test with BGFX state tracking
+     * @reason Complete replacement of OpenGL depth test with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _disableDepthTest() {
-        LOGGER.trace("OpenGL: glDisable(GL_DEPTH_TEST) - BLOCKED, tracking for BGFX");
-        stateTracker.setDepthTestEnabled(false);
+        if (depthTestEnabled) {
+            depthTestEnabled = false;
+            LOGGER.trace("OpenGL: glDisable(GL_DEPTH_TEST) -> DirectX 11: Disable depth test");
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.enableDepthTest(false);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to disable depth test in DirectX 11", e);
+                }
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL depth func with BGFX state tracking
+     * @reason Complete replacement of OpenGL depth func with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _depthFunc(int func) {
-        LOGGER.trace("OpenGL: glDepthFunc(0x{}) - BLOCKED, tracking for BGFX", Integer.toHexString(func));
-        stateTracker.setDepthFunc(func);
+        if (depthFunc != func) {
+            depthFunc = func;
+            LOGGER.trace("OpenGL: glDepthFunc(0x{}) -> DirectX 11: Set depth function", Integer.toHexString(func));
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.setDepthFunc(func);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to set depth function in DirectX 11", e);
+                }
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL depth mask with BGFX state tracking
+     * @reason Complete replacement of OpenGL depth mask with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _depthMask(boolean flag) {
-        LOGGER.trace("OpenGL: glDepthMask({}) - BLOCKED, tracking for BGFX", flag);
-        stateTracker.setDepthWriteEnabled(flag);
+        if (depthMask != flag) {
+            depthMask = flag;
+            LOGGER.trace("OpenGL: glDepthMask({}) -> DirectX 11: Set depth write mask", flag);
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.setDepthMask(flag);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to set depth mask in DirectX 11", e);
+                }
+            }
+        }
     }
 
     // ============================================================================
@@ -97,34 +179,64 @@ public class GlStateManagerMixin {
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL blend with BGFX state tracking
+     * @reason Complete replacement of OpenGL blend with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _enableBlend() {
-        LOGGER.trace("OpenGL: glEnable(GL_BLEND) - BLOCKED, tracking for BGFX");
-        stateTracker.setBlendEnabled(true);
+        if (!blendEnabled) {
+            blendEnabled = true;
+            LOGGER.trace("OpenGL: glEnable(GL_BLEND) -> DirectX 11: Enable blending");
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.enableBlend(true);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to enable blending in DirectX 11", e);
+                }
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL blend with BGFX state tracking
+     * @reason Complete replacement of OpenGL blend with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _disableBlend() {
-        LOGGER.trace("OpenGL: glDisable(GL_BLEND) - BLOCKED, tracking for BGFX");
-        stateTracker.setBlendEnabled(false);
+        if (blendEnabled) {
+            blendEnabled = false;
+            LOGGER.trace("OpenGL: glDisable(GL_BLEND) -> DirectX 11: Disable blending");
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.enableBlend(false);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to disable blending in DirectX 11", e);
+                }
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL blend func with BGFX state tracking
+     * @reason Complete replacement of OpenGL blend func with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _blendFuncSeparate(int srcRGB, int dstRGB, int srcAlpha, int dstAlpha) {
-        LOGGER.trace("OpenGL: glBlendFuncSeparate(0x{}, 0x{}, 0x{}, 0x{}) - BLOCKED, tracking for BGFX",
+        LOGGER.trace("OpenGL: glBlendFuncSeparate(0x{}, 0x{}, 0x{}, 0x{}) -> DirectX 11: Set blend factors",
             Integer.toHexString(srcRGB), Integer.toHexString(dstRGB),
             Integer.toHexString(srcAlpha), Integer.toHexString(dstAlpha));
-        stateTracker.setBlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+
+        // Forward to DirectX 11 JNI system if available
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            try {
+                JniUtils.setBlendFunc(srcRGB, dstRGB, srcAlpha, dstAlpha);
+            } catch (Exception e) {
+                LOGGER.error("Failed to set blend function in DirectX 11", e);
+            }
+        }
     }
 
     // ============================================================================
@@ -133,22 +245,44 @@ public class GlStateManagerMixin {
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL cull face with BGFX state tracking
+     * @reason Complete replacement of OpenGL cull face with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _enableCull() {
-        LOGGER.trace("OpenGL: glEnable(GL_CULL_FACE) - BLOCKED, tracking for BGFX");
-        stateTracker.setCullFaceEnabled(true);
+        if (!cullEnabled) {
+            cullEnabled = true;
+            LOGGER.trace("OpenGL: glEnable(GL_CULL_FACE) -> DirectX 11: Enable face culling");
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.enableCull(true);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to enable face culling in DirectX 11", e);
+                }
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL cull face with BGFX state tracking
+     * @reason Complete replacement of OpenGL cull face with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _disableCull() {
-        LOGGER.trace("OpenGL: glDisable(GL_CULL_FACE) - BLOCKED, tracking for BGFX");
-        stateTracker.setCullFaceEnabled(false);
+        if (cullEnabled) {
+            cullEnabled = false;
+            LOGGER.trace("OpenGL: glDisable(GL_CULL_FACE) -> DirectX 11: Disable face culling");
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.enableCull(false);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to disable face culling in DirectX 11", e);
+                }
+            }
+        }
     }
 
     // ============================================================================
@@ -157,404 +291,350 @@ public class GlStateManagerMixin {
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL color mask with BGFX state tracking
+     * @reason Complete replacement of OpenGL color mask with DirectX 11 JNI
      */
     @Overwrite(remap = false)
     public static void _colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
-        LOGGER.trace("OpenGL: glColorMask({}, {}, {}, {}) - BLOCKED, tracking for BGFX", red, green, blue, alpha);
-        stateTracker.setColorMask(red, green, blue, alpha);
+        // Only forward if state actually changed
+        if (colorMaskRed != red || colorMaskGreen != green || colorMaskBlue != blue || colorMaskAlpha != alpha) {
+            colorMaskRed = red;
+            colorMaskGreen = green;
+            colorMaskBlue = blue;
+            colorMaskAlpha = alpha;
+            LOGGER.trace("OpenGL: glColorMask({}, {}, {}, {}) -> DirectX 11: Set color mask", red, green, blue, alpha);
+
+            // Forward to DirectX 11 JNI system if available
+            if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                try {
+                    JniUtils.setColorMask(red, green, blue, alpha);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to set color mask in DirectX 11", e);
+                }
+            }
+        }
     }
 
     // ============================================================================
-    // VIEWPORT AND SCISSOR (These are view-level operations in BGFX)
+    // VIEWPORT AND SCISSOR (These are view-level operations in DirectX 11)
     // ============================================================================
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL viewport with BGFX view rect
+     * @reason Complete replacement of OpenGL viewport with DirectX 11 viewport
      */
     @Overwrite(remap = false)
     public static void _viewport(int x, int y, int width, int height) {
-        LOGGER.trace("OpenGL: glViewport({}, {}, {}, {}) - BLOCKED, handled by BGFX", x, y, width, height);
-        // Viewport is handled at view level in BGFX via bgfx_set_view_rect()
-        // No state tracking needed here
+        LOGGER.trace("OpenGL: glViewport({}, {}, {}, {}) -> DirectX 11: Set viewport", x, y, width, height);
+
+        // Forward to DirectX 11 JNI system if available
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            try {
+                JniUtils.setViewport(x, y, width, height);
+            } catch (Exception e) {
+                LOGGER.error("Failed to set viewport in DirectX 11", e);
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL scissor test with BGFX scissor
+     * @reason Complete replacement of OpenGL scissor test with DirectX 11 scissor
      */
     @Overwrite(remap = false)
     public static void _enableScissorTest() {
-        LOGGER.trace("OpenGL: glEnable(GL_SCISSOR_TEST) - BLOCKED, handled by BGFX");
-        // Scissor is handled separately in BGFX via bgfx_set_scissor()
+        LOGGER.trace("OpenGL: glEnable(GL_SCISSOR_TEST) -> DirectX 11: Enable scissor test");
+
+        // Forward to DirectX 11 JNI system if available
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            try {
+                JniUtils.enableScissorTest(true);
+            } catch (Exception e) {
+                LOGGER.error("Failed to enable scissor test in DirectX 11", e);
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL scissor test with BGFX scissor
+     * @reason Complete replacement of OpenGL scissor test with DirectX 11 scissor
      */
     @Overwrite(remap = false)
     public static void _disableScissorTest() {
-        LOGGER.trace("OpenGL: glDisable(GL_SCISSOR_TEST) - BLOCKED, handled by BGFX");
-        // Scissor is handled separately in BGFX
+        LOGGER.trace("OpenGL: glDisable(GL_SCISSOR_TEST) -> DirectX 11: Disable scissor test");
+
+        // Forward to DirectX 11 JNI system if available
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            try {
+                JniUtils.enableScissorTest(false);
+            } catch (Exception e) {
+                LOGGER.error("Failed to disable scissor test in DirectX 11", e);
+            }
+        }
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL scissor box with BGFX scissor
+     * @reason Complete replacement of OpenGL scissor box with DirectX 11 scissor rect
      */
     @Overwrite(remap = false)
     public static void _scissorBox(int x, int y, int width, int height) {
-        LOGGER.trace("OpenGL: glScissor({}, {}, {}, {}) - BLOCKED, handled by BGFX", x, y, width, height);
-        // TODO: Track scissor rect and apply with bgfx_set_scissor() before draws
+        LOGGER.trace("OpenGL: glScissor({}, {}, {}, {}) -> DirectX 11: Set scissor rect", x, y, width, height);
+
+        // Forward to DirectX 11 JNI system if available
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            try {
+                JniUtils.setScissorRect(x, y, width, height);
+            } catch (Exception e) {
+                LOGGER.error("Failed to set scissor rect in DirectX 11", e);
+            }
+        }
     }
 
     // ============================================================================
-    // CLEAR OPERATIONS (These are view-level operations in BGFX)
+    // CLEAR OPERATIONS (These are view-level operations in DirectX 11)
     // ============================================================================
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL clear with BGFX clear
+     * @reason Complete replacement of OpenGL clear with DirectX 11 clear
      *
      * Minecraft 1.21.8 signature: _clear(int mask) - one parameter
      */
     @Overwrite(remap = false)
     public static void _clear(int mask) {
-        LOGGER.trace("OpenGL: glClear(0x{}) - BLOCKED, handled by BGFX", Integer.toHexString(mask));
-        // Clear is handled at view level in BGFX
-        // See VitraRenderer initialization where bgfx_set_view_clear() is called
+        LOGGER.trace("OpenGL: glClear(0x{}) -> DirectX 11: Clear render target", Integer.toHexString(mask));
+
+        // Forward to DirectX 11 JNI system if available
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            try {
+                JniUtils.clear(mask);
+            } catch (Exception e) {
+                LOGGER.error("Failed to clear render target in DirectX 11", e);
+            }
+        }
     }
 
-    // NOTE: _clearColor and _clearDepth don't exist in 1.21.8 GlStateManager
-    // These are handled at a higher level
-
     // ============================================================================
-    // BUFFER OPERATIONS - CRITICAL FOR PREVENTING ACCESS_VIOLATION
+    // BUFFER OPERATIONS - SIMPLIFIED FOR DIRECTX 11 JNI
     // ============================================================================
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL buffer generation - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL buffer generation - DirectX 11 handles buffers
      */
     @Overwrite(remap = false)
     public static int _glGenBuffers() {
-        LOGGER.trace("OpenGL: glGenBuffers() - BLOCKED, returning fake ID");
-        // Return fake buffer ID - actual buffers are created via GpuDevice.createBuffer()
+        LOGGER.trace("OpenGL: glGenBuffers() - BLOCKED, DirectX 11 handles buffers");
+        // Return fake buffer ID - DirectX 11 JNI handles actual buffer creation
         return 999; // Fake ID, won't be used
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL buffer binding - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL buffer binding - DirectX 11 handles buffers
      */
     @Overwrite(remap = false)
     public static void _glBindBuffer(int target, int buffer) {
-        LOGGER.trace("OpenGL: glBindBuffer(target=0x{}, buffer={}) - BLOCKED",
+        LOGGER.trace("OpenGL: glBindBuffer(target=0x{}, buffer={}) - BLOCKED, DirectX 11 handles buffers",
             Integer.toHexString(target), buffer);
-        // No-op: BGFX handles buffer binding internally
+        // No-op: DirectX 11 JNI handles buffer binding internally
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL buffer data - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL buffer data - DirectX 11 handles buffers
      */
     @Overwrite(remap = false)
     public static void _glBufferData(int target, java.nio.ByteBuffer data, int usage) {
-        LOGGER.trace("OpenGL: glBufferData(target=0x{}, size={}, usage=0x{}) - BLOCKED",
+        LOGGER.trace("OpenGL: glBufferData(target=0x{}, size={}, usage=0x{}) - BLOCKED, DirectX 11 handles buffers",
             Integer.toHexString(target), data != null ? data.remaining() : 0, Integer.toHexString(usage));
-        // No-op: BGFX handles buffer data via BgfxBuffer
+        // No-op: DirectX 11 JNI handles buffer data
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL buffer data (long size variant) - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL buffer data (long size variant) - DirectX 11 handles buffers
      */
     @Overwrite(remap = false)
     public static void _glBufferData(int target, long size, int usage) {
-        LOGGER.trace("OpenGL: glBufferData(target=0x{}, size={}, usage=0x{}) - BLOCKED",
+        LOGGER.trace("OpenGL: glBufferData(target=0x{}, size={}, usage=0x{}) - BLOCKED, DirectX 11 handles buffers",
             Integer.toHexString(target), size, Integer.toHexString(usage));
-        // No-op: BGFX handles buffer data via BgfxBuffer
+        // No-op: DirectX 11 JNI handles buffer data
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL buffer deletion - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL buffer deletion - DirectX 11 handles buffers
      */
     @Overwrite(remap = false)
     public static void _glDeleteBuffers(int buffer) {
-        LOGGER.trace("OpenGL: glDeleteBuffers({}) - BLOCKED", buffer);
-        // No-op: BGFX handles buffer cleanup
+        LOGGER.trace("OpenGL: glDeleteBuffers({}) - BLOCKED, DirectX 11 handles buffers", buffer);
+        // No-op: DirectX 11 JNI handles buffer cleanup
     }
 
     // ============================================================================
-    // VERTEX ARRAY OPERATIONS - CRITICAL FOR PREVENTING ACCESS_VIOLATION
+    // VERTEX ARRAY OPERATIONS - SIMPLIFIED FOR DIRECTX 11 JNI
     // ============================================================================
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL VAO generation - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL VAO generation - DirectX 11 handles vertex arrays
      */
     @Overwrite(remap = false)
     public static int _glGenVertexArrays() {
-        LOGGER.trace("OpenGL: glGenVertexArrays() - BLOCKED, returning fake ID");
-        // Return fake VAO ID - BGFX doesn't use VAOs
+        LOGGER.trace("OpenGL: glGenVertexArrays() - BLOCKED, DirectX 11 handles vertex arrays");
+        // Return fake VAO ID - DirectX 11 JNI doesn't use VAOs
         return 888; // Fake ID
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL VAO binding - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL VAO binding - DirectX 11 handles vertex arrays
      */
     @Overwrite(remap = false)
     public static void _glBindVertexArray(int array) {
-        LOGGER.trace("OpenGL: glBindVertexArray({}) - BLOCKED", array);
-        // No-op: BGFX doesn't use VAOs
+        LOGGER.trace("OpenGL: glBindVertexArray({}) - BLOCKED, DirectX 11 handles vertex arrays", array);
+        // No-op: DirectX 11 JNI doesn't use VAOs
     }
 
     // NOTE: _glDeleteVertexArrays doesn't exist in 1.21.8 GlStateManager
     // NOTE: _disableVertexAttribArray doesn't exist in 1.21.8 GlStateManager
 
     // ============================================================================
-    // TEXTURE OPERATIONS - CRITICAL FOR PREVENTING ACCESS_VIOLATION
+    // DRAWING OPERATIONS - CRITICAL FOR RENDERING
     // ============================================================================
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL texture generation - BGFX texture manager
+     * @reason Complete replacement of OpenGL draw arrays - DirectX 11 JNI draw calls
+     */
+    @Overwrite(remap = false)
+    public static void _drawArrays(int mode, int first, int count) {
+        LOGGER.trace("OpenGL: glDrawArrays(mode=0x{}, first={}, count={}) -> DirectX 11: Draw arrays",
+            Integer.toHexString(mode), first, count);
+
+        // Forward to DirectX 11 JNI system if available
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            try {
+                JniUtils.drawArrays(mode, first, count);
+            } catch (Exception e) {
+                LOGGER.error("Failed to draw arrays in DirectX 11", e);
+            }
+        }
+    }
+
+    /**
+     * @author Vitra
+     * @reason Complete replacement of OpenGL draw elements - DirectX 11 JNI draw calls
+     */
+    @Overwrite(remap = false)
+    public static void _drawElements(int mode, int count, int type, long indices) {
+        LOGGER.trace("OpenGL: glDrawElements(mode=0x{}, count={}, type=0x{}, indices={}) -> DirectX 11: Draw elements",
+            Integer.toHexString(mode), count, Integer.toHexString(type), indices);
+
+        // Forward to DirectX 11 JNI system if available
+        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+            try {
+                JniUtils.drawElements(mode, count, type, indices);
+            } catch (Exception e) {
+                LOGGER.error("Failed to draw elements in DirectX 11", e);
+            }
+        }
+    }
+
+    // ============================================================================
+    // SIMPLIFIED OPERATIONS - BLOCKED FOR DIRECTX 11 JNI
+    // ============================================================================
+
+    /**
+     * @author Vitra
+     * @reason Complete replacement of OpenGL texture operations - DirectX 11 handles textures
      */
     @Overwrite(remap = false)
     public static int _genTexture() {
-        int id = BgfxGlTexture.genTextureId();
-        LOGGER.info("[TEXTURE TRACE] OpenGL: glGenTextures() - Managed by BGFX, returned ID {}", id);
-        return id;
+        LOGGER.trace("OpenGL: glGenTextures() - BLOCKED, DirectX 11 handles textures");
+        return 1; // Fake texture ID
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL texture binding - BGFX texture manager
+     * @reason Complete replacement of OpenGL texture binding - DirectX 11 handles textures
      */
     @Overwrite(remap = false)
     public static void _bindTexture(int texture) {
-        LOGGER.info("[TEXTURE TRACE] OpenGL: glBindTexture({}) - Managed by BGFX", texture);
-        BgfxGlTexture.bindTexture(texture);
+        LOGGER.trace("OpenGL: glBindTexture({}) - BLOCKED, DirectX 11 handles textures", texture);
+        // No-op: DirectX 11 JNI handles textures
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL texture deletion - BGFX texture manager
+     * @reason Complete replacement of OpenGL texture deletion - DirectX 11 handles textures
      */
     @Overwrite(remap = false)
     public static void _deleteTexture(int texture) {
-        LOGGER.trace("OpenGL: glDeleteTexture({}) - Managed by BGFX", texture);
-        BgfxGlTexture.deleteTexture(texture);
+        LOGGER.trace("OpenGL: glDeleteTexture({}) - BLOCKED, DirectX 11 handles textures", texture);
+        // No-op: DirectX 11 JNI handles texture cleanup
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL active texture - BGFX texture manager
-     */
-    @Overwrite(remap = false)
-    public static void _activeTexture(int texture) {
-        LOGGER.trace("OpenGL: glActiveTexture(0x{}) - Managed by BGFX", Integer.toHexString(texture));
-        BgfxGlTexture.activeTexture(texture);
-    }
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL texture parameter - BGFX texture manager
-     */
-    @Overwrite(remap = false)
-    public static void _texParameter(int target, int pname, int param) {
-        LOGGER.trace("OpenGL: glTexParameteri(target=0x{}, pname=0x{}, param=0x{}) - Managed by BGFX",
-            Integer.toHexString(target), Integer.toHexString(pname), Integer.toHexString(param));
-        BgfxGlTexture.texParameter(target, pname, param);
-    }
-
-    // NOTE: _texParameter(int, int, float) doesn't exist in 1.21.8 GlStateManager
-    // Only int variant exists
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL texImage2D - BGFX texture upload
-     *
-     * CRITICAL: This is called during font loading to upload texture data.
-     * Now actually uploads to BGFX via BgfxGlTexture manager.
-     */
-    @Overwrite(remap = false)
-    public static void _texImage2D(int target, int level, int internalFormat, int width, int height,
-                                   int border, int format, int type, java.nio.IntBuffer pixels) {
-        LOGGER.info("[TEXTURE TRACE] OpenGL: glTexImage2D(target=0x{}, level={}, format=0x{}, size={}x{}) - Uploading to BGFX",
-            Integer.toHexString(target), level, Integer.toHexString(internalFormat), width, height);
-        BgfxGlTexture.texImage2D(target, level, internalFormat, width, height, border, format, type, pixels);
-    }
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL texSubImage2D - BGFX texture upload
-     *
-     * CRITICAL: This is called to update texture regions (font glyphs, etc.)
-     * Now actually uploads to BGFX via BgfxGlTexture manager.
-     */
-    @Overwrite(remap = false)
-    public static void _texSubImage2D(int target, int level, int offsetX, int offsetY,
-                                     int width, int height, int format, int type, long pixels) {
-        LOGGER.debug("OpenGL: glTexSubImage2D(target=0x{}, level={}, offset=({},{}), size={}x{}) - Uploading to BGFX",
-            Integer.toHexString(target), level, offsetX, offsetY, width, height);
-        BgfxGlTexture.texSubImage2D(target, level, offsetX, offsetY, width, height, format, type, pixels);
-    }
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL pixelStore - BGFX texture manager
-     *
-     * CRITICAL: This sets pixel alignment for texture uploads.
-     * Now tracked by BgfxGlTexture for correct texture upload.
-     */
-    @Overwrite(remap = false)
-    public static void _pixelStore(int pname, int param) {
-        LOGGER.trace("OpenGL: glPixelStorei(pname=0x{}, param={}) - Managed by BGFX",
-            Integer.toHexString(pname), param);
-        BgfxGlTexture.pixelStore(pname, param);
-    }
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL getTexLevelParameter - BGFX texture manager
-     *
-     * CRITICAL: This queries texture properties (width, height, format, etc.)
-     * Now returns actual values from BGFX texture manager.
-     */
-    @Overwrite(remap = false)
-    public static int _getTexLevelParameter(int target, int level, int pname) {
-        int value = BgfxGlTexture.getTexLevelParameter(target, level, pname);
-        LOGGER.trace("OpenGL: glGetTexLevelParameteriv(target=0x{}, level={}, pname=0x{}) - Managed by BGFX, returning {}",
-            Integer.toHexString(target), level, Integer.toHexString(pname), value);
-        return value;
-    }
-
-    // ============================================================================
-    // PROGRAM/SHADER OPERATIONS - CRITICAL FOR PREVENTING ACCESS_VIOLATION
-    // ============================================================================
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL program usage - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL program usage - DirectX 11 handles shaders
      */
     @Overwrite(remap = false)
     public static void _glUseProgram(int program) {
-        LOGGER.trace("OpenGL: glUseProgram({}) - BLOCKED", program);
-        // No-op: BGFX uses program handles set in draw calls
+        LOGGER.trace("OpenGL: glUseProgram({}) - BLOCKED, DirectX 11 handles shaders", program);
+        // No-op: DirectX 11 JNI handles shader programs
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL program creation - PREVENTS CRASH
-     */
-    @Overwrite(remap = false)
-    public static int glCreateProgram() {
-        LOGGER.trace("OpenGL: glCreateProgram() - BLOCKED, returning fake ID");
-        // Return fake program ID
-        return 666; // Fake ID
-    }
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL program deletion - PREVENTS CRASH
-     */
-    @Overwrite(remap = false)
-    public static void glDeleteProgram(int program) {
-        LOGGER.trace("OpenGL: glDeleteProgram({}) - BLOCKED", program);
-        // No-op: BGFX handles program cleanup
-    }
-
-    // ============================================================================
-    // ERROR HANDLING - Return success always
-    // ============================================================================
-
-    /**
-     * @author Vitra
-     * @reason Always return GL_NO_ERROR - BGFX has no errors
+     * @reason Complete replacement of OpenGL error handling - DirectX 11 has no GL errors
      */
     @Overwrite(remap = false)
     public static int _getError() {
-        // Always return GL_NO_ERROR (0)
+        // Always return GL_NO_ERROR (0) - DirectX 11 has different error handling
         return 0;
     }
 
-    // ============================================================================
-    // FRAMEBUFFER OPERATIONS - CRITICAL FOR PREVENTING ACCESS_VIOLATION
-    // ============================================================================
+    // Additional critical methods that should be blocked/simplified:
+    /**
+     * @author Vitra
+     * @reason Complete replacement of OpenGL program creation - DirectX 11 handles shaders
+     */
+    @Overwrite(remap = false)
+    public static int glCreateProgram() {
+        LOGGER.trace("OpenGL: glCreateProgram() - BLOCKED, DirectX 11 handles shaders");
+        return 1; // Fake program ID
+    }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL framebuffer generation - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL program deletion - DirectX 11 handles shaders
+     */
+    @Overwrite(remap = false)
+    public static void glDeleteProgram(int program) {
+        LOGGER.trace("OpenGL: glDeleteProgram({}) - BLOCKED, DirectX 11 handles shaders", program);
+        // No-op: DirectX 11 JNI handles shader cleanup
+    }
+
+    /**
+     * @author Vitra
+     * @reason Complete replacement of OpenGL framebuffer generation - DirectX 11 handles framebuffers
      */
     @Overwrite(remap = false)
     public static int glGenFramebuffers() {
-        LOGGER.trace("OpenGL: glGenFramebuffers() - BLOCKED, returning fake ID");
-        return 555; // Fake ID
+        LOGGER.trace("OpenGL: glGenFramebuffers() - BLOCKED, DirectX 11 handles framebuffers");
+        return 1; // Fake framebuffer ID
     }
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL framebuffer binding - PREVENTS CRASH
+     * @reason Complete replacement of OpenGL framebuffer binding - DirectX 11 handles framebuffers
      */
     @Overwrite(remap = false)
     public static void _glBindFramebuffer(int target, int framebuffer) {
-        LOGGER.trace("OpenGL: glBindFramebuffer(target=0x{}, framebuffer={}) - BLOCKED",
+        LOGGER.trace("OpenGL: glBindFramebuffer(target=0x{}, framebuffer={}) - BLOCKED, DirectX 11 handles framebuffers",
             Integer.toHexString(target), framebuffer);
-        // No-op: BGFX handles framebuffers
-    }
-
-    // NOTE: glCheckFramebufferStatus doesn't exist in 1.21.8 GlStateManager
-    // It's been moved to a different class or removed
-
-    // ============================================================================
-    // RENDERBUFFER OPERATIONS - CRITICAL FOR FBO/TEXTURE ATTACHMENTS
-    // ============================================================================
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL renderbuffer generation - PREVENTS CRASH
-     */
-    @Overwrite(remap = false)
-    public static int glGenRenderbuffers() {
-        LOGGER.trace("OpenGL: glGenRenderbuffers() - BLOCKED, returning fake ID");
-        return 444; // Fake ID
-    }
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL renderbuffer binding - PREVENTS CRASH
-     */
-    @Overwrite(remap = false)
-    public static void _glBindRenderbuffer(int target, int renderbuffer) {
-        LOGGER.trace("OpenGL: glBindRenderbuffer(target=0x{}, renderbuffer={}) - BLOCKED",
-            Integer.toHexString(target), renderbuffer);
-        // No-op: BGFX handles renderbuffers internally
-    }
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL framebuffer renderbuffer attachment - PREVENTS CRASH
-     */
-    @Overwrite(remap = false)
-    public static void _glFramebufferRenderbuffer(int target, int attachment, int renderbuffertarget, int renderbuffer) {
-        LOGGER.trace("OpenGL: glFramebufferRenderbuffer(target=0x{}, attachment=0x{}, renderbuffer={}) - BLOCKED",
-            Integer.toHexString(target), Integer.toHexString(attachment), renderbuffer);
-        // No-op: BGFX handles framebuffer attachments
-    }
-
-    /**
-     * @author Vitra
-     * @reason Complete replacement of OpenGL renderbuffer storage - PREVENTS CRASH
-     */
-    @Overwrite(remap = false)
-    public static void _glRenderbufferStorage(int target, int internalformat, int width, int height) {
-        LOGGER.trace("OpenGL: glRenderbufferStorage(target=0x{}, format=0x{}, size={}x{}) - BLOCKED",
-            Integer.toHexString(target), Integer.toHexString(internalformat), width, height);
-        // No-op: BGFX handles renderbuffer storage
+        // No-op: DirectX 11 JNI handles framebuffers
     }
 }

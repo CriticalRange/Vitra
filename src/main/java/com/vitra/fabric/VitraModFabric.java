@@ -42,13 +42,13 @@ public final class VitraModFabric implements ModInitializer {
      * Register Fabric-specific hooks and events
      */
     private void registerFabricHooks() {
-        LOGGER.info("Registering Fabric-specific rendering hooks for BGFX DirectX 11 integration");
+        LOGGER.info("Registering Fabric-specific rendering hooks for DirectX 11 JNI integration");
 
         try {
-            // Register world rendering events for BGFX integration
+            // Register world rendering events for DirectX 11 JNI integration
             registerWorldRenderingHooks();
 
-            // Register chunk loading events for BGFX mesh building
+            // Register chunk loading events for DirectX 11 JNI mesh building
             registerChunkHooks();
 
             // Register entity rendering events
@@ -66,20 +66,20 @@ public final class VitraModFabric implements ModInitializer {
     }
 
     /**
-     * Register Fabric WorldRenderEvents for BGFX integration
+     * Register Fabric WorldRenderEvents for DirectX 11 JNI integration
      */
     private void registerWorldRenderingHooks() {
-        // Hook into world rendering start to setup BGFX frame
+        // Hook into world rendering start to setup DirectX 11 JNI frame
         net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents.START.register((context) -> {
-            LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.START - Beginning BGFX frame setup");
+            LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.START - Beginning DirectX 11 JNI frame setup");
 
-            // Notify BGFX renderer that a new frame is starting
+            // Notify DirectX 11 JNI renderer that a new frame is starting
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // Log frame start for BGFX integration
-                    LOGGER.debug("BGFX frame setup completed via Fabric START hook");
+                    // Log frame start for DirectX 11 JNI integration
+                    LOGGER.debug("DirectX 11 JNI frame setup completed via Fabric START hook");
                 } catch (Exception e) {
-                    LOGGER.error("Error in BGFX frame setup during Fabric START hook", e);
+                    LOGGER.error("Error in DirectX 11 JNI frame setup during Fabric START hook", e);
                 }
             }
         });
@@ -89,16 +89,16 @@ public final class VitraModFabric implements ModInitializer {
             LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.AFTER_ENTITIES - Entities rendered");
         });
 
-        // Hook into world rendering end to finalize BGFX frame
+        // Hook into world rendering end to finalize DirectX 11 JNI frame
         net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents.END.register((context) -> {
-            LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.END - Finalizing BGFX frame submission");
+            LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.END - Finalizing DirectX 11 JNI frame submission");
 
-                        // Additional calls here would violate BGFX threading model
+                        // Additional calls here would violate DirectX 11 JNI threading model
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // BGFX frame submission is handled by WindowMixin -> BgfxRenderer
+                    // DirectX 11 JNI frame submission is handled by WindowMixin -> VitraRenderer
                     // No additional action needed - frame is already properly submitted
-                    LOGGER.debug("BGFX frame already submitted via WindowMixin->BgfxRenderer (proper threading model)");
+                    LOGGER.debug("DirectX 11 JNI frame already submitted via WindowMixin->VitraRenderer (proper threading model)");
                 } catch (Exception e) {
                     LOGGER.error("Error during Fabric END hook", e);
                 }
@@ -109,35 +109,35 @@ public final class VitraModFabric implements ModInitializer {
     }
 
     /**
-     * Register Fabric chunk events for BGFX mesh building
+     * Register Fabric chunk events for DirectX 11 JNI mesh building
      */
     private void registerChunkHooks() {
-        // Hook into client-side chunk loading for BGFX mesh preparation
+        // Hook into client-side chunk loading for DirectX 11 JNI mesh preparation
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
             LOGGER.debug("*** FABRIC HOOK: ClientChunkEvents.CHUNK_LOAD - Chunk loaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
 
-            // Chunk loading detected - BGFX will handle mesh data through existing pipeline
+            // Chunk loading detected - DirectX 11 JNI will handle mesh data through existing pipeline
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // Log chunk loading for BGFX integration tracking
-                    LOGGER.debug("BGFX chunk tracking - chunk loaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
+                    // Log chunk loading for DirectX 11 JNI integration tracking
+                    LOGGER.debug("DirectX 11 JNI chunk tracking - chunk loaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
                 } catch (Exception e) {
-                    LOGGER.error("Error tracking chunk load for BGFX at {}, {}", chunk.getPos().x, chunk.getPos().z, e);
+                    LOGGER.error("Error tracking chunk load for DirectX 11 JNI at {}, {}", chunk.getPos().x, chunk.getPos().z, e);
                 }
             }
         });
 
-        // Hook into client-side chunk unloading for BGFX cleanup
+        // Hook into client-side chunk unloading for DirectX 11 JNI cleanup
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> {
             LOGGER.debug("*** FABRIC HOOK: ClientChunkEvents.CHUNK_UNLOAD - Chunk unloaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
 
-            // Chunk unloading detected - BGFX will handle cleanup through existing pipeline
+            // Chunk unloading detected - DirectX 11 JNI will handle cleanup through existing pipeline
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // Log chunk unloading for BGFX integration tracking
-                    LOGGER.debug("BGFX chunk tracking - chunk unloaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
+                    // Log chunk unloading for DirectX 11 JNI integration tracking
+                    LOGGER.debug("DirectX 11 JNI chunk tracking - chunk unloaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
                 } catch (Exception e) {
-                    LOGGER.error("Error tracking chunk unload for BGFX at {}, {}", chunk.getPos().x, chunk.getPos().z, e);
+                    LOGGER.error("Error tracking chunk unload for DirectX 11 JNI at {}, {}", chunk.getPos().x, chunk.getPos().z, e);
                 }
             }
         });
@@ -146,7 +146,7 @@ public final class VitraModFabric implements ModInitializer {
     }
 
     /**
-     * Register entity rendering hooks for BGFX
+     * Register entity rendering hooks for DirectX 11 JNI
      */
     private void registerEntityRenderingHooks() {
         // Entity rendering is primarily handled through our existing mixins
@@ -161,21 +161,19 @@ public final class VitraModFabric implements ModInitializer {
     private void registerRenderStateHooks() {
         // Hook into render state invalidation (F3+A, resource pack changes)
         net.fabricmc.fabric.api.client.rendering.v1.InvalidateRenderStateCallback.EVENT.register(() -> {
-            LOGGER.info("*** FABRIC HOOK: InvalidateRenderStateCallback - Render state invalidated, reinitializing BGFX");
+            LOGGER.info("*** FABRIC HOOK: InvalidateRenderStateCallback - Render state invalidated, reinitializing DirectX 11 JNI");
 
-            // Reinitialize BGFX when render state is invalidated
+            // Reinitialize DirectX 11 JNI when render state is invalidated
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // Clear BGFX pipeline cache and reinitialize shaders
-                    com.vitra.render.bgfx.VitraGpuDevice device = com.vitra.render.bgfx.VitraGpuDevice.getInstance();
-                    device.clearPipelineCache();
+                    // Reload DirectX 11 JNI shaders for validation
+                    if (com.vitra.VitraMod.getCore() != null) {
+                        com.vitra.VitraMod.getCore().loadShaders();
+                    }
 
-                    // Reload BGFX shaders for DirectX 11
-                    com.vitra.render.bgfx.Util.loadProgram("basic"); // Force shader validation
-
-                    LOGGER.info("BGFX render state reinitialized after invalidation");
+                    LOGGER.info("DirectX 11 JNI render state reinitialized after invalidation");
                 } catch (Exception e) {
-                    LOGGER.error("Error reinitializing BGFX render state", e);
+                    LOGGER.error("Error reinitializing DirectX 11 JNI render state", e);
                 }
             }
         });

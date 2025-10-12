@@ -29,23 +29,23 @@ public final class VitraModFabricClient implements ClientModInitializer {
     }
 
     /**
-     * Register client tick events for BGFX frame synchronization
+     * Register client tick events for DirectX 11 JNI frame synchronization
      */
     private void registerClientTickEvents() {
-        // Register end tick event to ensure BGFX frames are properly submitted
+        // Register end tick event to ensure DirectX 11 frames are properly submitted
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             try {
-                // Ensure BGFX renderer is available and properly synchronized
+                // Ensure DirectX 11 renderer is available and properly synchronized
                 if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
-                    // BGFX frame submission is handled by WindowMixin, but we ensure
+                    // DirectX 11 frame submission is handled by WindowMixin, but we ensure
                     // client-side synchronization here
-                    LOGGER.debug("Client tick completed - BGFX synchronization verified");
+                    LOGGER.debug("Client tick completed - DirectX 11 JNI synchronization verified");
                 }
             } catch (Exception e) {
-                LOGGER.error("Error during client tick BGFX synchronization", e);
+                LOGGER.error("Error during client tick DirectX 11 JNI synchronization", e);
             }
         });
 
-        LOGGER.debug("Client tick events registered for BGFX synchronization");
+        LOGGER.debug("Client tick events registered for DirectX 11 JNI synchronization");
     }
 }

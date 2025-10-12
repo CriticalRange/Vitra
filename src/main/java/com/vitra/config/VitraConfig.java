@@ -17,7 +17,7 @@ public class VitraConfig {
     private final Path configPath;
 
     // Rendering Configuration
-    private RendererType rendererType = RendererType.DIRECTX11;
+    private RendererType rendererType = RendererType.DIRECTX11; // Default to DirectX 11 for stability
     private boolean vsyncEnabled = true;
     private int maxFPS = 144;
 
@@ -26,7 +26,7 @@ public class VitraConfig {
     // WARNING: Requires "Graphics Tools" optional feature installed on Windows 10+
     private boolean debugMode = false;
 
-    // Verbose Logging: Enables BGFX trace-level logging (very detailed, impacts performance)
+    // Verbose Logging: Enables DirectX 11 trace-level logging (very detailed, impacts performance)
     private boolean verboseLogging = false;
 
     // Performance Optimization Configuration
@@ -42,6 +42,13 @@ public class VitraConfig {
     private boolean entityBatching = true;
     private int maxEntitiesPerBatch = 32;
     private boolean entityCulling = true;
+
+    // DirectX 12 Ultimate Configuration (Ray Tracing, VRS, Mesh Shaders)
+    private boolean rayTracingEnabled = false;
+    private boolean variableRateShadingEnabled = false;
+    private boolean meshShadersEnabled = false;
+    private int rayTracingQuality = 2; // 1=Low, 2=Medium, 3=High, 4=Ultra
+    private float vrsTileSize = 8.0f; // Variable Rate Shading tile size
 
     public VitraConfig(Path configDirectory) {
         this.configPath = configDirectory.resolve(CONFIG_FILE_NAME);
@@ -101,6 +108,13 @@ public class VitraConfig {
         entityBatching = Boolean.parseBoolean(properties.getProperty("entity.batching", "true"));
         maxEntitiesPerBatch = Integer.parseInt(properties.getProperty("entity.maxPerBatch", "32"));
         entityCulling = Boolean.parseBoolean(properties.getProperty("entity.culling", "true"));
+
+        // DirectX 12 Ultimate settings
+        rayTracingEnabled = Boolean.parseBoolean(properties.getProperty("dx12ultimate.rayTracing", "false"));
+        variableRateShadingEnabled = Boolean.parseBoolean(properties.getProperty("dx12ultimate.variableRateShading", "false"));
+        meshShadersEnabled = Boolean.parseBoolean(properties.getProperty("dx12ultimate.meshShaders", "false"));
+        rayTracingQuality = Integer.parseInt(properties.getProperty("dx12ultimate.rayTracingQuality", "2"));
+        vrsTileSize = Float.parseFloat(properties.getProperty("dx12ultimate.vrsTileSize", "8.0"));
     }
 
     private void saveToProperties() {
@@ -124,6 +138,13 @@ public class VitraConfig {
         properties.setProperty("entity.batching", String.valueOf(entityBatching));
         properties.setProperty("entity.maxPerBatch", String.valueOf(maxEntitiesPerBatch));
         properties.setProperty("entity.culling", String.valueOf(entityCulling));
+
+        // DirectX 12 Ultimate settings
+        properties.setProperty("dx12ultimate.rayTracing", String.valueOf(rayTracingEnabled));
+        properties.setProperty("dx12ultimate.variableRateShading", String.valueOf(variableRateShadingEnabled));
+        properties.setProperty("dx12ultimate.meshShaders", String.valueOf(meshShadersEnabled));
+        properties.setProperty("dx12ultimate.rayTracingQuality", String.valueOf(rayTracingQuality));
+        properties.setProperty("dx12ultimate.vrsTileSize", String.valueOf(vrsTileSize));
     }
 
     public RendererType getRendererType() { return rendererType; }
@@ -164,4 +185,20 @@ public class VitraConfig {
 
     public boolean isEntityCulling() { return entityCulling; }
     public void setEntityCulling(boolean entityCulling) { this.entityCulling = entityCulling; }
+
+    // DirectX 12 Ultimate getters and setters
+    public boolean isRayTracingEnabled() { return rayTracingEnabled; }
+    public void setRayTracingEnabled(boolean rayTracingEnabled) { this.rayTracingEnabled = rayTracingEnabled; }
+
+    public boolean isVariableRateShadingEnabled() { return variableRateShadingEnabled; }
+    public void setVariableRateShadingEnabled(boolean variableRateShadingEnabled) { this.variableRateShadingEnabled = variableRateShadingEnabled; }
+
+    public boolean isMeshShadersEnabled() { return meshShadersEnabled; }
+    public void setMeshShadersEnabled(boolean meshShadersEnabled) { this.meshShadersEnabled = meshShadersEnabled; }
+
+    public int getRayTracingQuality() { return rayTracingQuality; }
+    public void setRayTracingQuality(int rayTracingQuality) { this.rayTracingQuality = Math.max(1, Math.min(4, rayTracingQuality)); }
+
+    public float getVrsTileSize() { return vrsTileSize; }
+    public void setVrsTileSize(float vrsTileSize) { this.vrsTileSize = Math.max(4.0f, Math.min(32.0f, vrsTileSize)); }
 }

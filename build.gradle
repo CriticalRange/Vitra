@@ -37,23 +37,23 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-	// LWJGL and BGFX dependencies
+	// LWJGL dependencies (removed BGFX - using JNI instead)
 	implementation "org.lwjgl:lwjgl:${lwjgl_version}"
-	implementation "org.lwjgl:lwjgl-bgfx:${lwjgl_version}"
 	implementation "org.lwjgl:lwjgl-glfw:${lwjgl_version}"
 
 	include "org.lwjgl:lwjgl:${lwjgl_version}"
-	include "org.lwjgl:lwjgl-bgfx:${lwjgl_version}"
 	include "org.lwjgl:lwjgl-glfw:${lwjgl_version}"
 
 	// Platform-specific natives (Windows only for DirectX 11)
 	runtimeOnly "org.lwjgl:lwjgl:${lwjgl_version}:natives-windows"
-	runtimeOnly "org.lwjgl:lwjgl-bgfx:${lwjgl_version}:natives-windows"
 	runtimeOnly "org.lwjgl:lwjgl-glfw:${lwjgl_version}:natives-windows"
 
 	include "org.lwjgl:lwjgl:${lwjgl_version}:natives-windows"
-	include "org.lwjgl:lwjgl-bgfx:${lwjgl_version}:natives-windows"
 	include "org.lwjgl:lwjgl-glfw:${lwjgl_version}:natives-windows"
+
+	// Optional JNA dependency for future cross-platform native access
+	// Currently using JNI for Windows DirectX 11, but JNA could be used for other platforms
+	implementation "net.java.dev.jna:jna:${jna_version}"
 
 	// SLF4J for logging
 	implementation "org.slf4j:slf4j-api:${slf4j_version}"
@@ -82,11 +82,124 @@ java {
 	targetCompatibility = JavaVersion.VERSION_21
 }
 
+// DirectX 11 native library compilation task
+task compileNativeDX11(type: Exec) {
+	// Only compile on Windows
+	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
+
+	doFirst {
+		// Create output directory
+		file("$buildDir/native").mkdirs()
+
+		// Check for Visual Studio build tools
+		def vsWhere = "${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+		if (!file(vsWhere).exists()) {
+			throw new GradleException("Visual Studio Build Tools not found. Please install Visual Studio 2019/2022 with C++ support.")
+		}
+
+		def vsPath = ["cmd", "/c", vsWhere, "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"].execute().text.trim()
+		if (vsPath.isEmpty()) {
+			throw new GradleException("Visual Studio C++ build tools not found.")
+		}
+
+		def vcvarsPath = "${vsPath}\\VC\\Auxiliary\\Build\\vcvars64.bat"
+		if (!file(vcvarsPath).exists()) {
+			throw new GradleException("vcvars64.bat not found at: ${vcvarsPath}")
+		}
+
+		println "Compiling DirectX 11 native library with Visual Studio at: ${vsPath}"
+	}
+
+	// Set up Visual Studio environment and compile DirectX 11
+	commandLine 'cmd', '/c', "call \"${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt && " +
+		"set /p VS_PATH=<vs_path.txt && " +
+		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
+		"cl /LD /EHsc /I\"src/main/include\" " +
+		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
+		"\"src/main/cpp/dx11/*.cpp\" " +
+		"/Fe:\"$buildDir/native/vitra-native.dll\" " +
+		"/link d3d11.lib dxgi.lib d3dcompiler.lib user32.lib"
+
+	workingDir projectDir
+
+	doLast {
+		println "DirectX 11 native library compiled successfully: ${file("$buildDir/native/vitra-native.dll")}"
+	}
+}
+
+// DirectX 12 Ultimate native library compilation task
+task compileNativeDX12(type: Exec) {
+	// Only compile on Windows
+	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
+
+	doFirst {
+		// Create output directory
+		file("$buildDir/native").mkdirs()
+
+		// Check for Visual Studio build tools with Windows 10 SDK
+		def vsWhere = "${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+		if (!file(vsWhere).exists()) {
+			throw new GradleException("Visual Studio Build Tools not found. Please install Visual Studio 2019/2022 with C++ support.")
+		}
+
+		def vsPath = ["cmd", "/c", vsWhere, "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"].execute().text.trim()
+		if (vsPath.isEmpty()) {
+			throw new GradleException("Visual Studio C++ build tools not found.")
+		}
+
+		def vcvarsPath = "${vsPath}\\VC\\Auxiliary\\Build\\vcvars64.bat"
+		if (!file(vcvarsPath).exists()) {
+			throw new GradleException("vcvars64.bat not found at: ${vcvarsPath}")
+		}
+
+		println "Compiling DirectX 12 Ultimate native library with Visual Studio at: ${vsPath}"
+	}
+
+	// Set up Visual Studio environment and compile DirectX 12 Ultimate
+	commandLine 'cmd', '/c', "call \"${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt && " +
+		"set /p VS_PATH=<vs_path.txt && " +
+		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
+		"cl /LD /EHsc /std:c++20 /I\"src/main/include\" " +
+		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
+		"\"src/main/cpp/dx12/*.cpp\" " +
+		"/Fe:\"$buildDir/native/vitra-d3d12.dll\" " +
+		"/link d3d12.lib dxgi.lib d3dcompiler.lib d3dx12.lib user32.lib"
+
+	workingDir projectDir
+
+	doLast {
+		println "DirectX 12 Ultimate native library compiled successfully: ${file("$buildDir/native/vitra-d3d12.dll")}"
+	}
+}
+
+// Compile all native libraries
+task compileNative {
+	dependsOn compileNativeDX11, compileNativeDX12
+}
+
+// Copy native libraries to resources
+task copyNative(type: Copy) {
+	dependsOn compileNative
+	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
+
+	from "$buildDir/native"
+	into "$buildDir/resources/main/native/windows"
+	include "*.dll"
+}
+
+// Make sure jar includes the native library
 jar {
+	dependsOn copyNative
 	inputs.property "archivesName", project.base.archivesName
 
 	from("LICENSE") {
 		rename { "${it}_${inputs.properties.archivesName}"}
+	}
+
+	// Include native library if it exists
+	from("$buildDir/resources/main") {
+		include "native/windows/*.dll"
+		into "native/windows"
 	}
 }
 

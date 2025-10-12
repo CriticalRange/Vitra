@@ -1,8 +1,9 @@
 package com.vitra;
 
 import com.vitra.core.VitraCore;
+import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
-import com.vitra.render.bgfx.DebugTools;
+import com.vitra.render.jni.JniUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +18,6 @@ public final class VitraMod {
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_NAME);
 
     private static VitraCore core;
-    private static VitraRenderer renderer;
     private static boolean initialized = false;
 
     /**
@@ -33,22 +33,16 @@ public final class VitraMod {
 
         try {
             // ═══════════════════════════════════════════════════════════════════════════
-            // STEP 1: Initialize debug tools EARLY to catch ALL errors from the start
+            // STEP 1: Initialize JNI utilities EARLY to catch ALL errors from the start
             // ═══════════════════════════════════════════════════════════════════════════
-            LOGGER.info("Initializing debug tools...");
-            DebugTools.initializeGlfwErrorCallback();
-            DebugTools.printSystemInfo();
-            LOGGER.info("Debug tools initialized");
+            LOGGER.info("Initializing JNI utilities...");
+            JniUtils.initializeErrorCallback();
+            JniUtils.printSystemInfo();
+            LOGGER.info("JNI utilities initialized");
 
-            // Initialize core optimization systems
+            // Initialize core optimization systems (includes renderer)
             core = new VitraCore();
             core.initialize();
-
-            // Initialize rendering system
-            renderer = new VitraRenderer();
-            renderer.setConfig(core.getConfig()); // Pass config to renderer for debug mode
-            renderer.setCore(core); // Pass core to renderer for shader loading
-            renderer.initialize();
 
             initialized = true;
             LOGGER.info("Vitra initialization complete");
@@ -66,17 +60,13 @@ public final class VitraMod {
 
         LOGGER.info("Shutting down Vitra...");
 
-        if (renderer != null) {
-            renderer.shutdown();
-        }
-
         if (core != null) {
             core.shutdown();
         }
 
-        // Clean up debug tools
-        LOGGER.info("Cleaning up debug tools...");
-        DebugTools.shutdown();
+        // Clean up JNI utilities
+        LOGGER.info("Cleaning up JNI utilities...");
+        JniUtils.shutdown();
 
         initialized = false;
         LOGGER.info("Vitra shutdown complete");
@@ -86,8 +76,13 @@ public final class VitraMod {
         return core;
     }
 
-    public static VitraRenderer getRenderer() {
-        return renderer;
+    public static IVitraRenderer getRenderer() {
+        return core != null ? core.getRenderer() : null;
+    }
+
+    public static VitraRenderer getDirectX11Renderer() {
+        IVitraRenderer renderer = getRenderer();
+        return renderer != null ? renderer.getDirectX11Renderer() : null;
     }
 
     public static boolean isInitialized() {
