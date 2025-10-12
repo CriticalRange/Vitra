@@ -18,6 +18,7 @@ gradle-app.setting
 bin/
 out/
 CLAUDE.md
+.claude/
 
 # Minecraft Development
 run/

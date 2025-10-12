@@ -1,0 +1,27 @@
+{
+  "required": true,
+  "package": "com.vitra.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "minVersion": "0.8",
+  "client": [
+    "BufferBuilderMixin",
+    "CommandEncoderMixin",
+    "CompositeRenderTypeMixin",
+    "FontSetMixin",
+    "GameRendererMixin",
+    "GLFWContextMixin",
+    "GlStateManagerMixin",
+    "GlStateManagerShaderMixin",
+    "LWJGLGL11Mixin",
+    "MultiBufferSourceMixin",
+    "RenderSystemMixin",
+    "RenderSystemDeviceMixin",
+    "WindowMixin",
+    "WindowUpdateDisplayMixin"
+  ],
+  "mixins": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

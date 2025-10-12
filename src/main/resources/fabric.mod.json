@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "vitra",
+  "version": "${version}",
+  "name": "Vitra",
+  "description": "High-performance optimization and multi-backend rendering mod for Minecraft",
+  "authors": [
+    "Vitra Team"
+  ],
+  "contact": {
+    "homepage": "https://github.com/your-repo/vitra",
+    "sources": "https://github.com/your-repo/vitra"
+  },
+  "license": "MIT",
+  "icon": "assets/vitra/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.vitra.fabric.VitraModFabric"
+    ],
+    "client": [
+      "com.vitra.fabric.client.VitraModFabricClient"
+    ]
+  },
+  "mixins": [
+    "vitra.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.17.2",
+    "minecraft": "~1.21.8",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
