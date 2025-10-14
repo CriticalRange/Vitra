@@ -1,5 +1,6 @@
 package com.vitra.debug;
 
+import com.vitra.render.jni.VitraNativeRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,15 +17,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Advanced debugging utilities for Vitra renderers
- * Supports DirectX 11 Debug Layer, InfoQueue, minidump generation, and RenderDoc integration
+ * Uses VitraNativeRenderer for DirectX 11 Debug Layer access via ID3D11InfoQueue
  */
 public class VitraDebugUtils {
     private static final Logger LOGGER = LoggerFactory.getLogger(VitraDebugUtils.class);
 
     // Debug state
     private static final AtomicBoolean debugInitialized = new AtomicBoolean(false);
-    private static final AtomicBoolean renderDocAvailable = new AtomicBoolean(false);
-    private static final AtomicBoolean crashHandlerInstalled = new AtomicBoolean(false);
 
     // Debug message queue for threading
     private static final ConcurrentLinkedQueue<DebugMessage> debugMessageQueue = new ConcurrentLinkedQueue<>();
@@ -36,24 +35,13 @@ public class VitraDebugUtils {
     // Debug configuration
     private static boolean debugEnabled = false;
     private static boolean verboseLogging = false;
-    private static boolean renderDocIntegration = true;
-    private static boolean minidumpGeneration = true;
-
-    // Native methods for debug functionality
-    private static native boolean nativeInitializeDebugLayer();
-    private static native void nativeShutdownDebugLayer();
-    private static native boolean nativeInstallCrashHandler(String logPath);
-    private static native void nativeUninstallCrashHandler();
-    private static native boolean nativeInitializeRenderDoc();
-    private static native void nativeTriggerDebugCapture();
-    private static native String nativeGetDebugMessages();
-    private static native void nativeClearDebugMessages();
-    private static native void nativeSetDebugMessageCallback();
 
     /**
      * Initialize debugging system with configuration
+     * Note: DirectX debug layer is initialized in VitraNativeRenderer.initializeDirectX()
+     * This method only sets up Java-side logging and message processing
      */
-    public static synchronized void initializeDebug(boolean enabled, boolean verbose, boolean renderDoc, boolean minidumps) {
+    public static synchronized void initializeDebug(boolean enabled, boolean verbose) {
         if (debugInitialized.get()) {
             LOGGER.warn("Debug system already initialized");
             return;
@@ -61,8 +49,6 @@ public class VitraDebugUtils {
 
         debugEnabled = enabled;
         verboseLogging = verbose;
-        renderDocIntegration = renderDoc;
-        minidumpGeneration = minidumps;
 
         if (!debugEnabled) {
             LOGGER.info("Debug system disabled by configuration");
@@ -81,49 +67,24 @@ public class VitraDebugUtils {
             debugLogFile = new FileWriter(logFile.toFile(), true);
 
             logInfo("=== Vitra Debug System Initializing ===");
-            logInfo("Configuration: enabled=" + enabled + ", verbose=" + verbose +
-                    ", renderDoc=" + renderDoc + ", minidumps=" + minidumps);
+            logInfo("Configuration: enabled=" + enabled + ", verbose=" + verbose);
+            logInfo("Note: DirectX debug layer initialized via VitraNativeRenderer.initializeDirectX()");
 
-            // Initialize native debug layer
-            if (nativeInitializeDebugLayer()) {
-                logInfo("✓ Native debug layer initialized successfully");
-            } else {
-                logError("✗ Failed to initialize native debug layer");
-            }
-
-            // Install crash handler for minidump generation
-            if (minidumpGeneration) {
-                String crashLogPath = debugDir.resolve("crashes").toString();
-                Files.createDirectories(Paths.get(crashLogPath));
-
-                if (nativeInstallCrashHandler(crashLogPath)) {
-                    crashHandlerInstalled.set(true);
-                    logInfo("✓ Crash handler installed for minidump generation: " + crashLogPath);
-                } else {
-                    logError("✗ Failed to install crash handler");
+            // Query device information
+            try {
+                String deviceInfo = VitraNativeRenderer.nativeGetDeviceInfo();
+                if (deviceInfo != null && !deviceInfo.isEmpty()) {
+                    logInfo("Device Info: " + deviceInfo);
                 }
+            } catch (UnsatisfiedLinkError e) {
+                logWarn("Could not retrieve device info - native methods not available");
             }
-
-            // Initialize RenderDoc integration
-            if (renderDocIntegration) {
-                if (nativeInitializeRenderDoc()) {
-                    renderDocAvailable.set(true);
-                    logInfo("✓ RenderDoc integration initialized");
-                } else {
-                    logWarn("⚠ RenderDoc not available - ensure RenderDoc is installed");
-                }
-            }
-
-            // Set up debug message callback for piping to Java
-            nativeSetDebugMessageCallback();
 
             logInfo("=== Debug System Initialization Complete ===");
             debugInitialized.set(true);
 
         } catch (IOException e) {
             LOGGER.error("Failed to initialize debug system", e);
-        } catch (UnsatisfiedLinkError e) {
-            LOGGER.warn("Debug native library not available - debug features limited: " + e.getMessage());
         } catch (Exception e) {
             LOGGER.error("Unexpected error during debug initialization", e);
         }
@@ -143,14 +104,6 @@ public class VitraDebugUtils {
             // Process remaining debug messages
             processDebugMessages();
 
-            // Cleanup native components
-            nativeShutdownDebugLayer();
-
-            if (crashHandlerInstalled.get()) {
-                nativeUninstallCrashHandler();
-                logInfo("✓ Crash handler uninstalled");
-            }
-
             // Close debug log file
             if (debugLogFile != null) {
                 debugLogFile.write("=== Debug System Shutdown at " + new Date() + " ===\n");
@@ -169,26 +122,8 @@ public class VitraDebugUtils {
     }
 
     /**
-     * Trigger a frame capture for debugging
-     */
-    public static boolean triggerDebugCapture() {
-        if (!debugEnabled || !renderDocAvailable.get()) {
-            return false;
-        }
-
-        try {
-            logInfo("🎥 Triggering debug frame capture...");
-            nativeTriggerDebugCapture();
-            logInfo("✓ Debug capture triggered");
-            return true;
-        } catch (Exception e) {
-            logError("✗ Failed to trigger debug capture: " + e.getMessage());
-            return false;
-        }
-    }
-
-    /**
      * Process queued debug messages from native code
+     * Uses VitraNativeRenderer to access DirectX 11 ID3D11InfoQueue
      */
     public static void processDebugMessages() {
         if (!debugEnabled) {
@@ -196,8 +131,8 @@ public class VitraDebugUtils {
         }
 
         try {
-            // Get messages from native code
-            String nativeMessages = nativeGetDebugMessages();
+            // Get messages from native DirectX debug layer via VitraNativeRenderer
+            String nativeMessages = VitraNativeRenderer.nativeGetDebugMessages();
             if (nativeMessages != null && !nativeMessages.isEmpty()) {
                 String[] messages = nativeMessages.split("\n");
                 for (String message : messages) {
@@ -205,6 +140,9 @@ public class VitraDebugUtils {
                         queueDebugMessage(message.trim());
                     }
                 }
+
+                // Clear native message queue after retrieval
+                VitraNativeRenderer.nativeClearDebugMessages();
             }
 
             // Process queued messages
@@ -215,6 +153,8 @@ public class VitraDebugUtils {
                 }
             }
 
+        } catch (UnsatisfiedLinkError e) {
+            // Native methods not available - silently skip
         } catch (Exception e) {
             LOGGER.error("Error processing debug messages", e);
         }
@@ -311,20 +251,6 @@ public class VitraDebugUtils {
     }
 
     /**
-     * Check if RenderDoc is available
-     */
-    public static boolean isRenderDocAvailable() {
-        return renderDocAvailable.get();
-    }
-
-    /**
-     * Check if crash handler is installed
-     */
-    public static boolean isCrashHandlerInstalled() {
-        return crashHandlerInstalled.get();
-    }
-
-    /**
      * Get debug statistics
      */
     public static String getDebugStats() {
@@ -332,12 +258,19 @@ public class VitraDebugUtils {
         stats.append("=== Vitra Debug System Status ===\n");
         stats.append("Debug Enabled: ").append(debugEnabled).append("\n");
         stats.append("Verbose Logging: ").append(verboseLogging).append("\n");
-        stats.append("RenderDoc Integration: ").append(renderDocIntegration).append("\n");
-        stats.append("Minidump Generation: ").append(minidumpGeneration).append("\n");
         stats.append("Debug Initialized: ").append(debugInitialized.get()).append("\n");
-        stats.append("RenderDoc Available: ").append(renderDocAvailable.get()).append("\n");
-        stats.append("Crash Handler Installed: ").append(crashHandlerInstalled.get()).append("\n");
         stats.append("Queued Messages: ").append(debugMessageQueue.size()).append("\n");
+
+        // Query native device info if available
+        try {
+            String deviceInfo = VitraNativeRenderer.nativeGetDeviceInfo();
+            if (deviceInfo != null && !deviceInfo.isEmpty()) {
+                stats.append("Device Info: ").append(deviceInfo).append("\n");
+            }
+        } catch (UnsatisfiedLinkError e) {
+            stats.append("Native Debug Methods: Not Available\n");
+        }
+
         return stats.toString();
     }
 
@@ -351,16 +284,6 @@ public class VitraDebugUtils {
         DebugMessage(String message, long timestamp) {
             this.message = message;
             this.timestamp = timestamp;
-        }
-    }
-
-    // Static initializer for debug native library
-    static {
-        try {
-            System.loadLibrary("vitra-debug");
-            LOGGER.info("Loaded vitra-debug native library");
-        } catch (UnsatisfiedLinkError e) {
-            LOGGER.info("vitra-debug native library not available - some debug features will be limited");
         }
     }
 }

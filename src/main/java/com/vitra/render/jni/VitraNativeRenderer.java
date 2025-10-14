@@ -57,13 +57,12 @@ public class VitraNativeRenderer {
     /**
      * Initialize debugging system (called before initializeDirectX)
      */
-    public static synchronized void initializeDebug(boolean enabled, boolean verbose, boolean renderDoc, boolean minidumps) {
+    public static synchronized void initializeDebug(boolean enabled, boolean verbose) {
         debugEnabled = enabled;
-        VitraDebugUtils.initializeDebug(enabled, verbose, renderDoc, minidumps);
+        VitraDebugUtils.initializeDebug(enabled, verbose);
 
         if (enabled) {
-            LOGGER.info("DirectX 11 debugging enabled with: verbose={}, renderDoc={}, minidumps={}",
-                verbose, renderDoc, minidumps);
+            LOGGER.info("DirectX 11 debugging enabled with verbose={}", verbose);
         }
     }
 
@@ -74,7 +73,7 @@ public class VitraNativeRenderer {
         try {
             // Initialize debug system first if needed
             if (enableDebug && !VitraDebugUtils.isDebugInitialized()) {
-                initializeDebug(true, false, true, true);
+                initializeDebug(true, false);
             }
 
             LOGGER.info("Initializing DirectX 11 renderer: window=0x{}, size={}x{}, debug={}",
@@ -164,6 +163,15 @@ public class VitraNativeRenderer {
     public static native void clear(float r, float g, float b, float a);
 
     /**
+     * Set clear color for subsequent clear operations (FIX: Missing - causes pink background)
+     * @param r - Red component (0.0-1.0)
+     * @param g - Green component (0.0-1.0)
+     * @param b - Blue component (0.0-1.0)
+     * @param a - Alpha component (0.0-1.0)
+     */
+    public static native void setClearColor(float r, float g, float b, float a);
+
+    /**
      * Create a vertex buffer
      * @param data - Vertex data
      * @param size - Size of data in bytes
@@ -209,13 +217,21 @@ public class VitraNativeRenderer {
     public static native void setShaderPipeline(long pipeline);
 
     /**
-     * Draw primitives
+     * Get the default shader pipeline handle (created during initialization)
+     * @return Default pipeline handle, or 0 if not available
+     */
+    public static native long getDefaultShaderPipeline();
+
+    /**
+     * Draw primitives with full DrawIndexed support
      * @param vertexBuffer - Vertex buffer handle
      * @param indexBuffer - Index buffer handle (0 for non-indexed)
-     * @param vertexCount - Number of vertices
-     * @param indexCount - Number of indices (0 for non-indexed)
+     * @param baseVertex - Base vertex location (offset into vertex buffer)
+     * @param firstIndex - Start index location (offset into index buffer)
+     * @param indexCount - Number of indices to draw
+     * @param instanceCount - Number of instances (1 for non-instanced)
      */
-    public static native void draw(long vertexBuffer, long indexBuffer, int vertexCount, int indexCount);
+    public static native void draw(long vertexBuffer, long indexBuffer, int baseVertex, int firstIndex, int indexCount, int instanceCount);
 
     /**
      * Check if the native renderer is initialized
@@ -257,6 +273,19 @@ public class VitraNativeRenderer {
     public static native long createTexture(byte[] data, int width, int height, int format);
 
     /**
+     * Update existing texture data without recreating the texture
+     * Uses ID3D11DeviceContext::UpdateSubresource for efficient data upload
+     *
+     * @param textureHandle - Existing texture handle
+     * @param data - New pixel data
+     * @param width - Texture width
+     * @param height - Texture height
+     * @param mipLevel - Mip level to update (0 for base level)
+     * @return true if update succeeded, false if texture needs to be recreated
+     */
+    public static native boolean updateTexture(long textureHandle, byte[] data, int width, int height, int mipLevel);
+
+    /**
      * Bind texture to a slot
      * @param texture - Texture handle
      * @param slot - Texture slot (0-15)
@@ -270,6 +299,46 @@ public class VitraNativeRenderer {
      * @param slot - Constant buffer slot
      */
     public static native void setConstantBuffer(byte[] data, int size, int slot);
+
+    // ==================== UNIFORM MANAGEMENT (FIX: Missing - causes ray artifacts) ====================
+
+    /**
+     * Set 4-component float uniform (FIX: Missing - causes transformation issues)
+     * @param location - Uniform location
+     * @param v0 - First component
+     * @param v1 - Second component
+     * @param v2 - Third component
+     * @param v3 - Fourth component
+     */
+    public static native void setUniform4f(int location, float v0, float v1, float v2, float v3);
+
+    /**
+     * Set 4x4 matrix uniform (FIX: Missing - causes vertex positioning issues)
+     * @param location - Uniform location
+     * @param matrix - Matrix data (16 floats)
+     * @param transpose - Whether to transpose the matrix
+     */
+    public static native void setUniformMatrix4f(int location, float[] matrix, boolean transpose);
+
+    /**
+     * Set integer uniform (FIX: Missing - causes texture sampling issues)
+     * @param location - Uniform location
+     * @param value - Integer value
+     */
+    public static native void setUniform1i(int location, int value);
+
+    /**
+     * Set float uniform (FIX: Missing - causes parameter issues)
+     * @param location - Uniform location
+     * @param value - Float value
+     */
+    public static native void setUniform1f(int location, float value);
+
+    /**
+     * Set active shader program (FIX: Missing - causes shader state issues)
+     * @param program - Program handle/ID
+     */
+    public static native void useProgram(int program);
 
     /**
      * Set viewport
@@ -360,15 +429,15 @@ public class VitraNativeRenderer {
     /**
      * Safe draw operation with validation
      */
-    public static void drawSafe(long vertexBuffer, long indexBuffer, int vertexCount, int indexCount) {
+    public static void drawSafe(long vertexBuffer, long indexBuffer, int baseVertex, int firstIndex, int indexCount, int instanceCount) {
         if (!safeModeEnabled) {
-            draw(vertexBuffer, indexBuffer, vertexCount, indexCount);
+            draw(vertexBuffer, indexBuffer, baseVertex, firstIndex, indexCount, instanceCount);
             return;
         }
 
         // Validate parameters
-        if (vertexBuffer == 0 && vertexCount > 0) {
-            LOGGER.warn("Invalid draw call: null vertex buffer with {} vertices", vertexCount);
+        if (vertexBuffer == 0 && indexCount > 0) {
+            LOGGER.warn("Invalid draw call: null vertex buffer with {} indices", indexCount);
             if (debugEnabled) {
                 VitraDebugUtils.queueDebugMessage("DRAW_WARNING: Invalid vertex buffer");
             }
@@ -384,7 +453,7 @@ public class VitraNativeRenderer {
         }
 
         try {
-            draw(vertexBuffer, indexBuffer, vertexCount, indexCount);
+            draw(vertexBuffer, indexBuffer, baseVertex, firstIndex, indexCount, instanceCount);
         } catch (Exception e) {
             LOGGER.error("Error in draw operation", e);
             if (debugEnabled) {
@@ -394,18 +463,6 @@ public class VitraNativeRenderer {
     }
 
     // ==================== DEBUG INTEGRATION METHODS ====================
-
-    /**
-     * Trigger RenderDoc frame capture
-     */
-    public static boolean triggerRenderDocCapture() {
-        if (!debugEnabled || !VitraDebugUtils.isRenderDocAvailable()) {
-            LOGGER.warn("RenderDoc not available for capture");
-            return false;
-        }
-
-        return VitraDebugUtils.triggerDebugCapture();
-    }
 
     /**
      * Process debug messages from native code
@@ -454,6 +511,49 @@ public class VitraNativeRenderer {
      */
     public static native String nativeGetDebugMessages();
 
+    // ==================== NATIVE LOGGING CALLBACKS ====================
+
+    /**
+     * Native logging callback - called from C++ code to log DEBUG messages
+     * This allows native C++ code to integrate with Java's SLF4J logging
+     * @param message - Log message from native code
+     */
+    public static void nativeLogDebug(String message) {
+        if (message != null && !message.isEmpty()) {
+            LOGGER.debug("[Native] {}", message);
+        }
+    }
+
+    /**
+     * Native logging callback - called from C++ code to log INFO messages
+     * @param message - Log message from native code
+     */
+    public static void nativeLogInfo(String message) {
+        if (message != null && !message.isEmpty()) {
+            LOGGER.info("[Native] {}", message);
+        }
+    }
+
+    /**
+     * Native logging callback - called from C++ code to log WARNING messages
+     * @param message - Log message from native code
+     */
+    public static void nativeLogWarn(String message) {
+        if (message != null && !message.isEmpty()) {
+            LOGGER.warn("[Native] {}", message);
+        }
+    }
+
+    /**
+     * Native logging callback - called from C++ code to log ERROR messages
+     * @param message - Log message from native code
+     */
+    public static void nativeLogError(String message) {
+        if (message != null && !message.isEmpty()) {
+            LOGGER.error("[Native] {}", message);
+        }
+    }
+
     /**
      * Native method to clear debug message queue
      */
@@ -501,4 +601,392 @@ public class VitraNativeRenderer {
      * @param bufferHandle - Buffer handle
      */
     public static native void unmapBuffer(long bufferHandle);
-}
+
+    // ==================== RENDER STATE MANAGEMENT ====================
+
+    /**
+     * Set blend state for alpha blending
+     * @param enabled - Enable/disable blending
+     * @param srcBlend - Source blend factor (GL constant)
+     * @param destBlend - Destination blend factor (GL constant)
+     * @param blendOp - Blend operation (GL constant)
+     */
+    public static native void setBlendState(boolean enabled, int srcBlend, int destBlend, int blendOp);
+
+    /**
+     * Set depth-stencil state
+     * @param depthTestEnabled - Enable/disable depth testing
+     * @param depthWriteEnabled - Enable/disable depth writing
+     * @param depthFunc - Depth comparison function (GL constant)
+     */
+    public static native void setDepthState(boolean depthTestEnabled, boolean depthWriteEnabled, int depthFunc);
+
+    /**
+     * Set rasterizer state
+     * @param cullMode - Cull mode (GL_FRONT, GL_BACK, 0=none)
+     * @param fillMode - Fill mode (GL_FILL, GL_LINE, GL_POINT)
+     * @param scissorEnabled - Enable/disable scissor test
+     */
+    public static native void setRasterizerState(int cullMode, int fillMode, boolean scissorEnabled);
+
+    /**
+     * Clear only the depth buffer
+     * @param depth - Depth value (0.0 to 1.0)
+     */
+    public static native void clearDepth(float depth);
+
+    /**
+     * Set color write mask
+     * @param red - Enable red channel writes
+     * @param green - Enable green channel writes
+     * @param blue - Enable blue channel writes
+     * @param alpha - Enable alpha channel writes
+     */
+    public static native void setColorMask(boolean red, boolean green, boolean blue, boolean alpha);
+
+    // OpenGL constants for render state
+    public static final int GL_ZERO = 0;
+    public static final int GL_ONE = 1;
+    public static final int GL_SRC_COLOR = 0x0300;
+    public static final int GL_ONE_MINUS_SRC_COLOR = 0x0301;
+    public static final int GL_SRC_ALPHA = 0x0302;
+    public static final int GL_ONE_MINUS_SRC_ALPHA = 0x0303;
+    public static final int GL_DST_ALPHA = 0x0304;
+    public static final int GL_ONE_MINUS_DST_ALPHA = 0x0305;
+    public static final int GL_DST_COLOR = 0x0306;
+    public static final int GL_ONE_MINUS_DST_COLOR = 0x0307;
+
+    public static final int GL_FUNC_ADD = 0x8006;
+    public static final int GL_MIN = 0x8007;
+    public static final int GL_MAX = 0x8008;
+    public static final int GL_FUNC_SUBTRACT = 0x800A;
+    public static final int GL_FUNC_REVERSE_SUBTRACT = 0x800B;
+
+    public static final int GL_NEVER = 0x0200;
+    public static final int GL_LESS = 0x0201;
+    public static final int GL_EQUAL = 0x0202;
+    public static final int GL_LEQUAL = 0x0203;
+    public static final int GL_GREATER = 0x0204;
+    public static final int GL_NOTEQUAL = 0x0205;
+    public static final int GL_GEQUAL = 0x0206;
+    public static final int GL_ALWAYS = 0x0207;
+
+    public static final int GL_FRONT = 0x0404;
+    public static final int GL_BACK = 0x0405;
+
+    public static final int GL_POINT = 0x1B00;
+    public static final int GL_LINE = 0x1B01;
+    public static final int GL_FILL = 0x1B02;
+
+    // ==================== MATRIX MANAGEMENT ====================
+
+    /**
+     * Set orthographic projection matrix for 2D rendering (GUI, menus, etc.)
+     * This configures the transformation matrix to properly project 2D screen coordinates
+     * to NDC (Normalized Device Coordinate) space [-1, 1]
+     *
+     * @param left - Left edge of the viewing volume (usually 0)
+     * @param right - Right edge of the viewing volume (usually screen width)
+     * @param bottom - Bottom edge of the viewing volume (usually screen height)
+     * @param top - Top edge of the viewing volume (usually 0)
+     * @param zNear - Near clipping plane (usually 0 or -1)
+     * @param zFar - Far clipping plane (usually 1 or 1000)
+     */
+    public static native void setOrthographicProjection(float left, float right, float bottom, float top, float zNear, float zFar);
+
+    /**
+     * Set projection matrix from Minecraft's RenderSystem
+     * This synchronizes Minecraft's Matrix4f projection matrix (JOML column-major) to DirectX 11 (row-major)
+     *
+     * @param matrixData - Float array containing 16 elements of the 4x4 matrix in column-major order
+     */
+    public static native void setProjectionMatrix(float[] matrixData);
+
+    /**
+     * Set ALL transformation matrices from Minecraft's RenderSystem
+     * This is the CORRECT way to sync matrices - we need MVP, ModelView, and Projection!
+     *
+     * @param mvpData - Model-View-Projection matrix (16 floats, column-major)
+     * @param modelViewData - Model-View matrix (16 floats, column-major)
+     * @param projectionData - Projection matrix (16 floats, column-major)
+     */
+    public static native void setTransformMatrices(float[] mvpData, float[] modelViewData, float[] projectionData);
+
+    // ==================== BUFFER/TEXTURE COPY OPERATIONS ====================
+
+    /**
+     * Copy data from one buffer to another
+     * Uses ID3D11DeviceContext::CopySubresourceRegion for GPU-side copy
+     *
+     * @param srcBufferHandle - Source buffer handle
+     * @param dstBufferHandle - Destination buffer handle
+     * @param srcOffset - Source offset in bytes
+     * @param dstOffset - Destination offset in bytes
+     * @param size - Number of bytes to copy
+     */
+    public static native void copyBuffer(long srcBufferHandle, long dstBufferHandle,
+                                          int srcOffset, int dstOffset, int size);
+
+    /**
+     * Copy entire texture to another texture
+     * Uses ID3D11DeviceContext::CopyResource
+     * Requires textures to have identical dimensions and formats
+     *
+     * @param srcTextureHandle - Source texture handle
+     * @param dstTextureHandle - Destination texture handle
+     */
+    public static native void copyTexture(long srcTextureHandle, long dstTextureHandle);
+
+    /**
+     * Copy a specific region of a texture
+     * Uses ID3D11DeviceContext::CopySubresourceRegion
+     *
+     * @param srcTextureHandle - Source texture handle
+     * @param dstTextureHandle - Destination texture handle
+     * @param srcX - Source X offset
+     * @param srcY - Source Y offset
+     * @param srcZ - Source Z offset
+     * @param dstX - Destination X offset
+     * @param dstY - Destination Y offset
+     * @param dstZ - Destination Z offset
+     * @param width - Region width
+     * @param height - Region height
+     * @param depth - Region depth
+     * @param mipLevel - Mip level to copy
+     */
+    public static native void copyTextureRegion(long srcTextureHandle, long dstTextureHandle,
+                                                 int srcX, int srcY, int srcZ,
+                                                 int dstX, int dstY, int dstZ,
+                                                 int width, int height, int depth, int mipLevel);
+
+    /**
+     * Copy texture data to a buffer (for readback/download)
+     * Uses staging texture as intermediate step
+     *
+     * @param textureHandle - Source texture handle
+     * @param bufferHandle - Destination buffer handle
+     * @param mipLevel - Mip level to copy
+     */
+    public static native void copyTextureToBuffer(long textureHandle, long bufferHandle, int mipLevel);
+
+    // ==================== GPU SYNCHRONIZATION (FENCES/QUERIES) ====================
+
+    /**
+     * Create a GPU fence for CPU-GPU synchronization
+     * Implemented as ID3D11Query with D3D11_QUERY_EVENT
+     *
+     * @return Fence handle, or 0 on failure
+     */
+    public static native long createFence();
+
+    /**
+     * Signal a fence - GPU will signal when all previous commands complete
+     * Issues ID3D11DeviceContext::End() on the query
+     *
+     * @param fenceHandle - Fence handle
+     */
+    public static native void signalFence(long fenceHandle);
+
+    /**
+     * Check if a fence has been signaled (non-blocking)
+     * Uses ID3D11DeviceContext::GetData() with D3D11_ASYNC_GETDATA_DONOTFLUSH
+     *
+     * @param fenceHandle - Fence handle
+     * @return true if GPU has completed all commands up to this fence
+     */
+    public static native boolean isFenceSignaled(long fenceHandle);
+
+    /**
+     * Wait for a fence to be signaled (blocking)
+     * Spins until GPU completes all commands
+     *
+     * @param fenceHandle - Fence handle
+     */
+    public static native void waitForFence(long fenceHandle);
+
+    // ==================== RENDERDOC INTEGRATION ====================
+
+    /**
+     * Check if RenderDoc is available
+     * @return true if RenderDoc is loaded and available
+     */
+    public static native boolean renderDocIsAvailable();
+
+    /**
+     * Start a RenderDoc frame capture
+     * Captures the next frame rendered after this call
+     * @return true if capture started successfully
+     */
+    public static native boolean renderDocStartFrameCapture();
+
+    /**
+     * End a RenderDoc frame capture
+     * Completes the current capture and saves to file
+     * @return true if capture ended successfully
+     */
+    public static native boolean renderDocEndFrameCapture();
+
+    /**
+     * Trigger a RenderDoc capture for the next frame
+     * Convenience method that triggers capture without manual start/end
+     */
+    public static native void renderDocTriggerCapture();
+
+    /**
+     * Check if RenderDoc is currently capturing a frame
+     * @return true if a capture is in progress
+     */
+    public static native boolean renderDocIsCapturing();
+
+    /**
+     * Set a RenderDoc capture option
+     * @param option - RenderDoc capture option ID
+     * @param value - Option value
+     */
+    public static native void renderDocSetCaptureOption(int option, int value);
+
+    // RenderDoc capture option constants
+    public static final int RENDERDOC_OPTION_ALLOW_VSYNC = 0;
+    public static final int RENDERDOC_OPTION_ALLOW_FULLSCREEN = 1;
+    public static final int RENDERDOC_OPTION_API_VALIDATION = 2;
+    public static final int RENDERDOC_OPTION_CAPTURE_CALLSTACKS = 3;
+    public static final int RENDERDOC_OPTION_CAPTURE_CALLSTACKS_ONLY_DRAWS = 4;
+    public static final int RENDERDOC_OPTION_DELAY_FOR_DEBUGGER = 5;
+    public static final int RENDERDOC_OPTION_VERIFY_BUFFER_WRITES = 6;
+    public static final int RENDERDOC_OPTION_HOOK_INTO_CHILDREN = 7;
+    public static final int RENDERDOC_OPTION_REF_ALL_RESOURCES = 8;
+    public static final int RENDERDOC_OPTION_CAPTURE_ALL_CMD_LISTS = 9;
+    public static final int RENDERDOC_OPTION_DEBUG_OUTPUT_MUTE = 10;
+
+    // ==================== RENDERDOC CONVENIENCE METHODS ====================
+
+    /**
+     * Safe wrapper to start RenderDoc capture with error handling
+     * @return true if capture started successfully
+     */
+    public static boolean startRenderDocCapture() {
+        if (!renderDocIsAvailable()) {
+            LOGGER.warn("RenderDoc is not available - capture cannot be started");
+            return false;
+        }
+
+        try {
+            LOGGER.info("Starting RenderDoc frame capture...");
+            boolean success = renderDocStartFrameCapture();
+            if (success) {
+                LOGGER.info("✓ RenderDoc frame capture started");
+            } else {
+                LOGGER.error("✗ Failed to start RenderDoc frame capture");
+            }
+            return success;
+        } catch (Exception e) {
+            LOGGER.error("Error starting RenderDoc capture", e);
+            return false;
+        }
+    }
+
+    /**
+     * Safe wrapper to end RenderDoc capture with error handling
+     * @return true if capture ended successfully
+     */
+    public static boolean endRenderDocCapture() {
+        if (!renderDocIsAvailable()) {
+            LOGGER.warn("RenderDoc is not available - cannot end capture");
+            return false;
+        }
+
+        try {
+            LOGGER.info("Ending RenderDoc frame capture...");
+            boolean success = renderDocEndFrameCapture();
+            if (success) {
+                LOGGER.info("✓ RenderDoc frame capture ended successfully");
+            } else {
+                LOGGER.warn("⚠ No RenderDoc capture was in progress");
+            }
+            return success;
+        } catch (Exception e) {
+            LOGGER.error("Error ending RenderDoc capture", e);
+            return false;
+        }
+    }
+
+    /**
+     * Safe wrapper to trigger RenderDoc capture for next frame
+     * Captures the next frame automatically without manual start/end
+     */
+    public static void triggerRenderDocCapture() {
+        if (!renderDocIsAvailable()) {
+            LOGGER.warn("RenderDoc is not available - cannot trigger capture");
+            return;
+        }
+
+        try {
+            LOGGER.info("Triggering RenderDoc capture for next frame...");
+            renderDocTriggerCapture();
+            LOGGER.info("✓ RenderDoc capture triggered for next frame");
+        } catch (Exception e) {
+            LOGGER.error("Error triggering RenderDoc capture", e);
+        }
+    }
+
+    /**
+     * Check if RenderDoc is ready for use
+     * @return true if RenderDoc is available and ready
+     */
+    public static boolean isRenderDocReady() {
+        return renderDocIsAvailable() && !renderDocIsCapturing();
+    }
+
+    /**
+     * Enable useful RenderDoc capture options for debugging
+     */
+    public static void configureRenderDocForDebugging() {
+        if (!renderDocIsAvailable()) {
+            LOGGER.warn("RenderDoc is not available - cannot configure options");
+            return;
+        }
+
+        try {
+            // Enable capture all command lists (helps with deferred rendering)
+            renderDocSetCaptureOption(RENDERDOC_OPTION_CAPTURE_ALL_CMD_LISTS, 1);
+
+            // Verify buffer writes for better debugging
+            renderDocSetCaptureOption(RENDERDOC_OPTION_VERIFY_BUFFER_WRITES, 1);
+
+            // Include all resources in captures
+            renderDocSetCaptureOption(RENDERDOC_OPTION_REF_ALL_RESOURCES, 1);
+
+            // Enable API validation for better error reporting
+            renderDocSetCaptureOption(RENDERDOC_OPTION_API_VALIDATION, 1);
+
+            LOGGER.info("✓ RenderDoc configured for debugging with enhanced options");
+        } catch (Exception e) {
+            LOGGER.error("Error configuring RenderDoc options", e);
+        }
+    }
+
+    /**
+     * Get RenderDoc status information
+     * @return Status string with RenderDoc availability and state
+     */
+    public static String getRenderDocStatus() {
+        StringBuilder status = new StringBuilder();
+        status.append("=== RenderDoc Status ===\n");
+        status.append("Available: ").append(renderDocIsAvailable() ? "Yes" : "No").append("\n");
+
+        if (renderDocIsAvailable()) {
+            status.append("Capturing: ").append(renderDocIsCapturing() ? "Yes" : "No").append("\n");
+            status.append("Ready: ").append(isRenderDocReady() ? "Yes" : "No").append("\n");
+            status.append("\nNote: Launch Minecraft through RenderDoc UI for best results.\n");
+            status.append("      Use F12 key in-game to capture frames when running through RenderDoc.");
+        } else {
+            status.append("\nTo enable RenderDoc:\n");
+            status.append("1. Download and install RenderDoc from https://renderdoc.org/\n");
+            status.append("2. Launch Minecraft through RenderDoc's 'Launch Application' option\n");
+            status.append("3. OR inject renderdoc.dll before Minecraft starts graphics initialization");
+        }
+
+        return status.toString();
+    }
+
+  }

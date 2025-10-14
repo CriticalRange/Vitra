@@ -14,7 +14,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import com.mojang.blaze3d.textures.GpuTextureView;
 
 import java.lang.reflect.Field;
 import java.util.function.BiFunction;
@@ -198,11 +201,33 @@ public class RenderSystemMixin {
                 // Resize renderer if framebuffer size changed
                 VitraMod.getRenderer().resize(width[0], height[0]);
 
-                long directXStartTime = System.nanoTime();
+                // CRITICAL FIX: Call beginFrame() to set up render targets and viewport
+                // This MUST be called before any rendering happens each frame
                 VitraMod.getRenderer().beginFrame();
 
-                // Submit frame to DirectX renderer
-                VitraMod.getRenderer().endFrame();
+                long directXStartTime = System.nanoTime();
+
+                // Reset frame state for next render cycle
+                com.vitra.render.opengl.GLInterceptor.resetFrameState();
+
+                // Reset draw call counters in mixins
+                try {
+                    Class<?> glCommandEncoderMixin = Class.forName("com.vitra.mixin.GlCommandEncoderMixin");
+                    glCommandEncoderMixin.getMethod("resetDrawCallCount").invoke(null);
+                } catch (Exception e) {
+                    // Ignore if mixin not loaded yet
+                }
+
+                try {
+                    Class<?> glRenderPassMixin = Class.forName("com.vitra.mixin.GlRenderPassMixin");
+                    glRenderPassMixin.getMethod("resetDrawCallCount").invoke(null);
+                } catch (Exception e) {
+                    // Ignore if mixin not loaded yet
+                }
+
+                // NOTE: Frame presentation is now handled by CommandEncoder.presentTexture()
+                // which Minecraft calls after rendering is complete.
+                // We no longer call endFrame() here to avoid double-presentation.
 
                 long directXEndTime = System.nanoTime();
                 long directXMs = (directXEndTime - directXStartTime) / 1_000_000;
@@ -278,6 +303,58 @@ public class RenderSystemMixin {
     }
 
     // ============================================================================
+    // CRITICAL: Minecraft 1.21.8 Texture Binding Interception
+    // ============================================================================
+
+    /**
+     * CRITICAL FIX: Intercept setShaderTexture to bind textures to DirectX 11
+     *
+     * Minecraft 1.21.8 uses RenderSystem.setShaderTexture(int, GpuTextureView) to bind textures
+     * before draw calls. We MUST intercept this to bind the texture to our DirectX 11 renderer.
+     *
+     * Without this, textures are not bound and we only see vertex colors (the blue/black mess).
+     *
+     * @param index The texture slot (0-15, typically 0 for main texture)
+     * @param texture The GpuTextureView to bind
+     * @param ci Mixin callback info
+     */
+    @Inject(method = "setShaderTexture(ILcom/mojang/blaze3d/textures/GpuTextureView;)V", at = @At("HEAD"), remap = false)
+    private static void onSetShaderTexture(int index, GpuTextureView texture, CallbackInfo ci) {
+        try {
+            if (texture == null) {
+                LOGGER.debug("Texture slot {} unbind (null texture)", index);
+                // Unbind texture in DirectX 11
+                if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
+                    com.vitra.render.jni.VitraNativeRenderer.bindTexture(0, index);
+                }
+                return;
+            }
+
+            // Get the underlying GpuTexture from the view
+            com.mojang.blaze3d.textures.GpuTexture gpuTexture = texture.texture();
+
+            if (gpuTexture instanceof com.vitra.render.dx11.DirectX11GpuTexture dx11Texture) {
+                long nativeHandle = dx11Texture.getNativeHandle();
+
+                if (nativeHandle != 0) {
+                    // Bind texture to DirectX 11 shader slot
+                    com.vitra.render.jni.VitraNativeRenderer.bindTexture(nativeHandle, index);
+
+                    LOGGER.debug("✓ Texture bound to slot {}: handle=0x{} ({})",
+                        index, Long.toHexString(nativeHandle), gpuTexture.getLabel());
+                } else {
+                    LOGGER.warn("Texture {} has no native handle - not created yet?", gpuTexture.getLabel());
+                }
+            } else {
+                LOGGER.warn("Texture is not DirectX11GpuTexture: {}",
+                    gpuTexture != null ? gpuTexture.getClass().getName() : "null");
+            }
+        } catch (Exception e) {
+            LOGGER.error("Exception in onSetShaderTexture", e);
+        }
+    }
+
+    // ============================================================================
     // NOTE: Minecraft 1.21.8 RenderSystem Refactor
     // ============================================================================
 
@@ -293,6 +370,6 @@ public class RenderSystemMixin {
      * State tracking is handled at the lower level in GlStateManagerMixin, which intercepts
      * the actual OpenGL state calls (_enableBlend, _depthFunc, etc.) that still exist.
      *
-     * These high-level RenderSystem methods are no longer needed for state interception.
+     * NOW INTERCEPTED: setShaderTexture(int, GpuTextureView) - see onSetShaderTexture() above
      */
 }

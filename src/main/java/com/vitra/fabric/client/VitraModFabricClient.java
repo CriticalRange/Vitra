@@ -18,7 +18,7 @@ public final class VitraModFabricClient implements ClientModInitializer {
         LOGGER.info("Initializing Vitra client-side components");
 
         try {
-            // Register client-side tick events for BGFX frame management
+            // Register client-side tick events for frame management
             registerClientTickEvents();
 
             LOGGER.info("Vitra client initialization completed successfully");

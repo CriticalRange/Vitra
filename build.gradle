@@ -82,6 +82,113 @@ java {
 	targetCompatibility = JavaVersion.VERSION_21
 }
 
+// ============================================================================
+// HLSL Shader Compilation Task
+// ============================================================================
+// Compiles HLSL shaders using fxc.exe from Windows SDK
+task compileShaders {
+	description = 'Compiles HLSL shaders using fxc.exe'
+	group = 'build'
+
+	// Only compile on Windows
+	onlyIf { System.getProperty('os.name').toLowerCase().contains('windows') }
+
+	doFirst {
+		// Create output directory
+		def compiledDir = file("src/main/resources/shaders/compiled")
+		compiledDir.mkdirs()
+
+		// Find fxc.exe in Windows SDK
+		def programFiles = System.env['ProgramFiles(x86)'] ?: 'C:\\Program Files (x86)'
+		def windowsKitsDir = file("${programFiles}\\Windows Kits\\10")
+
+		if (!windowsKitsDir.exists()) {
+			throw new GradleException("Windows 10 SDK not found. Please install Windows SDK with DirectX support.")
+		}
+
+		// Find the latest SDK version with fxc.exe
+		def fxcExe = null
+		windowsKitsDir.eachDir { sdkDir ->
+			if (sdkDir.name == 'bin') {
+				sdkDir.eachDir { versionDir ->
+					def fxcPath = file("${versionDir}/x64/fxc.exe")
+					if (fxcPath.exists()) {
+						fxcExe = fxcPath
+					}
+				}
+			}
+		}
+
+		if (fxcExe == null) {
+			throw new GradleException("fxc.exe not found in Windows SDK. Please install Windows SDK with DirectX support.")
+		}
+
+		println "Using DirectX Shader Compiler: ${fxcExe}"
+
+		// Shader list to compile - ALL 35 Minecraft 1.21.8 shaders
+		def shaderNames = [
+			'blit_screen', 'entity', 'glint', 'gui', 'panorama', 'particle',
+			'position', 'position_color', 'position_color_lightmap', 'position_color_tex_lightmap',
+			'position_tex', 'position_tex_color',
+			'rendertype_beacon_beam', 'rendertype_clouds', 'rendertype_crumbling', 'rendertype_end_portal',
+			'rendertype_entity_alpha', 'rendertype_entity_decal', 'rendertype_entity_shadow',
+			'rendertype_item_entity_translucent_cull', 'rendertype_leash', 'rendertype_lightning',
+			'rendertype_lines', 'rendertype_outline',
+			'rendertype_text', 'rendertype_text_background', 'rendertype_text_background_see_through',
+			'rendertype_text_intensity', 'rendertype_text_intensity_see_through', 'rendertype_text_see_through',
+			'rendertype_translucent_moving_block', 'rendertype_water_mask', 'rendertype_world_border',
+			'sky', 'stars', 'terrain'
+		]
+
+		// Generate vertex and pixel shader entries for each shader
+		def shaders = []
+		shaderNames.each { name ->
+			shaders.add([name: name, type: 'vs'])
+			shaders.add([name: name, type: 'ps'])
+		}
+
+		// Compile each shader
+		shaders.each { shader ->
+			def shaderType = (shader.type == 'vs') ? 'vertex' : 'pixel'
+			def shaderExt = (shader.type == 'vs') ? 'vsh' : 'fsh'
+			def target = (shader.type == 'vs') ? 'vs_5_0' : 'ps_5_0'
+			def inputFile = file("src/main/resources/shaders/hlsl/${shader.name}.${shaderExt}")
+			def outputFile = file("${compiledDir}/${shader.name}_${shader.type}.cso")
+
+			println "Compiling ${shaderType} shader: ${shader.name}.${shaderExt} -> ${outputFile.name}"
+
+			// Compile using fxc.exe
+			def result = ["cmd", "/c",
+				"\"${fxcExe}\"",
+				"/T", target,          // Target shader model (vs_5_0 or ps_5_0)
+				"/E", "main",          // Entry point function
+				"/Fo", outputFile.absolutePath,  // Output file
+				"/I", file("src/main/resources/shaders/hlsl").absolutePath,  // Include directory
+				"/nologo",             // Suppress copyright message
+				"/O3",                 // Optimization level 3
+				"/WX",                 // Treat warnings as errors
+				inputFile.absolutePath
+			].execute()
+
+			result.waitFor()
+
+			if (result.exitValue() != 0) {
+				throw new GradleException("Failed to compile shader: ${shader.name}.${shaderExt}\nError: ${result.err.text}")
+			}
+		}
+
+		println "All shaders compiled successfully to: ${compiledDir}"
+	}
+}
+
+// ============================================================================
+// Native Library Compilation Tasks
+// ============================================================================
+
+// RenderDoc configuration (optional - only required for RenderDoc integration)
+// RenderDoc.dll will be loaded dynamically at runtime if present
+// No build-time dependency required for RenderDoc integration
+
 // DirectX 11 native library compilation task
 task compileNativeDX11(type: Exec) {
 	// Only compile on Windows
@@ -108,6 +215,7 @@ task compileNativeDX11(type: Exec) {
 		}
 
 		println "Compiling DirectX 11 native library with Visual Studio at: ${vsPath}"
+		println "RenderDoc integration: Enabled (runtime dynamic loading)"
 	}
 
 	// Set up Visual Studio environment and compile DirectX 11
@@ -118,7 +226,7 @@ task compileNativeDX11(type: Exec) {
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
 		"\"src/main/cpp/vitra_d3d11.cpp\" " +
 		"/Fe:\"$buildDir/native/vitra-native.dll\" " +
-		"/link d3d11.lib dxgi.lib d3dcompiler.lib user32.lib"
+		"/link /LIBPATH:\"libs/x64\" d3d11.lib dxgi.lib d3dcompiler.lib dxguid.lib user32.lib Ole32.lib Shell32.lib"
 
 	workingDir projectDir
 
@@ -153,6 +261,7 @@ task compileNativeDX12(type: Exec) {
 		}
 
 		println "Compiling DirectX 12 Ultimate native library with Visual Studio at: ${vsPath}"
+		println "RenderDoc integration: Enabled (runtime dynamic loading)"
 	}
 
 	// Set up Visual Studio environment and compile DirectX 12 Ultimate
@@ -163,7 +272,7 @@ task compileNativeDX12(type: Exec) {
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
 		"\"src/main/cpp/vitra_d3d12.cpp\" " +
 		"/Fe:\"$buildDir/native/vitra-d3d12.dll\" " +
-		"/link d3d12.lib dxgi.lib d3dcompiler.lib user32.lib"
+		"/link /LIBPATH:\"libs/x64\" d3d12.lib dxgi.lib d3dcompiler.lib user32.lib Ole32.lib Shell32.lib"
 
 	workingDir projectDir
 
@@ -183,6 +292,7 @@ task copyNative(type: Copy) {
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
 
 	from "$buildDir/native"
+	from "libs/x64"
 	into "$buildDir/resources/main/native/windows"
 	include "*.dll"
 
@@ -198,6 +308,7 @@ task copyNativeToSrc(type: Copy) {
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
 
 	from "$buildDir/native"
+	from "libs/x64"
 	into "src/main/resources/native/windows"
 	include "*.dll"
 
@@ -207,11 +318,14 @@ task copyNativeToSrc(type: Copy) {
 	}
 }
 
-// Make processResources depend on both copyNative and copyNativeToSrc
-processResources.dependsOn copyNative, copyNativeToSrc
+// Make processResources depend on shader compilation, copyNative, and copyNativeToSrc
+processResources.dependsOn compileShaders, copyNative, copyNativeToSrc
 
 // Make classes task depend on copyNativeToSrc for IDE development
 classes.dependsOn copyNativeToSrc
+
+// Make sourcesJar depend on copyNativeToSrc to ensure native libraries are copied first
+sourcesJar.dependsOn copyNativeToSrc
 
 // Make sure jar includes the native library
 jar {

@@ -330,14 +330,7 @@ public class DirectX12Renderer implements IVitraRenderer {
         VitraD3D12Renderer.disableVariableRateShading();
     }
 
-    public boolean beginPixCapture() {
-        return VitraD3D12Renderer.beginPIXCapture();
-    }
-
-    public void endPixCapture() {
-        VitraD3D12Renderer.endPIXCapture();
-    }
-
+  
     public void processDebugMessages() {
         VitraD3D12Renderer.processDebugMessages();
     }

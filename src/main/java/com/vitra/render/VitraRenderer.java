@@ -96,7 +96,7 @@ public class VitraRenderer implements IVitraRenderer {
                 }
 
                 // Initialize debug system before DirectX initialization
-                VitraNativeRenderer.initializeDebug(debugMode, verboseMode, true, true);
+                VitraNativeRenderer.initializeDebug(debugMode, verboseMode);
 
                 // Initialize OpenGL interceptor to redirect OpenGL calls to DirectX
                 GLInterceptor.initialize();
@@ -122,6 +122,16 @@ public class VitraRenderer implements IVitraRenderer {
                         LOGGER.info("Preloading DirectX shaders...");
                         shaderManager.preloadShaders();
                         LOGGER.info("Shader preloading completed: {}", shaderManager.getCacheStats());
+                    }
+
+                    // CRITICAL FIX: Ensure default shader pipeline is bound immediately after initialization
+                    // This prevents black screen by ensuring shaders are available for first draw calls
+                    long defaultPipeline = VitraNativeRenderer.getDefaultShaderPipeline();
+                    if (defaultPipeline != 0) {
+                        VitraNativeRenderer.setShaderPipeline(defaultPipeline);
+                        LOGGER.info("Default shader pipeline bound: handle=0x{}", Long.toHexString(defaultPipeline));
+                    } else {
+                        LOGGER.error("Failed to get default shader pipeline handle - this will cause black screen!");
                     }
 
                     // Load shaders after native initialization
@@ -207,7 +217,8 @@ public class VitraRenderer implements IVitraRenderer {
 
     @Override
     public void present() {
-        // DirectX 11 handles present in endFrame
+        // Frame presentation is handled by CommandEncoder.presentTexture()
+        // which is called by Minecraft's rendering pipeline after the frame is complete
     }
 
     @Override
@@ -307,10 +318,6 @@ public class VitraRenderer implements IVitraRenderer {
     }
 
     // Debug-specific methods
-    public boolean triggerDebugCapture() {
-        return VitraNativeRenderer.triggerRenderDocCapture();
-    }
-
     public void processDebugMessages() {
         VitraNativeRenderer.processDebugMessages();
     }

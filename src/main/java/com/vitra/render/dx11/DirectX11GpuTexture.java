@@ -24,6 +24,10 @@ public class DirectX11GpuTexture extends GpuTexture {
     private final int depthOrLayers;
     private final int mipLevels;
 
+    // Track ACTUAL native texture dimensions (may differ from initial width/height due to atlas resizing)
+    private int actualNativeWidth = 0;
+    private int actualNativeHeight = 0;
+
     public DirectX11GpuTexture(int usage, String label, TextureFormat format,
                                int width, int height, int depthOrLayers, int mipLevels) {
         super(usage, label, format, width, height, depthOrLayers, mipLevels);
@@ -51,9 +55,25 @@ public class DirectX11GpuTexture extends GpuTexture {
             return;
         }
 
+        // ✅ CRITICAL FIX: Check if texture dimensions changed (Minecraft texture atlases can resize!)
+        // If dimensions changed, we MUST recreate - DirectX 11 textures cannot be resized
         if (nativeHandle != 0) {
-            LOGGER.warn("Texture {} already has native handle, destroying old one", getLabel());
-            VitraNativeRenderer.destroyResource(nativeHandle);
+            if (actualNativeWidth == actualWidth && actualNativeHeight == actualHeight) {
+                // Same dimensions - we can update in-place (much faster!)
+                LOGGER.debug("Texture {} already exists with same dimensions ({}x{}), using update",
+                    getLabel(), actualWidth, actualHeight);
+                updateNativeTexture(data, actualWidth, actualHeight, 0);
+                return;
+            } else {
+                // Dimensions changed - must recreate texture (DirectX 11 limitation)
+                LOGGER.info("Texture {} dimensions changed: {}x{} -> {}x{}, recreating texture",
+                    getLabel(), actualNativeWidth, actualNativeHeight, actualWidth, actualHeight);
+                VitraNativeRenderer.destroyResource(nativeHandle);
+                nativeHandle = 0;
+                actualNativeWidth = 0;
+                actualNativeHeight = 0;
+                // Fall through to create new texture below
+            }
         }
 
         // Validate data size
@@ -93,8 +113,47 @@ public class DirectX11GpuTexture extends GpuTexture {
             throw new RuntimeException("Failed to create native texture: " + getLabel());
         }
 
+        // ✅ Track actual native texture dimensions for future dimension checks
+        actualNativeWidth = actualWidth;
+        actualNativeHeight = actualHeight;
+
         LOGGER.debug("Created native DirectX 11 texture: {} (handle=0x{}, dimensions={}x{})",
             getLabel(), Long.toHexString(nativeHandle), actualWidth, actualHeight);
+    }
+
+    /**
+     * Update existing native DirectX 11 texture data using UpdateSubresource
+     * This is MUCH more efficient than destroying and recreating the texture!
+     */
+    public void updateNativeTexture(byte[] data, int actualWidth, int actualHeight, int mipLevel) {
+        if (closed) {
+            throw new IllegalStateException("Texture already closed: " + getLabel());
+        }
+
+        if (nativeHandle == 0) {
+            LOGGER.warn("Cannot update texture {} - no native handle exists yet", getLabel());
+            return;
+        }
+
+        // Validate data
+        if (data == null || data.length == 0) {
+            LOGGER.warn("No texture data provided for update: {}", getLabel());
+            return;
+        }
+
+        // Update the texture using native UpdateSubresource
+        boolean success = VitraNativeRenderer.updateTexture(nativeHandle, data, actualWidth, actualHeight, mipLevel);
+
+        if (!success) {
+            LOGGER.error("Failed to update texture {}, recreating from scratch", getLabel());
+            // If update fails (e.g., dimension mismatch), recreate the texture
+            VitraNativeRenderer.destroyResource(nativeHandle);
+            nativeHandle = 0;
+            createNativeTexture(data, actualWidth, actualHeight);
+        } else {
+            LOGGER.debug("Successfully updated texture: {} ({}x{}, mip {})",
+                getLabel(), actualWidth, actualHeight, mipLevel);
+        }
     }
 
     /**
@@ -138,6 +197,8 @@ public class DirectX11GpuTexture extends GpuTexture {
             }
 
             nativeHandle = 0;
+            actualNativeWidth = 0;
+            actualNativeHeight = 0;
         }
 
         closed = true;

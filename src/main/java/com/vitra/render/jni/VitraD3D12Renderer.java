@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
  *
  * Enhanced with:
  * - DirectX 12 Debug Layer and GPU-Based Validation
- * - PIX integration for performance profiling
  * - Advanced shader debugging and validation
  * - Safe JNI exception handling
  */
@@ -55,9 +54,7 @@ public class VitraD3D12Renderer {
     public static native String nativeGetDebugMessages();
     public static native void nativeBreakOnDebugError(boolean enabled);
     public static native boolean nativeValidatePipelineState(long pipeline);
-    public static native boolean nativeBeginPIXCapture();
-    public static native void nativeEndPIXCapture();
-
+  
     // Frame management
     public static native void nativeBeginFrame();
     public static native void nativeEndFrame();
@@ -236,48 +233,7 @@ public class VitraD3D12Renderer {
         }
     }
 
-    /**
-     * Begin PIX capture for performance profiling
-     */
-    public static boolean beginPIXCapture() {
-        if (!debugInitialized) {
-            LOGGER.warn("PIX capture requires debug mode to be enabled");
-            return false;
-        }
-
-        try {
-            LOGGER.info("Starting PIX capture...");
-            boolean success = nativeBeginPIXCapture();
-            if (success) {
-                LOGGER.info("✓ PIX capture started");
-            } else {
-                LOGGER.error("✗ Failed to start PIX capture");
-            }
-            return success;
-        } catch (Exception e) {
-            LOGGER.error("Error starting PIX capture", e);
-            VitraDebugUtils.queueDebugMessage("PIX_ERROR: " + e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * End PIX capture
-     */
-    public static void endPIXCapture() {
-        if (!debugInitialized) {
-            return;
-        }
-
-        try {
-            nativeEndPIXCapture();
-            LOGGER.info("✓ PIX capture ended");
-        } catch (Exception e) {
-            LOGGER.error("Error ending PIX capture", e);
-            VitraDebugUtils.queueDebugMessage("PIX_ERROR: " + e.getMessage());
-        }
-    }
-
+  
     /**
      * Validate a pipeline state object
      */
@@ -355,7 +311,7 @@ public class VitraD3D12Renderer {
         try {
             // Initialize debug system first
             if (debugMode && !debugInitialized) {
-                VitraDebugUtils.initializeDebug(debugMode, verboseMode, true, true);
+                VitraDebugUtils.initializeDebug(debugMode, verboseMode);
                 debugInitialized = VitraDebugUtils.isDebugInitialized();
                 if (debugInitialized) {
                     LOGGER.info("✓ DirectX 12 debug system initialized");

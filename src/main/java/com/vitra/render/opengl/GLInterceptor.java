@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,6 +27,7 @@ public class GLInterceptor {
     // System state
     private static final AtomicBoolean initialized = new AtomicBoolean(false);
     private static final AtomicBoolean active = new AtomicBoolean(false);
+    private static final AtomicBoolean frameStarted = new AtomicBoolean(false);
 
     // Resource tracking
     private static final Map<Integer, GLResource> resources = new HashMap<>();
@@ -33,6 +35,9 @@ public class GLInterceptor {
 
     // State tracking
     private static GLState currentState = new GLState();
+
+    // Clear color tracking (FIX: Add missing glClearColor state)
+    private static float[] clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
     // Performance metrics
     private static long interceptedCalls = 0;
@@ -70,6 +75,13 @@ public class GLInterceptor {
             active.set(enabled);
             LOGGER.info("OpenGL interception {}", enabled ? "enabled" : "disabled");
         }
+    }
+
+    /**
+     * Reset frame state for new render cycle
+     */
+    public static void resetFrameState() {
+        frameStarted.set(false);
     }
 
     /**
@@ -223,6 +235,16 @@ public class GLInterceptor {
     }
 
     /**
+     * Ensure DirectX frame is started before drawing
+     */
+    private static void ensureFrameStarted() {
+        if (!frameStarted.get() && isActive()) {
+            VitraNativeRenderer.beginFrame();
+            frameStarted.set(true);
+        }
+    }
+
+    /**
      * Interceptor for glDrawArrays
      */
     public static void glDrawArrays(int mode, int first, int count) {
@@ -232,9 +254,12 @@ public class GLInterceptor {
 
         interceptedCalls++;
 
+        // Ensure DirectX frame is started
+        ensureFrameStarted();
+
         // Translate to DirectX draw call
         long vertexBuffer = getCurrentVertexBuffer();
-        VitraNativeRenderer.draw(vertexBuffer, 0, count, 0);
+        VitraNativeRenderer.draw(vertexBuffer, 0, 0, first, count, 1);
 
         translatedCalls++;
     }
@@ -249,11 +274,14 @@ public class GLInterceptor {
 
         interceptedCalls++;
 
+        // Ensure DirectX frame is started
+        ensureFrameStarted();
+
         // Translate to DirectX indexed draw call
         long vertexBuffer = getCurrentVertexBuffer();
         long indexBuffer = getCurrentIndexBuffer();
 
-        VitraNativeRenderer.draw(vertexBuffer, indexBuffer, 0, count);
+        VitraNativeRenderer.draw(vertexBuffer, indexBuffer, 0, 0, count, 1);
 
         translatedCalls++;
     }
@@ -300,6 +328,30 @@ public class GLInterceptor {
     }
 
     /**
+     * Interceptor for glClearColor (FIX: Missing from original implementation)
+     * Based on Mojang mappings - this is called before glClear to set the clear color
+     */
+    public static void glClearColor(float r, float g, float b, float a) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+
+        // Track clear color state (FIX: This was missing!)
+        clearColor[0] = r;
+        clearColor[1] = g;
+        clearColor[2] = b;
+        clearColor[3] = a;
+
+        LOGGER.debug("glClearColor: r={}, g={}, b={}, a={}", r, g, b, a);
+
+        // Forward clear color to DirectX
+        VitraNativeRenderer.setClearColor(r, g, b, a);
+        translatedCalls++;
+    }
+
+    /**
      * Interceptor for glClear
      */
     public static void glClear(int mask) {
@@ -309,11 +361,120 @@ public class GLInterceptor {
 
         interceptedCalls++;
 
-        // Translate clear mask to DirectX clear
+        LOGGER.debug("glClear: mask=0x{}", Integer.toHexString(mask));
+
+        // Translate clear mask to DirectX clear using tracked clear color (FIX: Use actual clear color)
         if ((mask & GL11.GL_COLOR_BUFFER_BIT) != 0) {
-            VitraNativeRenderer.clear(0.0f, 0.0f, 0.0f, 1.0f);
+            VitraNativeRenderer.clear(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+            LOGGER.debug("  -> Clearing color buffer to: [{}, {}, {}, {}]",
+                clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
         }
 
+        // Handle depth buffer clear
+        if ((mask & GL11.GL_DEPTH_BUFFER_BIT) != 0) {
+            VitraNativeRenderer.clearDepth(1.0f);
+            LOGGER.debug("  -> Clearing depth buffer");
+        }
+
+        translatedCalls++;
+    }
+
+    // ============================================================================
+    // MISSING UNIFORM INTERCEPTORS (FIX: Add missing shader uniform tracking)
+    // ============================================================================
+
+    /**
+     * Interceptor for glUniform4f (FIX: Missing - causes ray artifacts)
+     * Based on Mojang mappings - uniform tracking is essential for proper vertex transformation
+     */
+    public static void glUniform4f(int location, float v0, float v1, float v2, float v3) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+
+        LOGGER.debug("glUniform4f: location={}, values=[{}, {}, {}, {}]", location, v0, v1, v2, v3);
+
+        // Forward uniform to DirectX constant buffer
+        VitraNativeRenderer.setUniform4f(location, v0, v1, v2, v3);
+        translatedCalls++;
+    }
+
+    /**
+     * Interceptor for glUniformMatrix4fv (FIX: Missing - causes transformation issues)
+     * Matrix uniforms are critical for proper vertex positioning
+     */
+    public static void glUniformMatrix4fv(int location, int count, boolean transpose, FloatBuffer value) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+
+        LOGGER.debug("glUniformMatrix4fv: location={}, count={}, transpose={}", location, count, transpose);
+
+        // Forward matrix uniform to DirectX
+        if (value != null && value.hasRemaining()) {
+            float[] matrix = new float[Math.min(16 * count, value.remaining())];
+            value.get(matrix);
+            value.rewind();
+            VitraNativeRenderer.setUniformMatrix4f(location, matrix, transpose);
+        }
+
+        translatedCalls++;
+    }
+
+    /**
+     * Interceptor for glUniform1i (FIX: Missing - causes texture sampling issues)
+     * Sampler uniforms are essential for proper texture binding
+     */
+    public static void glUniform1i(int location, int v0) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+
+        LOGGER.debug("glUniform1i: location={}, value={}", location, v0);
+
+        // Forward integer uniform to DirectX
+        VitraNativeRenderer.setUniform1i(location, v0);
+        translatedCalls++;
+    }
+
+    /**
+     * Interceptor for glUniform1f (FIX: Missing - causes parameter issues)
+     */
+    public static void glUniform1f(int location, float v0) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+
+        LOGGER.debug("glUniform1f: location={}, value={}", location, v0);
+
+        // Forward float uniform to DirectX
+        VitraNativeRenderer.setUniform1f(location, v0);
+        translatedCalls++;
+    }
+
+    /**
+     * Interceptor for glUseProgram (FIX: Missing - causes shader program issues)
+     * Program switching is essential for proper shader state management
+     */
+    public static void glUseProgram(int program) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+
+        LOGGER.debug("glUseProgram: program={}", program);
+
+        // Forward program selection to DirectX
+        VitraNativeRenderer.useProgram(program);
         translatedCalls++;
     }
 
@@ -372,6 +533,7 @@ public class GLInterceptor {
             LOGGER.info("Shutting down OpenGL interceptor");
 
             active.set(false);
+            frameStarted.set(false);
 
             // Clean up tracked resources
             for (GLResource resource : resources.values()) {
@@ -411,6 +573,245 @@ public class GLInterceptor {
         Type getType() {
             return type;
         }
+    }
+
+    // ============================================================================
+    // NEW MINECRAFT 1.21.8 INTERCEPTION METHODS (CommandEncoder/RenderPass)
+    // ============================================================================
+
+    // State tracking for Minecraft 1.21.8 GpuBuffer system
+    private static final Map<Integer, Object> vertexBufferSlots = new HashMap<>();
+    private static Object boundIndexBuffer = null;
+    private static int boundIndexType = 0;
+
+    /**
+     * Extract native DirectX 11 handle from GpuBuffer
+     */
+    private static long extractNativeHandle(Object gpuBuffer) {
+        if (gpuBuffer == null) {
+            return 0;
+        }
+
+        // Check if this is our DirectX11GpuBuffer implementation
+        if (gpuBuffer instanceof com.vitra.render.dx11.DirectX11GpuBuffer) {
+            com.vitra.render.dx11.DirectX11GpuBuffer dx11Buffer =
+                (com.vitra.render.dx11.DirectX11GpuBuffer) gpuBuffer;
+            return dx11Buffer.getNativeHandle();
+        }
+
+        // Fallback: try reflection to get native handle from any GpuBuffer subclass
+        try {
+            java.lang.reflect.Method getNativeHandleMethod =
+                gpuBuffer.getClass().getMethod("getNativeHandle");
+            Object result = getNativeHandleMethod.invoke(gpuBuffer);
+            if (result instanceof Long) {
+                return (Long) result;
+            }
+        } catch (Exception e) {
+            LOGGER.debug("Could not extract native handle from buffer: {}", gpuBuffer.getClass().getName());
+        }
+
+        return 0;
+    }
+
+    /**
+     * Intercept draw call from CommandEncoder/RenderPass (Minecraft 1.21.8)
+     */
+    public static void onDrawCall(int baseVertex, int firstIndex, int count, int indexType, int instanceCount) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+        ensureFrameStarted();
+
+        LOGGER.debug("DrawCall: baseVertex={}, firstIndex={}, count={}, indexType={}, instances={}",
+            baseVertex, firstIndex, count, indexType, instanceCount);
+
+        // Get currently bound buffers from Minecraft 1.21.8 state
+        long vertexBufferHandle = 0;
+        long indexBufferHandle = 0;
+
+        // Try to get vertex buffer from slot 0 (primary vertex buffer)
+        Object vertexBuffer = vertexBufferSlots.get(0);
+        if (vertexBuffer != null) {
+            vertexBufferHandle = extractNativeHandle(vertexBuffer);
+        }
+
+        // Get index buffer if bound
+        if (boundIndexBuffer != null) {
+            indexBufferHandle = extractNativeHandle(boundIndexBuffer);
+        }
+
+        LOGGER.debug("  -> Vertex buffer handle: 0x{}, Index buffer handle: 0x{}",
+            Long.toHexString(vertexBufferHandle), Long.toHexString(indexBufferHandle));
+
+        // Forward to DirectX 11 with CORRECT parameters
+        if (indexBufferHandle != 0) {
+            // Indexed draw call - pass baseVertex, firstIndex, count, instanceCount
+            VitraNativeRenderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, count, instanceCount);
+        } else {
+            // Non-indexed draw call - pass firstIndex as offset
+            VitraNativeRenderer.draw(vertexBufferHandle, 0, 0, firstIndex, count, instanceCount);
+        }
+
+        translatedCalls++;
+    }
+
+    /**
+     * Intercept batched draw calls from CommandEncoder/RenderPass
+     */
+    public static void onBatchedDrawCalls(Collection<?> drawObjects, Object indexBuffer, int indexType) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+        ensureFrameStarted();
+
+        int batchSize = drawObjects != null ? drawObjects.size() : 0;
+        LOGGER.debug("BatchedDrawCalls: {} objects, indexType={}", batchSize, indexType);
+
+        long indexBufferHandle = extractNativeHandle(indexBuffer);
+
+        // Iterate through draw objects and forward each to DirectX 11
+        if (drawObjects != null) {
+            for (Object drawObj : drawObjects) {
+                try {
+                    // Use reflection to extract draw parameters from RenderPass$Draw
+                    // Fields: vertexBuffer, baseVertex, firstIndex, indexCount, etc.
+                    java.lang.reflect.Method vertexBufferMethod = drawObj.getClass().getMethod("vertexBuffer");
+                    java.lang.reflect.Method baseVertexMethod = drawObj.getClass().getMethod("baseVertex");
+                    java.lang.reflect.Method firstIndexMethod = drawObj.getClass().getMethod("firstIndex");
+                    java.lang.reflect.Method indexCountMethod = drawObj.getClass().getMethod("indexCount");
+
+                    Object vertexBuffer = vertexBufferMethod.invoke(drawObj);
+                    int baseVertex = (Integer) baseVertexMethod.invoke(drawObj);
+                    int firstIndex = (Integer) firstIndexMethod.invoke(drawObj);
+                    int indexCount = (Integer) indexCountMethod.invoke(drawObj);
+
+                    long vertexBufferHandle = extractNativeHandle(vertexBuffer);
+
+                    LOGGER.debug("  -> Batched draw: vb=0x{}, ib=0x{}, baseVertex={}, firstIndex={}, count={}",
+                        Long.toHexString(vertexBufferHandle), Long.toHexString(indexBufferHandle),
+                        baseVertex, firstIndex, indexCount);
+
+                    // Forward this draw call to DirectX 11 with CORRECT parameters
+                    VitraNativeRenderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, indexCount, 1);
+
+                } catch (Exception e) {
+                    LOGGER.error("Error extracting draw parameters from batched draw object", e);
+                }
+            }
+        }
+
+        translatedCalls++;
+    }
+
+    /**
+     * Intercept draw call from RenderPass.draw (non-indexed)
+     */
+    public static void onDrawArrays(int offset, int count) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+        ensureFrameStarted();
+
+        LOGGER.debug("DrawArrays: offset={}, count={}", offset, count);
+
+        // Get vertex buffer from slot 0
+        Object vertexBuffer = vertexBufferSlots.get(0);
+        long vertexBufferHandle = extractNativeHandle(vertexBuffer);
+
+        LOGGER.debug("  -> Vertex buffer handle: 0x{}", Long.toHexString(vertexBufferHandle));
+
+        // Non-indexed draw - pass offset as firstIndex
+        VitraNativeRenderer.draw(vertexBufferHandle, 0, 0, offset, count, 1);
+
+        translatedCalls++;
+    }
+
+    /**
+     * Intercept draw call from RenderPass.drawIndexed
+     */
+    public static void onDrawIndexed(int baseVertex, int firstIndex, int count, int instanceCount) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+        ensureFrameStarted();
+
+        LOGGER.debug("DrawIndexed: baseVertex={}, firstIndex={}, count={}, instances={}",
+            baseVertex, firstIndex, count, instanceCount);
+
+        // Get currently bound buffers
+        Object vertexBuffer = vertexBufferSlots.get(0);
+        long vertexBufferHandle = extractNativeHandle(vertexBuffer);
+        long indexBufferHandle = extractNativeHandle(boundIndexBuffer);
+
+        LOGGER.debug("  -> Vertex buffer handle: 0x{}, Index buffer handle: 0x{}",
+            Long.toHexString(vertexBufferHandle), Long.toHexString(indexBufferHandle));
+
+        // Indexed draw with CORRECT parameters
+        VitraNativeRenderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, count, instanceCount);
+
+        translatedCalls++;
+    }
+
+    /**
+     * Intercept vertex buffer binding from RenderPass.setVertexBuffer
+     */
+    public static void onBindVertexBuffer(int slot, Object gpuBuffer) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+
+        long handle = extractNativeHandle(gpuBuffer);
+        LOGGER.debug("BindVertexBuffer: slot={}, buffer={}, handle=0x{}",
+            slot, gpuBuffer != null ? gpuBuffer.getClass().getSimpleName() : "null",
+            Long.toHexString(handle));
+
+        // Track the bound buffer
+        if (gpuBuffer != null) {
+            vertexBufferSlots.put(slot, gpuBuffer);
+        } else {
+            vertexBufferSlots.remove(slot);
+        }
+
+        // Note: We don't need to explicitly bind in DirectX 11 since draw() will use the handle directly
+        // DirectX 11 uses PSO (Pipeline State Objects) that bundle vertex buffers with draw calls
+
+        translatedCalls++;
+    }
+
+    /**
+     * Intercept index buffer binding from RenderPass.setIndexBuffer
+     */
+    public static void onBindIndexBuffer(Object gpuBuffer, int indexType) {
+        if (!isActive()) {
+            return;
+        }
+
+        interceptedCalls++;
+
+        long handle = extractNativeHandle(gpuBuffer);
+        LOGGER.debug("BindIndexBuffer: buffer={}, type={}, handle=0x{}",
+            gpuBuffer != null ? gpuBuffer.getClass().getSimpleName() : "null",
+            indexType, Long.toHexString(handle));
+
+        // Track the bound index buffer and type
+        boundIndexBuffer = gpuBuffer;
+        boundIndexType = indexType;
+
+        // Note: We don't need to explicitly bind in DirectX 11 since draw() will use the handle directly
+        // DirectX 11 IASetIndexBuffer is called internally by the native draw() method
+
+        translatedCalls++;
     }
 
     /**

@@ -47,7 +47,25 @@ public class DirectX11MappedView implements GpuBuffer.MappedView {
             return;
         }
 
-        LOGGER.debug("Unmapping buffer: {}", buffer.getDebugLabel());
+        // CRITICAL: Check how much data was actually written
+        int bytesWritten = data.position();
+        int capacity = data.capacity();
+
+        LOGGER.debug("Unmapping buffer: {} (wrote {} / {} bytes = {}%)",
+            buffer.getDebugLabel(), bytesWritten, capacity, (bytesWritten * 100 / capacity));
+
+        // Detect if buffer needs to grow
+        int vertexStride = buffer.getVertexStride();
+        if (vertexStride > 0) {
+            int verticesWritten = bytesWritten / vertexStride;
+            int maxVertices = capacity / vertexStride;
+
+            if (verticesWritten > maxVertices * 0.9) { // 90% utilization = consider growing
+                LOGGER.warn("Buffer {} is {} % full ({} / {} vertices) - may need to grow!",
+                    buffer.getDebugLabel(), (verticesWritten * 100 / maxVertices),
+                    verticesWritten, maxVertices);
+            }
+        }
 
         // Unmap the buffer in native code
         long nativeHandle = buffer.getNativeHandle();

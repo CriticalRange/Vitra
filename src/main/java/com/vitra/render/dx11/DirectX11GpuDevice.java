@@ -9,11 +9,14 @@ import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.TextureFormat;
+import com.vitra.render.jni.D3D11ShaderManager;
 import com.vitra.render.jni.VitraNativeRenderer;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,11 +36,13 @@ public class DirectX11GpuDevice implements GpuDevice {
     private final long windowHandle;
     private final boolean debugEnabled;
     private final List<String> debugMessages = new ArrayList<>();
+    private final D3D11ShaderManager shaderManager;
     private boolean closed = false;
 
     public DirectX11GpuDevice(long windowHandle, int debugVerbosity, boolean sync) {
         this.windowHandle = windowHandle;
         this.debugEnabled = debugVerbosity > 0;
+        this.shaderManager = new D3D11ShaderManager();
 
         LOGGER.info("╔════════════════════════════════════════════════════════════╗");
         LOGGER.info("║  DIRECTX 11 GPUDEVICE CREATED                              ║");
@@ -46,6 +51,10 @@ public class DirectX11GpuDevice implements GpuDevice {
         LOGGER.info("║ Debug Enabled: {}", debugEnabled);
         LOGGER.info("║ VSync:         {}", sync);
         LOGGER.info("╚════════════════════════════════════════════════════════════╝");
+
+        // Initialize shader manager and preload shaders
+        shaderManager.initialize();
+        shaderManager.preloadShaders();
     }
 
     @Override
@@ -202,15 +211,92 @@ public class DirectX11GpuDevice implements GpuDevice {
     @Override
     public CompiledRenderPipeline precompilePipeline(RenderPipeline pipeline,
                                                       BiFunction<ResourceLocation, ShaderType, String> shaderSourceGetter) {
-        LOGGER.debug("precompilePipeline({})", pipeline);
+        ResourceLocation pipelineLoc = pipeline.getLocation();
+        LOGGER.info("Vitra: Precompiling RenderPipeline: {} (vertex: {}, fragment: {})",
+            pipelineLoc, pipeline.getVertexShader(), pipeline.getFragmentShader());
 
-        // Create a compiled pipeline wrapper
+        // Extract shader name from resource location
+        // Example: minecraft:shaders/core/position.vsh -> "position"
+        String shaderName = extractShaderName(pipeline.getVertexShader());
+
+        // Get or create the pipeline from our shader manager
+        long pipelineHandle = shaderManager.getPipeline(shaderName);
+
+        if (pipelineHandle == 0) {
+            // Pipeline not in cache, try to create it
+            LOGGER.info("Vitra: Creating pipeline for shader: {}", shaderName);
+            pipelineHandle = shaderManager.createPipeline(shaderName);
+        }
+
+        // Create compiled pipeline wrapper
         DirectX11CompiledRenderPipeline compiledPipeline = new DirectX11CompiledRenderPipeline(pipeline);
 
-        // TODO: Actually compile shaders using the shaderSourceGetter
-        // For now, return the wrapper which will be populated later
+        if (pipelineHandle != 0) {
+            // Load compiled .cso bytecode from resources
+            try {
+                byte[] vertexBytecode = loadCompiledShader(shaderName, "vs");
+                byte[] pixelBytecode = loadCompiledShader(shaderName, "ps");
+
+                if (vertexBytecode != null && pixelBytecode != null) {
+                    compiledPipeline.compileFromBytecode(vertexBytecode, pixelBytecode);
+                    LOGGER.info("Vitra: Successfully compiled pipeline: {} (handle: 0x{})",
+                        shaderName, Long.toHexString(pipelineHandle));
+                } else {
+                    LOGGER.warn("Vitra: Missing compiled shaders for pipeline: {}", shaderName);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Vitra: Failed to load compiled shaders for pipeline: {}", shaderName, e);
+            }
+        } else {
+            LOGGER.warn("Vitra: Failed to create pipeline for shader: {}", shaderName);
+        }
 
         return compiledPipeline;
+    }
+
+    /**
+     * Extract shader name from ResourceLocation path.
+     * Example: "minecraft:shaders/core/position.vsh" -> "position"
+     */
+    private String extractShaderName(ResourceLocation shaderLocation) {
+        String path = shaderLocation.getPath();
+
+        // Remove directory path and file extension
+        int lastSlash = path.lastIndexOf('/');
+        if (lastSlash >= 0) {
+            path = path.substring(lastSlash + 1);
+        }
+
+        // Remove file extension (.vsh, .fsh, etc.)
+        int lastDot = path.lastIndexOf('.');
+        if (lastDot >= 0) {
+            path = path.substring(0, lastDot);
+        }
+
+        return path;
+    }
+
+    /**
+     * Load compiled shader bytecode from resources.
+     * Looks for files in /shaders/compiled/<name>_<type>.cso
+     */
+    private byte[] loadCompiledShader(String shaderName, String type) {
+        String resourcePath = "/shaders/compiled/" + shaderName + "_" + type + ".cso";
+
+        try (InputStream is = getClass().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                LOGGER.warn("Vitra: Compiled shader not found: {}", resourcePath);
+                return null;
+            }
+
+            byte[] bytecode = is.readAllBytes();
+            LOGGER.debug("Vitra: Loaded compiled shader: {} ({} bytes)", resourcePath, bytecode.length);
+            return bytecode;
+
+        } catch (IOException e) {
+            LOGGER.error("Vitra: Failed to read compiled shader: {}", resourcePath, e);
+            return null;
+        }
     }
 
     @Override
@@ -241,6 +327,11 @@ public class DirectX11GpuDevice implements GpuDevice {
         LOGGER.info("╠════════════════════════════════════════════════════════════╣");
         LOGGER.info("║ Window Handle: 0x{}", Long.toHexString(windowHandle));
         LOGGER.info("╚════════════════════════════════════════════════════════════╝");
+
+        // Shutdown shader manager
+        if (shaderManager != null) {
+            shaderManager.shutdown();
+        }
 
         // Cleanup is handled by VitraNativeRenderer.shutdown()
         // which is called from VitraMod shutdown hook
