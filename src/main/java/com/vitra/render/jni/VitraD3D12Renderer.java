@@ -101,6 +101,14 @@ public class VitraD3D12Renderer {
         return nativeDevice != 0L && nativeCommandQueue != 0L && nativeSwapChain != 0L;
     }
 
+    /**
+     * Get the native DirectX 12 device handle for debugging and verification
+     * @return Native device handle, or 0L if not initialized
+     */
+    public static long getNativeDeviceHandle() {
+        return nativeDevice;
+    }
+
     public static boolean isRayTracingSupported() {
         return rayTracingSupported;
     }

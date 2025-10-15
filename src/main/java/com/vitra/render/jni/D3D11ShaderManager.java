@@ -54,7 +54,7 @@ public class D3D11ShaderManager implements IShaderManager {
                 return 0;
             }
 
-            long handle = VitraNativeRenderer.createShader(bytecode, bytecode.length, type);
+            long handle = VitraNativeRenderer.createGLProgramShader(bytecode, bytecode.length, type);
             if (handle != 0) {
                 shaderCache.put(cacheKey, handle);
                 LOGGER.debug("Loaded {} shader: {} (handle: 0x{}, size: {} bytes)",

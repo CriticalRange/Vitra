@@ -130,30 +130,24 @@ public class RenderSystemMixin {
     }
 
     /**
-     * CRITICAL FIX: Override flipFrame to fix event polling order
+     * CRITICAL FIX: Override flipFrame for Minecraft 1.21.8 DirectX 11 rendering
      *
-     * DirectX 11 JNI REQUIREMENT: glfwPollEvents() MUST be called BEFORE frame submission
-     * - This prevents event processing blocks
-     * - If frame submission is called first, it may block waiting for GPU
-     * - While blocked, events aren't processed → window freeze
+     * Minecraft 1.21.8 uses a new rendering architecture:
+     * - GpuDevice interface (DirectX11GpuDevice) handles all rendering
+     * - CommandEncoder.presentTexture() is called by Minecraft to present frames
+     * - We DON'T need manual frame submission here anymore
      *
-     * Original Minecraft order (WRONG):
-     * 1. glfwSwapBuffers()  → we replace with DirectX 11 frame submission
-     * 2. glfwPollEvents()   → too late, already blocked!
-     * 3. capturer.endFrame()
+     * What we DO need:
+     * 1. glfwPollEvents() - Process window/input events
+     * 2. Tracy cleanup - End frame capture if enabled
      *
-     * Correct DirectX 11 JNI order:
-     * 1. glfwPollEvents()   → process events FIRST
-     * 2. DirectX frame submission → then submit frame (may block)
-     * 3. capturer.endFrame() → cleanup
-     *
-     * Why @Overwrite instead of @Redirect:
-     * - Need to reorder the calls completely
-     * - @Redirect can only replace individual calls, not reorder them
-     * - This is critical for preventing window freeze
+     * What we DON'T need:
+     * - Manual DirectX frame submission (handled by CommandEncoder.presentTexture())
+     * - VitraRenderer checks (old BGFX architecture, no longer used)
+     * - glfwSwapBuffers() (DirectX swap chain presents automatically)
      *
      * @author Vitra
-     * @reason Complete replacement of glfwSwapBuffers with DirectX 11 JNI frame submission and correct event polling order
+     * @reason Replace OpenGL buffer swap with DirectX 11 rendering pipeline
      */
     @Overwrite(remap = false)
     public static void flipFrame(long window, com.mojang.blaze3d.TracyFrameCapture capturer) {
@@ -164,142 +158,63 @@ public class RenderSystemMixin {
 
         if (redirectCallCount == 1) {
             LOGGER.info("╔════════════════════════════════════════════════════════════╗");
-            LOGGER.info("║  FIRST FRAME - CORRECT EVENT ORDER                         ║");
+            LOGGER.info("║  DIRECTX 11 RENDERING ACTIVE (Minecraft 1.21.8)           ║");
             LOGGER.info("╠════════════════════════════════════════════════════════════╣");
-            LOGGER.info("║ 1. glfwPollEvents() - Process input events               ║");
-            LOGGER.info("║ 2. DirectX frame()  - Submit frame (may block)           ║");
-            LOGGER.info("║ 3. capturer.endFrame() - Tracy cleanup                   ║");
+            LOGGER.info("║ Rendering Pipeline:                                        ║");
+            LOGGER.info("║   • DirectX11GpuDevice    - GPU abstraction                ║");
+            LOGGER.info("║   • DirectX11CommandEncoder - Command recording            ║");
+            LOGGER.info("║   • DirectX11RenderPass   - Render pass execution          ║");
+            LOGGER.info("║   • presentTexture()      - Automatic frame presentation   ║");
             LOGGER.info("╠════════════════════════════════════════════════════════════╣");
             LOGGER.info("║ Window:  0x{}", Long.toHexString(window));
             LOGGER.info("║ Thread:  {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
             LOGGER.info("╚════════════════════════════════════════════════════════════╝");
         }
 
-        // STEP 1: Poll events FIRST (before frame submission blocks)
-        // This prevents window freeze when DirectX 11 waits for GPU
+        // STEP 1: Poll events FIRST
+        // This must happen before any potential GPU waits to prevent window freezing
         try {
             org.lwjgl.glfw.GLFW.glfwPollEvents();
             if (verboseLog) {
-                LOGGER.info("[TRACE] Frame #{} - glfwPollEvents() called", redirectCallCount);
+                LOGGER.info("[Frame #{}] glfwPollEvents() called", redirectCallCount);
             }
         } catch (Exception e) {
             LOGGER.error("Exception during glfwPollEvents()", e);
         }
 
-        // CRITICAL: Only call DirectX frame submission if VitraRenderer is actually initialized
-        if (VitraMod.getRenderer() != null && VitraMod.getRenderer().isInitialized()) {
-            try {
-                if (verboseLog) {
-                    LOGGER.info("[TRACE] VitraRenderer initialized, submitting frame...");
-                }
-
-                // Get dynamic framebuffer size for resize
-                int[] width = new int[1];
-                int[] height = new int[1];
-                org.lwjgl.glfw.GLFW.glfwGetFramebufferSize(window, width, height);
-
-                // Resize renderer if framebuffer size changed
-                VitraMod.getRenderer().resize(width[0], height[0]);
-
-                // CRITICAL FIX: Call beginFrame() to set up render targets and viewport
-                // This MUST be called before any rendering happens each frame
-                VitraMod.getRenderer().beginFrame();
-
-                long directXStartTime = System.nanoTime();
-
-                // Reset frame state for next render cycle
-                com.vitra.render.opengl.GLInterceptor.resetFrameState();
-
-                // Reset draw call counters in mixins
-                try {
-                    Class<?> glCommandEncoderMixin = Class.forName("com.vitra.mixin.GlCommandEncoderMixin");
-                    glCommandEncoderMixin.getMethod("resetDrawCallCount").invoke(null);
-                } catch (Exception e) {
-                    // Ignore if mixin not loaded yet
-                }
-
-                try {
-                    Class<?> glRenderPassMixin = Class.forName("com.vitra.mixin.GlRenderPassMixin");
-                    glRenderPassMixin.getMethod("resetDrawCallCount").invoke(null);
-                } catch (Exception e) {
-                    // Ignore if mixin not loaded yet
-                }
-
-                // NOTE: Frame presentation is now handled by CommandEncoder.presentTexture()
-                // which Minecraft calls after rendering is complete.
-                // We no longer call endFrame() here to avoid double-presentation.
-
-                long directXEndTime = System.nanoTime();
-                long directXMs = (directXEndTime - directXStartTime) / 1_000_000;
-
-                // Calculate frame time
-                long frameDelta = 0;
-                if (lastFrameTime > 0) {
-                    frameDelta = (frameStartTime - lastFrameTime) / 1_000_000; // ms
-                }
-                lastFrameTime = frameStartTime;
-
-                if (redirectCallCount <= 5) {
-                    LOGGER.info("╔════════════════════════════════════════════════════════════╗");
-                    LOGGER.info("║  DIRECTX 11 JNI FRAME #{} SUBMITTED", redirectCallCount);
-                    LOGGER.info("╠════════════════════════════════════════════════════════════╣");
-                    LOGGER.info("║ Frame Time:  {} ms (target: ~16.67ms for 60 FPS)", frameDelta > 0 ? frameDelta : "N/A");
-                    LOGGER.info("║ DirectX Time: {} ms", directXMs);
-                    LOGGER.info("║ Resolution:  {}x{}", width[0], height[0]);
-                    LOGGER.info("║ Thread:      {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
-                    LOGGER.info("╚════════════════════════════════════════════════════════════╝");
-                } else if (verboseLog) {
-                    LOGGER.info("[TRACE] Frame #{} submitted ({}ms frame, {}ms DirectX)",
-                        redirectCallCount, frameDelta, directXMs);
-                }
-
-                // Warn if frame time is excessive
-                if (frameDelta > 100) { // More than 100ms = less than 10 FPS
-                    LOGGER.warn("[PERFORMANCE] Frame #{} took {}ms - possible stutter or hang!", redirectCallCount, frameDelta);
-                }
-
-            } catch (Exception e) {
-                LOGGER.error("╔════════════════════════════════════════════════════════════╗");
-                LOGGER.error("║  EXCEPTION DURING DIRECTX 11 JNI FRAME SUBMISSION           ║");
-                LOGGER.error("╠════════════════════════════════════════════════════════════╣");
-                LOGGER.error("║ Frame #{}  Exception: {}", redirectCallCount, e.getClass().getName());
-                LOGGER.error("║ Message: {}", e.getMessage());
-                LOGGER.error("╚════════════════════════════════════════════════════════════╝");
-                LOGGER.error("Full stack trace:", e);
-                System.err.println("[CRITICAL] Exception during DirectX 11 JNI frame(): " + e.getMessage());
-                e.printStackTrace(System.err);
-            }
-        } else {
-            // DirectX 11 JNI not initialized - this is a CRITICAL error!
-            if (redirectCallCount <= 10 || redirectCallCount % 60 == 0) {
-                LOGGER.error("╔════════════════════════════════════════════════════════════╗");
-                LOGGER.error("║  DIRECTX 11 JNI NOT INITIALIZED - CANNOT RENDER            ║");
-                LOGGER.error("╠════════════════════════════════════════════════════════════╣");
-                LOGGER.error("║ Redirect Call #: {}", redirectCallCount);
-                LOGGER.error("║ Window:          0x{}", Long.toHexString(window));
-                LOGGER.error("║ Thread:          {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
-                LOGGER.error("╠════════════════════════════════════════════════════════════╣");
-                LOGGER.error("║ This is why you're seeing a gray/black screen!             ║");
-                LOGGER.error("║ DirectX 11 JNI should have been initialized in WindowMixin. ║");
-                LOGGER.error("║ Check WindowMixin logs for initialization failures.        ║");
-                LOGGER.error("╚════════════════════════════════════════════════════════════╝");
-                System.err.println("[CRITICAL] DirectX 11 JNI not initialized - frame #" + redirectCallCount);
-            }
-        }
-
-        // STEP 3: Tracy frame capture cleanup (may be null)
+        // STEP 2: Tracy frame capture cleanup (if enabled)
         if (capturer != null) {
             try {
                 capturer.endFrame();
                 if (verboseLog) {
-                    LOGGER.info("[TRACE] Frame #{} - capturer.endFrame() called", redirectCallCount);
+                    LOGGER.info("[Frame #{}] capturer.endFrame() called", redirectCallCount);
                 }
             } catch (Exception e) {
                 LOGGER.error("Exception during capturer.endFrame()", e);
             }
         }
 
-        // NOTE: DO NOT call glfwSwapBuffers() - DirectX 11 JNI handles frame presentation
+        // Calculate frame time for performance monitoring
+        long frameDelta = 0;
+        if (lastFrameTime > 0) {
+            frameDelta = (frameStartTime - lastFrameTime) / 1_000_000; // ms
+        }
+        lastFrameTime = frameStartTime;
+
+        if (verboseLog) {
+            LOGGER.info("[Frame #{}] Frame time: {}ms (target: ~16.67ms for 60 FPS)",
+                redirectCallCount, frameDelta > 0 ? frameDelta : "N/A");
+        }
+
+        // Warn if frame time is excessive
+        if (frameDelta > 100) { // More than 100ms = less than 10 FPS
+            LOGGER.warn("[PERFORMANCE] Frame #{} took {}ms - possible stutter or hang!", redirectCallCount, frameDelta);
+        }
+
+        // NOTE: Frame presentation is handled automatically by:
+        // - CommandEncoder.presentTexture() called by Minecraft's render loop
+        // - DirectX 11 swap chain presents the frame when ready
+        // We do NOT call any manual frame submission here.
     }
 
     // ============================================================================

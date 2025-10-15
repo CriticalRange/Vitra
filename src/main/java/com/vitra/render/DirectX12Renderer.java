@@ -313,6 +313,15 @@ public class DirectX12Renderer implements IVitraRenderer {
         return bufferManager;
     }
 
+    @Override
+    public long getNativeHandle() {
+        // Return the native DirectX 12 device handle for debugging and verification
+        if (isInitialized()) {
+            return VitraD3D12Renderer.getNativeDeviceHandle();
+        }
+        return 0L;
+    }
+
     // DirectX 12 specific methods for advanced features
     public boolean enableRayTracing(int quality) {
         return VitraD3D12Renderer.enableRayTracing(quality);

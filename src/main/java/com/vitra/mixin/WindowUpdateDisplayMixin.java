@@ -13,16 +13,16 @@ import org.spongepowered.asm.mixin.Shadow;
 /**
  * Priority 4: Frame Presentation Mixin
  *
- * CRITICAL: This mixin replaces Minecraft's OpenGL frame presentation with BGFX.
+ * CRITICAL: This mixin replaces Minecraft's OpenGL frame presentation with DirectX 11 JNI.
  *
  * VulkanMod Strategy (simplified):
  * - Use @Overwrite to replace updateDisplay() method
  * - Just call RenderSystem.flipFrame() (which has glfwSwapBuffers() redirected in RenderSystemMixin)
- * - BGFX frame submission happens automatically via the @Redirect in RenderSystemMixin
+ * - DirectX 11 frame submission happens automatically via the @Overwrite in RenderSystemMixin
  *
  * This ensures:
  * - NO OpenGL context calls at all
- * - Only BGFX presents frames (via redirected glfwSwapBuffers())
+ * - Only DirectX 11 presents frames (via replaced flipFrame())
  * - No GL ERROR 65546 messages
  * - Simpler, cleaner code following VulkanMod's proven pattern
  */
@@ -36,18 +36,18 @@ public class WindowUpdateDisplayMixin {
 
     /**
      * @author Vitra
-     * @reason Complete replacement of OpenGL presentation with BGFX DirectX 11
+     * @reason Complete replacement of OpenGL presentation with DirectX 11 JNI
      *
      * Original Minecraft code:
      * - Calls RenderSystem.flipFrame(window, tracyCapture) which does glfwSwapBuffers() and glfwPollEvents()
      *
      * Our replacement (following VulkanMod's pattern):
      * - Just call RenderSystem.flipFrame()
-     * - The glfwSwapBuffers() call INSIDE flipFrame() is redirected to bgfx_frame() in RenderSystemMixin
-     * - This is simpler and more robust than calling bgfx_frame() here
+     * - The glfwSwapBuffers() call INSIDE flipFrame() is replaced with DirectX 11 frame submission in RenderSystemMixin
+     * - This is simpler and more robust than calling DirectX 11 frame submission here
      *
      * Why this works:
-     * - RenderSystemMixin has @Redirect that intercepts glfwSwapBuffers() → calls bgfx_frame()
+     * - RenderSystemMixin has @Overwrite that replaces flipFrame() → calls DirectX 11 frame submission
      * - flipFrame() still handles event polling, Tracy capture, and frame timing
      * - We get all the benefits without duplicating frame submission logic
      *
@@ -55,13 +55,13 @@ public class WindowUpdateDisplayMixin {
      */
     @Overwrite
     public void updateDisplay(com.mojang.blaze3d.TracyFrameCapture tracyCapture) {
-        // Call Minecraft's flipFrame() - glfwSwapBuffers() inside it is redirected to BGFX
+        // Call Minecraft's flipFrame() - glfwSwapBuffers() inside it is replaced with DirectX 11
         // This handles:
-        // 1. BGFX frame submission (via redirected glfwSwapBuffers())
+        // 1. DirectX 11 frame submission (via replaced flipFrame())
         // 2. Event polling (glfwPollEvents())
         // 3. Tracy frame capture (if enabled)
         RenderSystem.flipFrame(this.window, tracyCapture);
 
-        LOGGER.trace("Window.updateDisplay() called RenderSystem.flipFrame() (glfwSwapBuffers redirected to BGFX)");
+        LOGGER.trace("Window.updateDisplay() called RenderSystem.flipFrame() (glfwSwapBuffers replaced with DirectX 11)");
     }
 }

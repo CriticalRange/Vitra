@@ -44,7 +44,7 @@ public class DirectX11CompiledRenderPipeline implements CompiledRenderPipeline {
         }
 
         // Create vertex shader
-        long vertexShader = VitraNativeRenderer.createShader(
+        long vertexShader = VitraNativeRenderer.createGLProgramShader(
             vertexShaderBytecode,
             vertexShaderBytecode.length,
             VitraNativeRenderer.SHADER_TYPE_VERTEX
@@ -55,7 +55,7 @@ public class DirectX11CompiledRenderPipeline implements CompiledRenderPipeline {
         }
 
         // Create pixel shader
-        long pixelShader = VitraNativeRenderer.createShader(
+        long pixelShader = VitraNativeRenderer.createGLProgramShader(
             pixelShaderBytecode,
             pixelShaderBytecode.length,
             VitraNativeRenderer.SHADER_TYPE_PIXEL

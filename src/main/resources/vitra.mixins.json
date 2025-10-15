@@ -3,6 +3,7 @@
   "package": "com.vitra.mixin",
   "compatibilityLevel": "JAVA_17",
   "minVersion": "0.8",
+  "plugin": "com.vitra.mixin.VitraMixinPlugin",
   "client": [
     "FontSetMixin",
     "GameRendererMixin",
@@ -11,11 +12,20 @@
     "GlRenderPassMixin",
     "GlStateManagerMixin",
     "GlStateManagerShaderMixin",
+    "LevelRendererMixin",
     "RenderSystemMixin",
     "RenderSystemProjectionMixin",
+    "RenderTypeMixin",
     "ShaderManagerMixin",
     "WindowMixin",
-    "WindowUpdateDisplayMixin"
+    "WindowUpdateDisplayMixin",
+    "lwjgl.GL11Mixin",
+    "lwjgl.GL13Mixin",
+    "lwjgl.GL14Mixin",
+    "lwjgl.GL15Mixin",
+    "lwjgl.GL20Mixin",
+    "lwjgl.GL30Mixin",
+    "vertex.BufferBuilderMixin"
   ],
   "mixins": [
   ],

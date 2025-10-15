@@ -156,4 +156,9 @@ public interface IVitraRenderer {
      * Get buffer manager for this renderer
      */
     Object getBufferManager();
+
+    /**
+     * Get native device handle for debugging and verification
+     */
+    long getNativeHandle();
 }

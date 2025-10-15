@@ -196,7 +196,7 @@ public class VitraNativeRenderer {
      * @param type - Shader type (vertex, pixel, etc.)
      * @return Shader handle
      */
-    public static native long createShader(byte[] bytecode, int size, int type);
+    public static native long createGLProgramShader(byte[] bytecode, int size, int type);
 
     /**
      * Create a shader pipeline from vertex and pixel shaders
@@ -335,10 +335,376 @@ public class VitraNativeRenderer {
     public static native void setUniform1f(int location, float value);
 
     /**
+     * Set 2-component float uniform
+     * @param location - Uniform location
+     * @param v0 - First component
+     * @param v1 - Second component
+     */
+    public static native void setUniform2f(int location, float v0, float v1);
+
+    /**
+     * Set 3-component float uniform
+     * @param location - Uniform location
+     * @param v0 - First component
+     * @param v1 - Second component
+     * @param v2 - Third component
+     */
+    public static native void setUniform3f(int location, float v0, float v1, float v2);
+
+    /**
      * Set active shader program (FIX: Missing - causes shader state issues)
      * @param program - Program handle/ID
      */
     public static native void useProgram(int program);
+
+    // ==================== TEXTURE METHODS ====================
+
+    /**
+     * Set texture parameter (CRITICAL for fixing yellow rays)
+     * @param target - Texture target (GL_TEXTURE_2D, etc.)
+     * @param pname - Parameter name (GL_TEXTURE_MIN_FILTER, etc.)
+     * @param param - Parameter value
+     */
+    public static native void setTextureParameter(int target, int pname, int param);
+
+    /**
+     * Set texture parameter (float version)
+     * @param target - Texture target (GL_TEXTURE_2D, etc.)
+     * @param pname - Parameter name (GL_TEXTURE_MIN_FILTER, etc.)
+     * @param param - Parameter value (float)
+     */
+    public static native void setTextureParameterf(int target, int pname, float param);
+
+    /**
+     * Get texture parameter
+     * @param target - Texture target (GL_TEXTURE_2D, etc.)
+     * @param pname - Parameter name (GL_TEXTURE_MIN_FILTER, etc.)
+     * @return Parameter value
+     */
+    public static native int getTextureParameter(int target, int pname);
+
+    /**
+     * Get texture level parameter
+     * @param target - Texture target (GL_TEXTURE_2D, etc.)
+     * @param level - Mipmap level
+     * @param pname - Parameter name (GL_TEXTURE_WIDTH, etc.)
+     * @return Parameter value
+     */
+    public static native int getTextureLevelParameter(int target, int level, int pname);
+
+    /**
+     * Set pixel storage mode (important for texture alignment)
+     * @param pname - Parameter name (GL_UNPACK_ALIGNMENT, etc.)
+     * @param param - Parameter value
+     */
+    public static native void setPixelStore(int pname, int param);
+
+    /**
+     * Get texture image data (for readback/download)
+     * @param tex - Texture target (GL_TEXTURE_2D, etc.)
+     * @param level - Mipmap level
+     * @param format - Pixel format (GL_RGBA, etc.)
+     * @param type - Data type (GL_UNSIGNED_BYTE, etc.)
+     * @param pixels - Output pixel data
+     */
+    public static native void glGetTexImage(int tex, int level, int format, int type, long pixels);
+
+    /**
+     * Get texture image data (ByteBuffer version)
+     * @param tex - Texture target (GL_TEXTURE_2D, etc.)
+     * @param level - Mipmap level
+     * @param format - Pixel format (GL_RGBA, etc.)
+     * @param type - Data type (GL_UNSIGNED_BYTE, etc.)
+     * @param pixels - Output pixel data
+     */
+    public static native void glGetTexImage(int tex, int level, int format, int type, java.nio.ByteBuffer pixels);
+
+    /**
+     * Get texture image data (IntBuffer version)
+     * @param tex - Texture target (GL_TEXTURE_2D, etc.)
+     * @param level - Mipmap level
+     * @param format - Pixel format (GL_RGBA, etc.)
+     * @param type - Data type (GL_UNSIGNED_BYTE, etc.)
+     * @param pixels - Output pixel data
+     */
+    public static native void glGetTexImage(int tex, int level, int format, int type, java.nio.IntBuffer pixels);
+
+    /**
+     * Copy texture sub-image (CRITICAL for dynamic texture updates)
+     * @param target - Texture target (GL_TEXTURE_2D, etc.)
+     * @param level - Mipmap level
+     * @param xoffset - X offset in pixels
+     * @param yoffset - Y offset in pixels
+     * @param width - Width in pixels
+     * @param height - Height in pixels
+     * @param format - Pixel format (GL_RGBA, etc.)
+     * @param type - Data type (GL_UNSIGNED_BYTE, etc.)
+     * @param pixels - Pixel data
+     */
+    public static native void glCopyTexSubImage2D(int target, int level, int xoffset, int yoffset, int x, int y, int width, int height);
+
+    /**
+     * Alias for glCopyTexSubImage2D to match GLInterceptor call
+     */
+    public static void copyTexSubImage2D(int target, int level, int xoffset, int yoffset, int x, int y, int width, int height) {
+        glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
+    }
+
+    // ==================== BUFFER METHODS ====================
+
+    /**
+     * Map a buffer for CPU access (CRITICAL for vertex data access)
+     * @param bufferHandle - Buffer handle
+     * @param size - Buffer size in bytes
+     * @param accessFlags - Access flags: 1=read, 2=write, 3=read+write
+     * @return Direct ByteBuffer pointing to mapped memory, or null on failure
+     */
+    public static native java.nio.ByteBuffer mapBuffer(long bufferHandle, int size, int accessFlags);
+
+    /**
+     * Unmap a previously mapped buffer
+     * @param bufferHandle - Buffer handle
+     */
+    public static native void unmapBuffer(long bufferHandle);
+
+    /**
+     * Get buffer parameter
+     * @param target - Buffer target (GL_ARRAY_BUFFER, etc.)
+     * @param pname - Parameter name (GL_BUFFER_SIZE, etc.)
+     * @param params - Output parameter values
+     */
+    public static native void glGetBufferParameteriv(int target, int pname, java.nio.IntBuffer params);
+
+    // ==================== SHADER CREATION METHODS ====================
+
+    /**
+     * Create a shader (vertex or pixel)
+     * @param type - Shader type (GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, etc.)
+     * @return Shader handle/ID
+     */
+    public static native int createGLProgramShader(int type);
+
+    /**
+     * Set shader source code
+     * @param shader - Shader handle/ID
+     * @param source - Shader source code as string
+     */
+    public static native void shaderSource(int shader, String source);
+
+    /**
+     * Compile shader
+     * @param shader - Shader handle/ID
+     */
+    public static native void compileShader(int shader);
+
+    /**
+     * Create shader program
+     * @return Program handle/ID
+     */
+    public static native int createProgram();
+
+    /**
+     * Attach shader to program
+     * @param program - Program handle/ID
+     * @param shader - Shader handle/ID
+     */
+    public static native void attachShader(int program, int shader);
+
+    /**
+     * Link shader program
+     * @param program - Program handle/ID
+     */
+    public static native void linkProgram(int program);
+
+    /**
+     * Validate shader program
+     * @param program - Program handle/ID
+     */
+    public static native void validateProgram(int program);
+
+    /**
+     * Delete shader
+     * @param shader - Shader handle/ID
+     */
+    public static native void deleteShader(int shader);
+
+    /**
+     * Delete shader program
+     * @param program - Program handle/ID
+     */
+    public static native void deleteProgram(int program);
+
+    // ==================== VERTEX ATTRIBUTE METHODS ====================
+
+    /**
+     * Enable vertex attribute array
+     * @param index - Attribute index
+     */
+    public static native void enableVertexAttribArray(int index);
+
+    /**
+     * Disable vertex attribute array
+     * @param index - Attribute index
+     */
+    public static native void disableVertexAttribArray(int index);
+
+    /**
+     * Set vertex attribute pointer
+     * @param index - Attribute index
+     * @param size - Number of components (1-4)
+     * @param type - Data type (GL_FLOAT, etc.)
+     * @param normalized - Whether to normalize values
+     * @param stride - Stride between attributes
+     * @param pointer - Pointer to vertex data
+     */
+    public static native void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, long pointer);
+
+    /**
+     * Set vertex attribute pointer (ByteBuffer version)
+     * @param index - Attribute index
+     * @param size - Number of components (1-4)
+     * @param type - Data type (GL_FLOAT, etc.)
+     * @param normalized - Whether to normalize values
+     * @param stride - Stride between attributes
+     * @param pointer - Pointer to vertex data
+     */
+    public static native void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, java.nio.ByteBuffer pointer);
+
+    /**
+     * Set integer vertex attribute pointer
+     * @param index - Attribute index
+     * @param size - Number of components (1-4)
+     * @param type - Data type (GL_INT, etc.)
+     * @param stride - Stride between attributes
+     * @param pointer - Pointer to vertex data
+     */
+    public static native void glVertexAttribIPointer(int index, int size, int type, int stride, long pointer);
+
+    /**
+     * Get uniform location (string version)
+     * @param program - Program handle/ID
+     * @param name - Uniform name
+     * @return Uniform location, or -1 if not found
+     */
+    public static native int glGetUniformLocation(int program, String name);
+
+    /**
+     * Get uniform location (ByteBuffer version)
+     * @param program - Program handle/ID
+     * @param name - Uniform name as ByteBuffer
+     * @return Uniform location, or -1 if not found
+     */
+    public static native int glGetUniformLocation(int program, java.nio.ByteBuffer name);
+
+    /**
+     * Get attribute location (string version)
+     * @param program - Program handle/ID
+     * @param name - Attribute name
+     * @return Attribute location, or -1 if not found
+     */
+    public static native int glGetAttribLocation(int program, String name);
+
+    /**
+     * Get attribute location (ByteBuffer version)
+     * @param program - Program handle/ID
+     * @param name - Attribute name as ByteBuffer
+     * @return Attribute location, or -1 if not found
+     */
+    public static native int glGetAttribLocation(int program, java.nio.ByteBuffer name);
+
+    
+    // ==================== MISC METHODS ====================
+
+    /**
+     * Set line width
+     * @param width - Line width in pixels
+     */
+    public static native void setLineWidth(float width);
+
+    /**
+     * Set depth mask
+     * @param flag - Enable/disable depth writes
+     */
+    public static native void setDepthMask(boolean flag);
+
+    /**
+     * Set polygon offset
+     * @param factor - Depth bias factor
+     * @param units - Depth bias units
+     */
+    public static native void setPolygonOffset(float factor, float units);
+
+    /**
+     * Set blend function (CRITICAL for proper rendering)
+     * @param sfactor - Source blend factor
+     * @param dfactor - Destination blend factor
+     */
+    public static native void setBlendFunc(int sfactor, int dfactor);
+
+    /**
+     * Finish rendering commands
+     */
+    public static native void finish();
+
+    /**
+     * Set implementation hint
+     * @param target - Hint target
+     * @param hint - Hint value
+     */
+    public static native void setHint(int target, int hint);
+
+    /**
+     * Get maximum texture size
+     * @return Maximum texture dimension
+     */
+    public static native int getMaxTextureSize();
+
+    /**
+     * Clear depth buffer
+     * @param depth - Depth value (0.0 to 1.0)
+     */
+    public static native void clearDepth(float depth);
+
+    /**
+     * Set color write mask
+     * @param red - Enable red channel writes
+     * @param green - Enable green channel writes
+     * @param blue - Enable blue channel writes
+     * @param alpha - Enable alpha channel writes
+     */
+    public static native void setColorMask(boolean red, boolean green, boolean blue, boolean alpha);
+
+    // ==================== ADDITIONAL glGet METHODS ====================
+
+    /**
+     * Get integer state
+     * @param pname - Parameter name (GL_VIEWPORT, etc.)
+     * @return Integer value
+     */
+    public static native int glGetInteger(int pname);
+
+    /**
+     * Get error state
+     * @return Error code, or GL_NO_ERROR (0) if no error
+     */
+    public static native int glGetError();
+
+    /**
+     * Get buffer pointer (for vertex buffer binding)
+     * @param target - Buffer target (GL_ARRAY_BUFFER, etc.)
+     * @param pname - Parameter name (GL_BUFFER_MAP_POINTER, etc.)
+     * @param params - Output pointer value
+     */
+    public static native void glGetBufferPointerv(int target, int pname, java.nio.ByteBuffer params);
+
+    /**
+     * Get buffer sub-data (for reading back buffer contents)
+     * @param target - Buffer target (GL_ARRAY_BUFFER, etc.)
+     * @param offset - Offset in bytes
+     * @param size - Size in bytes
+     * @param data - Output data buffer
+     */
+    public static native void glGetBufferSubData(int target, long offset, long size, java.nio.ByteBuffer data);
 
     /**
      * Set viewport
@@ -585,23 +951,7 @@ public class VitraNativeRenderer {
     public static final int DEBUG_SEVERITY_ERROR = 2;
     public static final int DEBUG_SEVERITY_CORRUPTION = 3;
 
-    // ==================== BUFFER MAPPING METHODS ====================
-
-    /**
-     * Map a buffer for CPU access
-     * @param bufferHandle - Buffer handle
-     * @param size - Buffer size in bytes
-     * @param accessFlags - Access flags: 1=read, 2=write, 3=read+write
-     * @return Direct ByteBuffer pointing to mapped memory, or null on failure
-     */
-    public static native java.nio.ByteBuffer mapBuffer(long bufferHandle, int size, int accessFlags);
-
-    /**
-     * Unmap a previously mapped buffer
-     * @param bufferHandle - Buffer handle
-     */
-    public static native void unmapBuffer(long bufferHandle);
-
+    
     // ==================== RENDER STATE MANAGEMENT ====================
 
     /**
@@ -629,21 +979,7 @@ public class VitraNativeRenderer {
      */
     public static native void setRasterizerState(int cullMode, int fillMode, boolean scissorEnabled);
 
-    /**
-     * Clear only the depth buffer
-     * @param depth - Depth value (0.0 to 1.0)
-     */
-    public static native void clearDepth(float depth);
-
-    /**
-     * Set color write mask
-     * @param red - Enable red channel writes
-     * @param green - Enable green channel writes
-     * @param blue - Enable blue channel writes
-     * @param alpha - Enable alpha channel writes
-     */
-    public static native void setColorMask(boolean red, boolean green, boolean blue, boolean alpha);
-
+    
     // OpenGL constants for render state
     public static final int GL_ZERO = 0;
     public static final int GL_ONE = 1;
@@ -988,5 +1324,143 @@ public class VitraNativeRenderer {
 
         return status.toString();
     }
+
+    // ==================== OPENGL 3.0+ METHODS (GL30) ====================
+
+    /**
+     * Create framebuffer object
+     * @param framebufferId - Framebuffer ID
+     * @return Framebuffer handle
+     */
+    public static native long createFramebuffer(int framebufferId);
+
+    /**
+     * Bind framebuffer
+     * @param framebufferHandle - Framebuffer handle
+     * @param target - Framebuffer target (GL_FRAMEBUFFER, etc.)
+     */
+    public static native void bindFramebuffer(long framebufferHandle, int target);
+
+    /**
+     * Attach texture to framebuffer
+     * @param framebufferHandle - Framebuffer handle
+     * @param target - Framebuffer target
+     * @param attachment - Attachment point
+     * @param textarget - Texture target
+     * @param textureHandle - Texture handle
+     * @param level - Mipmap level
+     */
+    public static native void framebufferTexture2D(long framebufferHandle, int target, int attachment, int textarget, long textureHandle, int level);
+
+    /**
+     * Attach renderbuffer to framebuffer
+     * @param framebufferHandle - Framebuffer handle
+     * @param target - Framebuffer target
+     * @param attachment - Attachment point
+     * @param renderbuffertarget - Renderbuffer target
+     * @param renderbufferHandle - Renderbuffer handle
+     */
+    public static native void framebufferRenderbuffer(long framebufferHandle, int target, int attachment, int renderbuffertarget, long renderbufferHandle);
+
+    /**
+     * Check framebuffer completeness
+     * @param framebufferHandle - Framebuffer handle
+     * @param target - Framebuffer target
+     * @return Framebuffer status
+     */
+    public static native int checkFramebufferStatus(long framebufferHandle, int target);
+
+    /**
+     * Destroy framebuffer
+     * @param framebufferHandle - Framebuffer handle
+     */
+    public static native void destroyFramebuffer(long framebufferHandle);
+
+    /**
+     * Create renderbuffer
+     * @param renderbufferId - Renderbuffer ID
+     * @return Renderbuffer handle
+     */
+    public static native long createRenderbuffer(int renderbufferId);
+
+    /**
+     * Bind renderbuffer
+     * @param renderbufferHandle - Renderbuffer handle
+     * @param target - Renderbuffer target
+     */
+    public static native void bindRenderbuffer(long renderbufferHandle, int target);
+
+    /**
+     * Set renderbuffer storage
+     * @param renderbufferHandle - Renderbuffer handle
+     * @param target - Renderbuffer target
+     * @param internalformat - Internal format
+     * @param width - Width
+     * @param height - Height
+     */
+    public static native void renderbufferStorage(long renderbufferHandle, int target, int internalformat, int width, int height);
+
+    /**
+     * Destroy renderbuffer
+     * @param renderbufferHandle - Renderbuffer handle
+     */
+    public static native void destroyRenderbuffer(long renderbufferHandle);
+
+    /**
+     * Create vertex array object
+     * @param vertexArrayId - Vertex array ID
+     * @return Vertex array handle
+     */
+    public static native long createVertexArray(int vertexArrayId);
+
+    /**
+     * Bind vertex array
+     * @param vertexArrayHandle - Vertex array handle
+     */
+    public static native void bindVertexArray(long vertexArrayHandle);
+
+    /**
+     * Destroy vertex array
+     * @param vertexArrayHandle - Vertex array handle
+     */
+    public static native void destroyVertexArray(long vertexArrayHandle);
+
+    /**
+     * Set blend equation
+     * @param modeRGB - RGB blend mode
+     * @param modeAlpha - Alpha blend mode
+     */
+    public static native void setBlendEquation(int modeRGB, int modeAlpha);
+
+    /**
+     * Set draw buffers
+     * @param buffers - Array of draw buffer indices
+     */
+    public static native void setDrawBuffers(int[] buffers);
+
+    /**
+     * Set separate stencil operations
+     * @param face - Face (front/back)
+     * @param sfail - Stencil fail operation
+     * @param dpfail - Depth fail operation
+     * @param dppass - Depth pass operation
+     */
+    public static native void setStencilOpSeparate(int face, int sfail, int dpfail, int dppass);
+
+    /**
+     * Set separate stencil function
+     * @param face - Face (front/back)
+     * @param func - Stencil function
+     * @param ref - Reference value
+     * @param mask - Mask
+     */
+    public static native void setStencilFuncSeparate(int face, int func, int ref, int mask);
+
+    /**
+     * Set separate stencil mask
+     * @param face - Face (front/back)
+     * @param mask - Stencil mask
+     */
+    public static native void setStencilMaskSeparate(int face, int mask);
 
   }

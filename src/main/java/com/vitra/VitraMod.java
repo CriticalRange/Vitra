@@ -1,6 +1,8 @@
 package com.vitra;
 
 import com.vitra.core.VitraCore;
+import com.vitra.debug.VitraMixinVerifier;
+import com.vitra.debug.VitraOverwriteTester;
 import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
 import com.vitra.render.jni.JniUtils;
@@ -46,6 +48,15 @@ public final class VitraMod {
 
             initialized = true;
             LOGGER.info("Vitra initialization complete");
+
+            // Run @Overwrite mixin verification after successful initialization
+            LOGGER.info("Running @Overwrite mixin verification...");
+            VitraMixinVerifier.verifyAllOverwriteMixins();
+
+            // NOTE: VitraOverwriteTester will run automatically after renderer initialization
+            // See VitraRenderer.initializeWithWindowHandle() where tests are triggered
+            LOGGER.info("Vitra initialization complete - @Overwrite tests will run after renderer init");
+
         } catch (Exception e) {
             LOGGER.error("Failed to initialize Vitra", e);
             throw new RuntimeException("Vitra initialization failed", e);
@@ -87,5 +98,34 @@ public final class VitraMod {
 
     public static boolean isInitialized() {
         return initialized;
+    }
+
+    /**
+     * Get the current status of @Overwrite mixin application
+     */
+    public static String getMixinStatus() {
+        return VitraMixinVerifier.getDetailedStatus();
+    }
+
+    /**
+     * Check if @Overwrite mixins are working
+     */
+    public static boolean areMixinsWorking() {
+        return VitraMixinVerifier.testGLInterception() &&
+               VitraMixinVerifier.testDirectX11Renderer();
+    }
+
+    /**
+     * Run comprehensive @Overwrite test suite
+     */
+    public static void runOverwriteTests() {
+        VitraOverwriteTester.runComprehensiveTests();
+    }
+
+    /**
+     * Get quick @Overwrite status
+     */
+    public static String getQuickOverwriteStatus() {
+        return VitraOverwriteTester.getQuickStatus();
     }
 }
