@@ -1,5 +1,5 @@
 // position_tex_color.fsh
-// Converted from Minecraft 1.21.8 GLSL core/position_tex_color.fsh
+// Converted from Minecraft 1.21.1 GLSL core/position_tex_color.fsh
 // Shader Model 5.0 Pixel Shader
 // Purpose: Textured rendering with vertex color modulation (GUI, HUD)
 

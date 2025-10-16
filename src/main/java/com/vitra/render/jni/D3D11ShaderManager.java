@@ -12,11 +12,13 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * DirectX 11 shader manager that replaces BGFX shader loading
  */
-public class D3D11ShaderManager implements IShaderManager {
-    private static final Logger LOGGER = LoggerFactory.getLogger(D3D11ShaderManager.class);
-
+public class D3D11ShaderManager extends AbstractShaderManager {
     private final Map<String, Long> shaderCache = new ConcurrentHashMap<>();
     private final Map<String, Long> pipelineCache = new ConcurrentHashMap<>();
+
+    public D3D11ShaderManager() {
+        super(D3D11ShaderManager.class);
+    }
 
     /**
      * Load a shader from compiled HLSL bytecode (.cso files)
@@ -42,7 +44,7 @@ public class D3D11ShaderManager implements IShaderManager {
             InputStream is = getClass().getResourceAsStream(resourcePath);
 
             if (is == null) {
-                LOGGER.error("Compiled shader not found: {}", resourcePath);
+                logger.error("Compiled shader not found: {}", resourcePath);
                 return 0;
             }
 
@@ -50,24 +52,24 @@ public class D3D11ShaderManager implements IShaderManager {
             is.close();
 
             if (bytecode.length == 0) {
-                LOGGER.error("Empty shader bytecode: {}", resourcePath);
+                logger.error("Empty shader bytecode: {}", resourcePath);
                 return 0;
             }
 
             long handle = VitraNativeRenderer.createGLProgramShader(bytecode, bytecode.length, type);
             if (handle != 0) {
                 shaderCache.put(cacheKey, handle);
-                LOGGER.debug("Loaded {} shader: {} (handle: 0x{}, size: {} bytes)",
+                logger.debug("Loaded {} shader: {} (handle: 0x{}, size: {} bytes)",
                     type == VitraNativeRenderer.SHADER_TYPE_VERTEX ? "vertex" : "pixel",
                     name, Long.toHexString(handle), bytecode.length);
             } else {
-                LOGGER.error("Failed to create DirectX shader from bytecode: {}", name);
+                logger.error("Failed to create DirectX shader from bytecode: {}", name);
             }
 
             return handle;
 
         } catch (IOException e) {
-            LOGGER.error("Failed to load compiled shader: {}", name, e);
+            logger.error("Failed to load compiled shader: {}", name, e);
             return 0;
         }
     }
@@ -87,26 +89,26 @@ public class D3D11ShaderManager implements IShaderManager {
         // Load vertex shader (e.g., position_vs.cso)
         long vertexShader = loadShader(name, VitraNativeRenderer.SHADER_TYPE_VERTEX);
         if (vertexShader == 0) {
-            LOGGER.error("Failed to load vertex shader for pipeline: {}", name);
+            logger.error("Failed to load vertex shader for pipeline: {}", name);
             return 0;
         }
 
         // Load pixel shader (e.g., position_ps.cso)
         long pixelShader = loadShader(name, VitraNativeRenderer.SHADER_TYPE_PIXEL);
         if (pixelShader == 0) {
-            LOGGER.warn("Failed to load pixel shader for pipeline: {}, using vertex only", name);
+            logger.warn("Failed to load pixel shader for pipeline: {}, using vertex only", name);
         }
 
         long pipeline = VitraNativeRenderer.createShaderPipeline(vertexShader, pixelShader);
         if (pipeline != 0) {
             pipelineCache.put(name, pipeline);
-            LOGGER.info("Created shader pipeline: {} (VS: 0x{}, PS: 0x{}, Pipeline: 0x{})",
+            logger.info("Created shader pipeline: {} (VS: 0x{}, PS: 0x{}, Pipeline: 0x{})",
                 name,
                 Long.toHexString(vertexShader),
                 Long.toHexString(pixelShader),
                 Long.toHexString(pipeline));
         } else {
-            LOGGER.error("Failed to create shader pipeline: {}", name);
+            logger.error("Failed to create shader pipeline: {}", name);
         }
 
         return pipeline;
@@ -120,13 +122,13 @@ public class D3D11ShaderManager implements IShaderManager {
     }
 
     /**
-     * Preload ALL Minecraft 1.21.8 shaders
+     * Preload ALL Minecraft 1.21.1 shaders
      * Total: 36 shader pairs (72 compiled binaries)
      */
     public void preloadShaders() {
-        LOGGER.info("Preloading ALL Minecraft DirectX 11 shaders...");
+        logger.info("Preloading ALL Minecraft DirectX 11 shaders...");
 
-        // ALL 36 Minecraft 1.21.8 core shaders
+        // ALL 36 Minecraft 1.21.1 core shaders
         String[] allShaders = {
             // Basic rendering
             "position", "position_color", "position_tex", "position_tex_color",
@@ -166,40 +168,27 @@ public class D3D11ShaderManager implements IShaderManager {
                 successCount++;
             } else {
                 failCount++;
-                LOGGER.error("Failed to preload shader: {}", shader);
+                logger.error("Failed to preload shader: {}", shader);
             }
         }
 
-        LOGGER.info("Preloaded {} shader pipelines ({} succeeded, {} failed)",
+        logger.info("Preloaded {} shader pipelines ({} succeeded, {} failed)",
             allShaders.length, successCount, failCount);
 
         if (failCount > 0) {
-            LOGGER.warn("Some shaders failed to load. Rendering may be incomplete.");
+            logger.warn("Some shaders failed to load. Rendering may be incomplete.");
         } else {
-            LOGGER.info("All Minecraft shaders loaded successfully!");
+            logger.info("All Minecraft shaders loaded successfully!");
         }
     }
 
-  
+
     /**
      * Get cache statistics
      */
+    @Override
     public String getCacheStats() {
         return String.format("Shaders: %d, Pipelines: %d", shaderCache.size(), pipelineCache.size());
-    }
-
-    // IShaderManager interface implementation
-
-    @Override
-    public void initialize() {
-        LOGGER.info("Initializing DirectX 11 shader manager");
-        // No specific initialization needed for DirectX 11 JNI
-    }
-
-    @Override
-    public void shutdown() {
-        LOGGER.info("Shutting down DirectX 11 shader manager");
-        clearCache();
     }
 
     @Override
@@ -216,12 +205,7 @@ public class D3D11ShaderManager implements IShaderManager {
         }
         shaderCache.clear();
 
-        LOGGER.info("Cleared shader cache");
-    }
-
-    @Override
-    public boolean isInitialized() {
-        return true; // DirectX 11 shader manager is always ready
+        logger.info("Cleared shader cache");
     }
 
     @Override

@@ -10,9 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * DirectX 12 Ultimate buffer manager with support for ray tracing acceleration structures
  */
-public class D3D12BufferManager implements IBufferManager {
-    private static final Logger LOGGER = LoggerFactory.getLogger(D3D12BufferManager.class);
-
+public class D3D12BufferManager extends AbstractBufferManager {
     // Buffer type constants
     public static final int BUFFER_TYPE_VERTEX = 1;
     public static final int BUFFER_TYPE_INDEX = 2;
@@ -30,6 +28,10 @@ public class D3D12BufferManager implements IBufferManager {
     private long totalMemoryUsed = 0;
     private int bufferCount = 0;
     private int rayTracingBuffersCount = 0;
+
+    public D3D12BufferManager() {
+        super(D3D12BufferManager.class);
+    }
 
     // Native methods
     private static native long nativeCreateBuffer(int type, long size, boolean gpuOnly);
@@ -63,10 +65,10 @@ public class D3D12BufferManager implements IBufferManager {
                 rayTracingBuffersCount++;
             }
 
-            LOGGER.debug("Created buffer {} (type: {}, size: {}, gpuOnly: {})",
+            logger.debug("Created buffer {} (type: {}, size: {}, gpuOnly: {})",
                 bufferId, getBufferTypeName(type), size, gpuOnly);
         } else {
-            LOGGER.error("Failed to create buffer of type {} with size {}", type, size);
+            logger.error("Failed to create buffer of type {} with size {}", type, size);
         }
 
         return nativeHandle;
@@ -106,10 +108,10 @@ public class D3D12BufferManager implements IBufferManager {
                 rayTracingBuffersCount++;
             }
 
-            LOGGER.debug("Created buffer {} with data (type: {}, size: {}, gpuOnly: {})",
+            logger.debug("Created buffer {} with data (type: {}, size: {}, gpuOnly: {})",
                 bufferId, getBufferTypeName(type), data.length, gpuOnly);
         } else {
-            LOGGER.error("Failed to create buffer with data of type {} with size {}", type, data.length);
+            logger.error("Failed to create buffer with data of type {} with size {}", type, data.length);
         }
 
         return nativeHandle;
@@ -125,9 +127,9 @@ public class D3D12BufferManager implements IBufferManager {
             rayTracingBuffersCount++;
             bufferCount++;
 
-            LOGGER.debug("Created Bottom Level Acceleration Structure for {} vertices, {} indices", vertexCount, indexCount);
+            logger.debug("Created Bottom Level Acceleration Structure for {} vertices, {} indices", vertexCount, indexCount);
         } else {
-            LOGGER.error("Failed to create Bottom Level Acceleration Structure");
+            logger.error("Failed to create Bottom Level Acceleration Structure");
         }
 
         return blasHandle;
@@ -135,7 +137,7 @@ public class D3D12BufferManager implements IBufferManager {
 
     public long createTopLevelAccelerationStructure(long[] blasHandles, long[] instanceTransforms) {
         if (blasHandles.length != instanceTransforms.length) {
-            LOGGER.error("BLAS handles and instance transforms arrays must have the same length");
+            logger.error("BLAS handles and instance transforms arrays must have the same length");
             return 0L;
         }
 
@@ -147,9 +149,9 @@ public class D3D12BufferManager implements IBufferManager {
             rayTracingBuffersCount++;
             bufferCount++;
 
-            LOGGER.debug("Created Top Level Acceleration Structure with {} instances", blasHandles.length);
+            logger.debug("Created Top Level Acceleration Structure with {} instances", blasHandles.length);
         } else {
-            LOGGER.error("Failed to create Top Level Acceleration Structure");
+            logger.error("Failed to create Top Level Acceleration Structure");
         }
 
         return tlasHandle;
@@ -168,30 +170,30 @@ public class D3D12BufferManager implements IBufferManager {
     // Buffer operations
     public boolean updateBuffer(long bufferHandle, byte[] data, long offset) {
         if (!bufferRegistry.containsKey(bufferHandle)) {
-            LOGGER.error("Attempted to update unknown buffer handle: {}", bufferHandle);
+            logger.error("Attempted to update unknown buffer handle: {}", bufferHandle);
             return false;
         }
 
         try {
             nativeUpdateBuffer(bufferHandle, data, offset);
-            LOGGER.debug("Updated buffer {} with {} bytes at offset {}", bufferHandle, data.length, offset);
+            logger.debug("Updated buffer {} with {} bytes at offset {}", bufferHandle, data.length, offset);
             return true;
         } catch (Exception e) {
-            LOGGER.error("Failed to update buffer {}", bufferHandle, e);
+            logger.error("Failed to update buffer {}", bufferHandle, e);
             return false;
         }
     }
 
     public byte[] readBuffer(long bufferHandle, long offset, int size) {
         if (!bufferRegistry.containsKey(bufferHandle)) {
-            LOGGER.error("Attempted to read unknown buffer handle: {}", bufferHandle);
+            logger.error("Attempted to read unknown buffer handle: {}", bufferHandle);
             return new byte[0];
         }
 
         try {
             return nativeReadBuffer(bufferHandle, offset, size);
         } catch (Exception e) {
-            LOGGER.error("Failed to read buffer {}", bufferHandle, e);
+            logger.error("Failed to read buffer {}", bufferHandle, e);
             return new byte[0];
         }
     }
@@ -209,17 +211,17 @@ public class D3D12BufferManager implements IBufferManager {
                 rayTracingBuffersCount--;
             }
 
-            LOGGER.debug("Destroyed buffer {} (type: {}, size: {})",
+            logger.debug("Destroyed buffer {} (type: {}, size: {})",
                 info.id, getBufferTypeName(info.type), info.size);
         } else {
-            LOGGER.warn("Attempted to destroy unknown buffer handle: {}", bufferHandle);
+            logger.warn("Attempted to destroy unknown buffer handle: {}", bufferHandle);
         }
     }
 
     // Utility methods
     public long getBufferGpuAddress(long bufferHandle) {
         if (!bufferRegistry.containsKey(bufferHandle)) {
-            LOGGER.error("Attempted to get GPU address for unknown buffer handle: {}", bufferHandle);
+            logger.error("Attempted to get GPU address for unknown buffer handle: {}", bufferHandle);
             return 0L;
         }
 
@@ -242,20 +244,21 @@ public class D3D12BufferManager implements IBufferManager {
     // Batch operations
     public void updateAccelerationStructure(long tlasHandle, long[] blasHandles, long[] instanceTransforms) {
         if (blasHandles.length != instanceTransforms.length) {
-            LOGGER.error("BLAS handles and instance transforms arrays must have the same length");
+            logger.error("BLAS handles and instance transforms arrays must have the same length");
             return;
         }
 
         if (!bufferRegistry.containsKey(tlasHandle)) {
-            LOGGER.error("TLAS handle not found: {}", tlasHandle);
+            logger.error("TLAS handle not found: {}", tlasHandle);
             return;
         }
 
         nativeUpdateAccelerationStructure(tlasHandle, blasHandles, instanceTransforms);
-        LOGGER.debug("Updated acceleration structure with {} instances", blasHandles.length);
+        logger.debug("Updated acceleration structure with {} instances", blasHandles.length);
     }
 
     // Statistics and monitoring
+    @Override
     public String getBufferStats() {
         return String.format("Buffers - Count: %d, Memory: %.2f MB, RT Buffers: %d",
             bufferCount, totalMemoryUsed / (1024.0 * 1024.0), rayTracingBuffersCount);
@@ -273,23 +276,9 @@ public class D3D12BufferManager implements IBufferManager {
         return rayTracingBuffersCount;
     }
 
-    // IBufferManager interface implementation
-
-    @Override
-    public void initialize() {
-        LOGGER.info("Initializing DirectX 12 Ultimate buffer manager");
-        // No specific initialization needed for DirectX 12 JNI
-    }
-
-    @Override
-    public void shutdown() {
-        LOGGER.info("Shutting down DirectX 12 Ultimate buffer manager");
-        clearAll();
-    }
-
     @Override
     public void clearAll() {
-        LOGGER.info("Destroying all buffers...");
+        logger.info("Destroying all buffers...");
 
         for (Long bufferHandle : bufferRegistry.keySet()) {
             destroyBuffer(bufferHandle);
@@ -300,12 +289,7 @@ public class D3D12BufferManager implements IBufferManager {
         bufferCount = 0;
         rayTracingBuffersCount = 0;
 
-        LOGGER.info("All buffers destroyed");
-    }
-
-    @Override
-    public boolean isInitialized() {
-        return true; // DirectX 12 buffer manager is always ready
+        logger.info("All buffers destroyed");
     }
 
     @Override

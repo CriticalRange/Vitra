@@ -1,5 +1,5 @@
 // rendertype_text_intensity.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Renders intensity-based text (uses red channel for all RGBA)
 
 #include "cbuffer_common.hlsli"

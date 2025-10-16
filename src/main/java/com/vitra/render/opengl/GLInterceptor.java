@@ -33,6 +33,10 @@ public class GLInterceptor {
     private static final Map<Integer, GLResource> resources = new HashMap<>();
     private static final AtomicLong nextResourceId = new AtomicLong(1);
 
+    // AbstractTexture tracking for MAbstractTexture integration
+    private static final Map<Integer, Long> textureToDirectXHandle = new HashMap<>();
+    private static final Map<Long, Integer> directXHandleToTextureId = new HashMap<>();
+
     // State tracking
     private static GLState currentState = new GLState();
 
@@ -104,14 +108,22 @@ public class GLInterceptor {
         // Generate texture IDs through our system
         for (int i = 0; i < textures.remaining(); i++) {
             long resourceId = nextResourceId.getAndIncrement();
-            textures.put(i, (int) resourceId);
+            int textureId = (int) resourceId;
+            textures.put(i, textureId);
 
             // Track the resource
             GLResource resource = new GLResource(resourceId, GLResource.Type.TEXTURE);
-            resources.put((int) resourceId, resource);
+            resources.put(textureId, resource);
 
             // Create corresponding DirectX resource
-            VitraNativeRenderer.createTexture(null, 1, 1, 0); // Placeholder
+            long directXHandle = VitraNativeRenderer.createTexture(null, 1, 1, 0);
+
+            // Map texture ID to DirectX handle for MAbstractTexture integration
+            textureToDirectXHandle.put(textureId, directXHandle);
+            directXHandleToTextureId.put(directXHandle, textureId);
+
+            LOGGER.debug("GLInterceptor: Created texture ID {} with DirectX handle 0x{}",
+                textureId, Long.toHexString(directXHandle));
         }
 
         textures.rewind();
@@ -130,10 +142,18 @@ public class GLInterceptor {
         currentState.setBoundTexture(target, texture);
 
         if (texture != 0) {
-            GLResource resource = resources.get(texture);
-            if (resource != null) {
-                // Bind corresponding DirectX resource
-                VitraNativeRenderer.bindTexture(resource.getDirectXHandle(), 0);
+            // First check MAbstractTexture mapping
+            Long directXHandle = textureToDirectXHandle.get(texture);
+            if (directXHandle != null && directXHandle != 0) {
+                VitraNativeRenderer.bindTexture(directXHandle, 0);
+                LOGGER.debug("GLInterceptor: Bound texture ID {} via MAbstractTexture mapping (handle 0x{})",
+                    texture, Long.toHexString(directXHandle));
+            } else {
+                // Fallback to resource tracking
+                GLResource resource = resources.get(texture);
+                if (resource != null) {
+                    VitraNativeRenderer.bindTexture(resource.getDirectXHandle(), 0);
+                }
             }
         }
 
@@ -1506,6 +1526,203 @@ public class GLInterceptor {
         return stats.toString();
     }
 
+    // ==================== MABSTRACTTEXTURE INTEGRATION METHODS ====================
+
+    /**
+     * Register a texture with MAbstractTexture mapping
+     * This method is called by MAbstractTexture to register its DirectX handle
+     */
+    public static void registerMAbstractTexture(int textureId, long directXHandle) {
+        if (!isActive()) {
+            return;
+        }
+
+        textureToDirectXHandle.put(textureId, directXHandle);
+        directXHandleToTextureId.put(directXHandle, textureId);
+
+        LOGGER.debug("GLInterceptor: Registered MAbstractTexture ID {} with DirectX handle 0x{}",
+            textureId, Long.toHexString(directXHandle));
+    }
+
+    /**
+     * Unregister a texture from MAbstractTexture mapping
+     */
+    public static void unregisterMAbstractTexture(int textureId) {
+        if (!isActive()) {
+            return;
+        }
+
+        Long directXHandle = textureToDirectXHandle.remove(textureId);
+        if (directXHandle != null) {
+            directXHandleToTextureId.remove(directXHandle);
+            VitraNativeRenderer.destroyResource(directXHandle);
+        }
+
+        LOGGER.debug("GLInterceptor: Unregistered MAbstractTexture ID {}", textureId);
+    }
+
+    /**
+     * Get DirectX handle for a texture ID (for MAbstractTexture)
+     */
+    public static long getDirectXHandleForTexture(int textureId) {
+        Long directXHandle = textureToDirectXHandle.get(textureId);
+        if (directXHandle != null) {
+            return directXHandle;
+        }
+
+        // Fallback to resource tracking
+        GLResource resource = resources.get(textureId);
+        return resource != null ? resource.getDirectXHandle() : 0;
+    }
+
+    /**
+     * Get texture ID for a DirectX handle (reverse lookup)
+     */
+    public static int getTextureIdForDirectXHandle(long directXHandle) {
+        Integer textureId = directXHandleToTextureId.get(directXHandle);
+        return textureId != null ? textureId : 0;
+    }
+
+    /**
+     * Check if a texture is managed by MAbstractTexture
+     */
+    public static boolean isMAbstractTexture(int textureId) {
+        return textureToDirectXHandle.containsKey(textureId);
+    }
+
+    /**
+     * Get statistics about MAbstractTexture integration
+     */
+    public static String getMAbstractTextureStats() {
+        StringBuilder stats = new StringBuilder();
+        stats.append("=== MAbstractTexture Integration Stats ===\n");
+        stats.append("Tracked textures: ").append(textureToDirectXHandle.size()).append("\n");
+        stats.append("DirectX handles: ").append(directXHandleToTextureId.size()).append("\n");
+        stats.append("GLInterceptor resources: ").append(resources.size()).append("\n");
+        return stats.toString();
+    }
+
+    // ==================== MTEXTUREUTIL INTEGRATION METHODS ====================
+
+    /**
+     * Validate texture ID and get DirectX handle (for MTextureUtil)
+     */
+    public static long validateAndGetDirectXHandle(int textureId) {
+        if (!isActive()) {
+            return 0;
+        }
+
+        Long directXHandle = textureToDirectXHandle.get(textureId);
+        if (directXHandle == null) {
+            // Check fallback resource tracking
+            GLResource resource = resources.get(textureId);
+            if (resource != null) {
+                directXHandle = resource.getDirectXHandle();
+                // Cache the mapping for future use
+                textureToDirectXHandle.put(textureId, directXHandle);
+                directXHandleToTextureId.put(directXHandle, textureId);
+            }
+        }
+
+        return directXHandle != null ? directXHandle : 0;
+    }
+
+    /**
+     * Get texture statistics for debugging (for MTextureUtil)
+     */
+    public static String getTextureDebugInfo(int textureId) {
+        if (!isActive()) {
+            return "GLInterceptor not active";
+        }
+
+        StringBuilder info = new StringBuilder();
+        info.append("=== Texture Debug Info ===\n");
+        info.append("Texture ID: ").append(textureId).append("\n");
+
+        Long directXHandle = textureToDirectXHandle.get(textureId);
+        if (directXHandle != null) {
+            info.append("DirectX Handle: 0x").append(Long.toHexString(directXHandle)).append("\n");
+            info.append("Managed by: MAbstractTexture\n");
+        } else {
+            GLResource resource = resources.get(textureId);
+            if (resource != null) {
+                info.append("DirectX Handle: 0x").append(Long.toHexString(resource.getDirectXHandle())).append("\n");
+                info.append("Managed by: GLInterceptor\n");
+            } else {
+                info.append("DirectX Handle: Not found\n");
+                info.append("Managed by: None (untracked)\n");
+            }
+        }
+
+        return info.toString();
+    }
+
+    /**
+     * Force cleanup of orphaned textures (for MTextureUtil)
+     * This method removes textures that no longer have valid DirectX handles
+     */
+    public static int cleanupOrphanedTextures() {
+        if (!isActive()) {
+            return 0;
+        }
+
+        int cleaned = 0;
+        textureToDirectXHandle.entrySet().removeIf(entry -> {
+            long directXHandle = entry.getValue();
+            if (directXHandle == 0 || !VitraNativeRenderer.isTextureValid(directXHandle)) {
+                directXHandleToTextureId.remove(directXHandle);
+                cleaned++;
+                return true;
+            }
+            return false;
+        });
+
+        if (cleaned > 0) {
+            LOGGER.info("GLInterceptor: Cleaned up {} orphaned texture mappings", cleaned);
+        }
+
+        return cleaned;
+    }
+
+    /**
+     * Register texture from MTextureUtil (helper method)
+     */
+    public static void registerFromMTextureUtil(int textureId, long directXHandle) {
+        if (isActive()) {
+            registerMAbstractTexture(textureId, directXHandle);
+        }
+    }
+
+    /**
+     * Get count of orphaned textures (for MTextureManager)
+     */
+    public static int getOrphanedTextureCount() {
+        if (!isActive()) {
+            return 0;
+        }
+
+        int orphanedCount = 0;
+        for (Map.Entry<Integer, Long> entry : textureToDirectXHandle.entrySet()) {
+            long directXHandle = entry.getValue();
+            if (directXHandle == 0 || !VitraNativeRenderer.isTextureValid(directXHandle)) {
+                orphanedCount++;
+            }
+        }
+
+        return orphanedCount;
+    }
+
+    /**
+     * Get count of registered textures (for MTextureManager)
+     */
+    public static int getRegisteredTextureCount() {
+        if (!isActive()) {
+            return 0;
+        }
+
+        return textureToDirectXHandle.size();
+    }
+
     /**
      * Clean up resources
      */
@@ -1515,6 +1732,13 @@ public class GLInterceptor {
 
             active.set(false);
             frameStarted.set(false);
+
+            // Clean up MAbstractTexture mappings
+            for (Long directXHandle : textureToDirectXHandle.values()) {
+                VitraNativeRenderer.destroyResource(directXHandle);
+            }
+            textureToDirectXHandle.clear();
+            directXHandleToTextureId.clear();
 
             // Clean up tracked resources
             for (GLResource resource : resources.values()) {
@@ -1557,10 +1781,10 @@ public class GLInterceptor {
     }
 
     // ============================================================================
-    // NEW MINECRAFT 1.21.8 INTERCEPTION METHODS (CommandEncoder/RenderPass)
+    // NEW MINECRAFT 1.21.1 INTERCEPTION METHODS (CommandEncoder/RenderPass)
     // ============================================================================
 
-    // State tracking for Minecraft 1.21.8 GpuBuffer system
+    // State tracking for Minecraft 1.21.1 GpuBuffer system
     private static final Map<Integer, Object> vertexBufferSlots = new HashMap<>();
     private static Object boundIndexBuffer = null;
     private static int boundIndexType = 0;
@@ -1573,12 +1797,9 @@ public class GLInterceptor {
             return 0;
         }
 
-        // Check if this is our DirectX11GpuBuffer implementation
-        if (gpuBuffer instanceof com.vitra.render.dx11.DirectX11GpuBuffer) {
-            com.vitra.render.dx11.DirectX11GpuBuffer dx11Buffer =
-                (com.vitra.render.dx11.DirectX11GpuBuffer) gpuBuffer;
-            return dx11Buffer.getNativeHandle();
-        }
+        // Check if this is a GpuBuffer with native handle support
+        // Note: DirectX11GpuBuffer classes removed for 1.21.1 compatibility
+        // Fallback to reflection to get native handle from any GpuBuffer subclass
 
         // Fallback: try reflection to get native handle from any GpuBuffer subclass
         try {
@@ -1596,7 +1817,7 @@ public class GLInterceptor {
     }
 
     /**
-     * Intercept draw call from CommandEncoder/RenderPass (Minecraft 1.21.8)
+     * Intercept draw call from CommandEncoder/RenderPass (Minecraft 1.21.1)
      */
     public static void onDrawCall(int baseVertex, int firstIndex, int count, int indexType, int instanceCount) {
         if (!isActive()) {
@@ -1609,7 +1830,7 @@ public class GLInterceptor {
         LOGGER.debug("DrawCall: baseVertex={}, firstIndex={}, count={}, indexType={}, instances={}",
             baseVertex, firstIndex, count, indexType, instanceCount);
 
-        // Get currently bound buffers from Minecraft 1.21.8 state
+        // Get currently bound buffers from Minecraft 1.21.1 state
         long vertexBufferHandle = 0;
         long indexBufferHandle = 0;
 

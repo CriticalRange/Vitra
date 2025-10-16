@@ -1,203 +1,158 @@
 package com.vitra.mixin;
 
-import com.mojang.blaze3d.platform.DisplayData;
-import com.mojang.blaze3d.platform.ScreenManager;
-import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.platform.WindowEventHandler;
+import com.mojang.blaze3d.platform.*;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.vitra.VitraMod;
+import com.vitra.render.jni.VitraNativeRenderer;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.opengl.GLCapabilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import static org.lwjgl.glfw.GLFW.*;
+
 /**
- * Priority 2: Window Creation Mixin
- * Captures GLFW window handle after creation and initializes DirectX 11 JNI
+ * Window Mixin for DirectX 11 (Minecraft 1.21.1)
+ *
+ * Following VulkanMod's proven approach for Minecraft 1.21.1:
+ * - Block OpenGL context creation to prevent conflicts with DirectX 11
+ * - Set GLFW_NO_API hint for DirectX 11 compatibility
+ * - Capture window handle for DirectX 11 initialization
+ * - Handle window resize and VSync operations
+ *
+ * This mixin ensures DirectX 11 can work alongside Minecraft's window management.
  */
 @Mixin(Window.class)
-public class WindowMixin {
-    private static final Logger LOGGER = LoggerFactory.getLogger("WindowMixin");
+public abstract class WindowMixin {
+    @Final @Shadow private long window;
+    @Shadow private boolean vsync;
+    @Shadow protected abstract void updateFullscreen(boolean bl);
+    @Shadow private boolean fullscreen;
+    @Shadow @Final private static Logger LOGGER;
+    @Shadow private int windowedX;
+    @Shadow private int windowedY;
+    @Shadow private int windowedWidth;
+    @Shadow private int windowedHeight;
+    @Shadow private int x;
+    @Shadow private int y;
+    @Shadow private int width;
+    @Shadow private int height;
+    @Shadow private int framebufferWidth;
+    @Shadow private int framebufferHeight;
+    @Shadow public abstract int getWidth();
+    @Shadow public abstract int getHeight();
 
     /**
-     * Inject after Window constructor to capture window handle and initialize DirectX 11 JNI
-     * Based on Context7: Window(WindowEventHandler, ScreenManager, DisplayData, String, String)
+     * Block OpenGL window hints to prevent conflicts with DirectX 11
      */
-    @Inject(
-        method = "<init>(Lcom/mojang/blaze3d/platform/WindowEventHandler;Lcom/mojang/blaze3d/platform/ScreenManager;Lcom/mojang/blaze3d/platform/DisplayData;Ljava/lang/String;Ljava/lang/String;)V",
-        at = @At("RETURN")
-    )
-    private void onWindowCreated(
-        WindowEventHandler eventHandler,
-        ScreenManager screenManager,
-        DisplayData displayData,
-        String preferredFullscreenVideoMode,
-        String title,
-        CallbackInfo ci
-    ) {
-        Window thisWindow = (Window)(Object)this;
-        long windowHandle = thisWindow.getWindow();
-
-        LOGGER.info("╔════════════════════════════════════════════════════════════╗");
-        LOGGER.info("║  WINDOW CREATION DETECTED                                  ║");
-        LOGGER.info("╠════════════════════════════════════════════════════════════╣");
-        LOGGER.info("║ Window Handle:  0x{}", Long.toHexString(windowHandle));
-        LOGGER.info("║ Thread:         {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
-        LOGGER.info("║ Window Title:   {}", title);
-        LOGGER.info("║ Display Mode:   {}", preferredFullscreenVideoMode != null ? preferredFullscreenVideoMode : "Windowed");
-        LOGGER.info("╚════════════════════════════════════════════════════════════╝");
-
-        if (windowHandle != 0L) {
-            try {
-                long startTime = System.nanoTime();
-                LOGGER.info("[TRACE] Attempting DirectX 11 JNI initialization...");
-
-                // Initialize DirectX 11 JNI with the window handle
-                if (VitraMod.getRenderer() != null) {
-                    LOGGER.info("[TRACE] VitraRenderer found, calling initializeWithWindowHandle()");
-
-                    boolean success = VitraMod.getRenderer().initializeWithWindowHandle(windowHandle);
-
-                    long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
-
-                    if (success) {
-                        LOGGER.info("╔════════════════════════════════════════════════════════════╗");
-                        LOGGER.info("║  DIRECTX 11 JNI INITIALIZATION SUCCESS                      ║");
-                        LOGGER.info("╠════════════════════════════════════════════════════════════╣");
-                        LOGGER.info("║ Time Taken:  {} ms", elapsedMs);
-                        LOGGER.info("║ Backend:     DirectX 11");
-                        LOGGER.info("║ Thread:      {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
-
-                        // Enhanced debugging information
-                        if (com.vitra.render.jni.VitraNativeRenderer.isDebugEnabled()) {
-                            // Get device information
-                            String deviceInfo = com.vitra.render.jni.VitraNativeRenderer.nativeGetDeviceInfo();
-                            LOGGER.info("║ Device:      {}", deviceInfo.replaceAll("\n", " "));
-
-                            // Get swap chain information
-                            String swapChainInfo = com.vitra.render.jni.VitraNativeRenderer.getSwapChainInfo();
-                            LOGGER.info("║ Swap Chain:  {}", swapChainInfo.replaceAll("\n", " "));
-
-                            // Verify swap chain binding
-                            boolean swapChainBound = com.vitra.render.jni.VitraNativeRenderer.verifySwapChainBinding();
-                            LOGGER.info("║ Swap Chain:  {}", swapChainBound ? "✓ BOUND" : "✗ NOT BOUND");
-
-                            // Set debug name for window
-                            com.vitra.render.jni.VitraNativeRenderer.setDebugObjectNameTyped(windowHandle,
-                                com.vitra.render.jni.VitraNativeRenderer.DEBUG_OBJECT_TYPE_SWAP_CHAIN,
-                                String.format("Minecraft_Window_0x%x", windowHandle));
-                        }
-
-                        LOGGER.info("╚════════════════════════════════════════════════════════════╝");
-
-                        // Note: DirectX 11 state is synchronized internally by the renderer
-                    } else {
-                        LOGGER.error("╔════════════════════════════════════════════════════════════╗");
-                        LOGGER.error("║  DIRECTX 11 JNI INITIALIZATION FAILED                     ║");
-                        LOGGER.error("╠════════════════════════════════════════════════════════════╣");
-                        LOGGER.error("║ Time Taken:  {} ms", elapsedMs);
-                        LOGGER.error("║ Window:      0x{}", Long.toHexString(windowHandle));
-                        LOGGER.error("║ Thread:      {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
-                        LOGGER.error("╠════════════════════════════════════════════════════════════╣");
-                        LOGGER.error("║ This is likely why you're seeing a gray/black screen!     ║");
-                        LOGGER.error("║ Check DirectX 11 JNI callback logs above for the root cause.║");
-                        LOGGER.error("╚════════════════════════════════════════════════════════════╝");
-                        System.err.println("[CRITICAL] DirectX 11 JNI initialization failed - check logs above!");
-                    }
-                } else {
-                    LOGGER.error("╔════════════════════════════════════════════════════════════╗");
-                    LOGGER.error("║  VITRA RENDERER NOT AVAILABLE                              ║");
-                    LOGGER.error("╠════════════════════════════════════════════════════════════╣");
-                    LOGGER.error("║ VitraMod.getRenderer() returned null");
-                    LOGGER.error("║ Did VitraMod.init() fail to initialize the renderer?      ║");
-                    LOGGER.error("║ Check logs for VitraMod initialization errors.            ║");
-                    LOGGER.error("╚════════════════════════════════════════════════════════════╝");
-                    System.err.println("[CRITICAL] VitraRenderer not available!");
-                }
-            } catch (Exception e) {
-                LOGGER.error("╔════════════════════════════════════════════════════════════╗");
-                LOGGER.error("║  EXCEPTION DURING DIRECTX 11 JNI INITIALIZATION             ║");
-                LOGGER.error("╠════════════════════════════════════════════════════════════╣");
-                LOGGER.error("║ Exception: {}", e.getClass().getName());
-                LOGGER.error("║ Message:   {}", e.getMessage());
-                LOGGER.error("╚════════════════════════════════════════════════════════════╝");
-                LOGGER.error("Full stack trace:", e);
-                System.err.println("[CRITICAL] Exception during DirectX 11 JNI init: " + e.getMessage());
-                e.printStackTrace(System.err);
-            }
-        } else {
-            LOGGER.error("╔════════════════════════════════════════════════════════════╗");
-            LOGGER.error("║  INVALID WINDOW HANDLE                                     ║");
-            LOGGER.error("╠════════════════════════════════════════════════════════════╣");
-            LOGGER.error("║ Window handle is 0 (NULL)");
-            LOGGER.error("║ GLFW window creation may have failed");
-            LOGGER.error("║ Check GLFW error logs above for the cause");
-            LOGGER.error("╚════════════════════════════════════════════════════════════╝");
-            System.err.println("[CRITICAL] Invalid window handle (0)!");
-        }
+    @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwWindowHint(II)V"))
+    private void redirect(int hint, int value) {
+        // NO-OP: Block OpenGL window hints for DirectX 11
     }
 
     /**
-     * Inject on window resize to update DirectX 11 swap chain and depth stencil buffer
-     * CRITICAL: DirectX 11 swap chain and depth buffer must be resized when window changes
+     * Block OpenGL context creation to prevent conflicts with DirectX 11
      */
-    @Inject(
-        method = "onResize",
-        at = @At("HEAD")
-    )
-    private void onWindowResize(CallbackInfo ci) {
-        Window thisWindow = (Window)(Object)this;
-        int width = thisWindow.getWidth();
-        int height = thisWindow.getHeight();
-
-        LOGGER.info("╔════════════════════════════════════════════════════════════╗");
-        LOGGER.info("║  WINDOW RESIZE DETECTED (DirectX 11)                       ║");
-        LOGGER.info("╠════════════════════════════════════════════════════════════╣");
-        LOGGER.info("║ New Size:      {}x{}", width, height);
-        LOGGER.info("║ Thread:        {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
-        LOGGER.info("╚════════════════════════════════════════════════════════════╝");
-
-        if (width > 0 && height > 0 && VitraMod.getRenderer() != null) {
-            try {
-                // Resize DirectX 11 swap chain and viewport
-                VitraMod.getRenderer().resize(width, height);
-
-                // Update depth stencil buffer to match new window size
-                // This is CRITICAL to prevent rendering issues after resize
-                LOGGER.info("DirectX 11 resized successfully to {}x{}", width, height);
-
-                // Log additional resize information for debugging
-                if (com.vitra.render.jni.VitraNativeRenderer.isDebugEnabled()) {
-                    LOGGER.debug("Swap chain and depth stencil buffer resized for new dimensions");
-                }
-
-            } catch (Exception e) {
-                LOGGER.error("Failed to resize DirectX 11 components", e);
-                LOGGER.error("Window resize: {}x{} - DirectX 11 resize failed", width, height);
-            }
-        } else {
-            if (width <= 0 || height <= 0) {
-                LOGGER.warn("Invalid window dimensions for resize: {}x{}", width, height);
-            }
-            if (VitraMod.getRenderer() == null) {
-                LOGGER.warn("VitraRenderer not available for window resize");
-            }
-        }
+    @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwMakeContextCurrent(J)V"))
+    private void redirect2(long window) {
+        // NO-OP: Block OpenGL context creation for DirectX 11
     }
 
     /**
-     * Inject before Window.close() to ensure proper DirectX 11 JNI shutdown
+     * Block OpenGL capabilities creation to prevent conflicts with DirectX 11
      */
-    @Inject(method = "close", at = @At("HEAD"))
-    private void onWindowClose(CallbackInfo ci) {
+    @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL;createCapabilities()Lorg/lwjgl/opengl/GLCapabilities;"))
+    private GLCapabilities redirect2() {
+        return null; // Block OpenGL capabilities for DirectX 11
+    }
+
+    /**
+     * Set DirectX 11 compatible window hints
+     */
+    @Inject(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J"))
+    private void vulkanHint(WindowEventHandler windowEventHandler, ScreenManager screenManager, DisplayData displayData, String string, String string2, CallbackInfo ci) {
+        GLFW.glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    }
+
+    /**
+     * Capture window handle for DirectX 11 initialization
+     */
+    @Inject(method = "<init>", at = @At(value = "RETURN"))
+    private void getHandle(WindowEventHandler windowEventHandler, ScreenManager screenManager, DisplayData displayData, String string, String string2, CallbackInfo ci) {
+        LOGGER.info("Window created with handle: 0x{}", Long.toHexString(window));
+
         try {
-            LOGGER.info("Window closing - ensuring DirectX 11 JNI shutdown");
-            if (VitraMod.getRenderer() != null) {
-                VitraMod.getRenderer().shutdown();
-            }
+            // Initialize DirectX 11 with the window handle
+            VitraNativeRenderer.initializeDirectX(window, width, height, false);
+            LOGGER.info("DirectX 11 initialized successfully with window handle");
         } catch (Exception e) {
-            LOGGER.error("Exception during DirectX 11 JNI shutdown in WindowMixin", e);
+            LOGGER.error("Failed to initialize DirectX 11", e);
         }
     }
-}
+
+    /**
+     * Handle VSync for DirectX 11
+     */
+    @Overwrite
+    public void updateVsync(boolean vsync) {
+        this.vsync = vsync;
+        VitraNativeRenderer.setVsync(vsync);
+    }
+
+    /**
+     * Handle fullscreen toggle for DirectX 11
+     */
+    @Overwrite
+    public void toggleFullScreen() {
+        this.fullscreen = !this.fullscreen;
+        // TODO: Handle fullscreen toggle for DirectX 11
+    }
+
+    /**
+     * Handle display updates for DirectX 11
+     */
+    @Overwrite
+    public void updateDisplay() {
+        RenderSystem.flipFrame(this.window);
+        // TODO: Handle fullscreen updates if needed
+    }
+
+    /**
+     * Handle window resize for DirectX 11 swap chain
+     */
+    @Overwrite
+    private void onFramebufferResize(long window, int width, int height) {
+        if (window == this.window) {
+            if(width > 0 && height > 0) {
+                this.framebufferWidth = width;
+                this.framebufferHeight = height;
+
+                // Resize DirectX 11 swap chain
+                VitraNativeRenderer.resize(width, height);
+                LOGGER.info("DirectX 11 resized to {}x{}", width, height);
+            }
+        }
+    }
+
+    /**
+     * Handle window resize for DirectX 11
+     */
+    @Overwrite
+    private void onResize(long window, int width, int height) {
+        this.width = width;
+        this.height = height;
+
+        if(width > 0 && height > 0) {
+            VitraNativeRenderer.resize(width, height);
+        }
+    }
+
+  }

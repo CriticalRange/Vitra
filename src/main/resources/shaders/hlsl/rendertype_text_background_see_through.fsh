@@ -1,5 +1,5 @@
 // rendertype_text_background_see_through.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Renders solid colored backgrounds without depth testing (no fog)
 
 #include "cbuffer_common.hlsli"

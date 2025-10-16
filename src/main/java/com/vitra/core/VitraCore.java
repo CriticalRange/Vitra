@@ -17,11 +17,22 @@ import java.nio.file.Paths;
  */
 public class VitraCore {
     private static final Logger LOGGER = LoggerFactory.getLogger(VitraCore.class);
+    private static VitraCore instance;
 
     private VitraConfig config;
     private IVitraRenderer renderer;
     private boolean initialized = false;
     private boolean shadersLoaded = false;
+
+    /**
+     * Get the singleton instance of VitraCore
+     */
+    public static VitraCore getInstance() {
+        if (instance == null) {
+            instance = new VitraCore();
+        }
+        return instance;
+    }
 
     public void initialize() {
         if (initialized) {

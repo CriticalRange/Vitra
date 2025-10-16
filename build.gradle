@@ -1,5 +1,5 @@
 plugins {
-	id 'fabric-loom' version "${loom_version}"
+	id 'fabric-loom' version '1.9.2'
 	id 'maven-publish'
 }
 
@@ -37,7 +37,7 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-	// LWJGL dependencies (removed BGFX - using JNI instead)
+	// LWJGL dependencies
 	implementation "org.lwjgl:lwjgl:${lwjgl_version}"
 	implementation "org.lwjgl:lwjgl-glfw:${lwjgl_version}"
 

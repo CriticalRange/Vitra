@@ -1,5 +1,5 @@
 // particle.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Applies particle texture with fog blending and alpha testing
 
 #include "cbuffer_common.hlsli"

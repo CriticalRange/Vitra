@@ -1,5 +1,5 @@
 // gui.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Renders solid color GUI elements with alpha masking - inlined constant buffers
 
 #include "cbuffer_common.hlsli"

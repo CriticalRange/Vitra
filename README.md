@@ -124,7 +124,7 @@ common/src/main/java/com/vitra/
 ## Compatibility
 
 ### Minecraft Versions
-- Minecraft 1.21.8+
+- Minecraft 1.21.1+
 - Java 21+
 
 ### Mod Loaders

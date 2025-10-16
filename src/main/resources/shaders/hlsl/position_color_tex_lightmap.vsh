@@ -1,5 +1,5 @@
 // position_color_tex_lightmap.vsh - Vertex Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Used for textured, colored geometry with lightmap (GUI elements with lighting)
 
 #include "cbuffer_common.hlsli"

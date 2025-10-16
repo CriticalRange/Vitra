@@ -1,5 +1,5 @@
 // rendertype_water_mask.vsh - Vertex Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Used for rendering water depth mask (stencil buffer effect)
 
 #include "cbuffer_common.hlsli"

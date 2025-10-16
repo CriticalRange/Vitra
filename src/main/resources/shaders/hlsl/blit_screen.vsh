@@ -1,5 +1,5 @@
 // blit_screen.vsh - Vertex Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Used for full-screen blitting operations (post-processing, screen copy)
 
 #include "cbuffer_common.hlsli"

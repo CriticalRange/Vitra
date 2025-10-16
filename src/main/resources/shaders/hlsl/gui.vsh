@@ -1,5 +1,5 @@
 // gui.vsh - Vertex Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Used for rendering GUI elements (buttons, text, icons) - inlined constant buffers
 
 #include "cbuffer_common.hlsli"

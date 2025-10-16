@@ -1,5 +1,5 @@
 // stars.vsh - Vertex Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Used for rendering stars in night sky
 
 #include "cbuffer_common.hlsli"

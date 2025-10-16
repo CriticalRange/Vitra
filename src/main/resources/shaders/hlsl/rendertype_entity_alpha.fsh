@@ -1,5 +1,5 @@
 // rendertype_entity_alpha.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Renders entities with alpha testing based on vertex color alpha
 
 #include "cbuffer_common.hlsli"

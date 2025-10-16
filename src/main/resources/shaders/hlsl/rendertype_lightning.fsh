@@ -1,5 +1,5 @@
 // rendertype_lightning.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Renders lightning with inverse fog (fades out in fog instead of blending)
 
 #include "cbuffer_common.hlsli"

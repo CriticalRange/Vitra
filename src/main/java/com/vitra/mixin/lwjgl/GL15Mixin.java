@@ -30,6 +30,16 @@ public class GL15Mixin {
 
     /**
      * @author Vitra
+     * @reason Intersect single buffer generation for DirectX 11 (VulkanMod approach - direct DirectX 11)
+     */
+    @Overwrite(remap = false)
+    public static int glGenBuffers() {
+        // Direct call to DirectX 11 implementation - no OpenGL fallback (VulkanMod approach)
+        return GLInterceptor.glGenBuffers();
+    }
+
+    /**
+     * @author Vitra
      * @reason Intersect buffer binding for DirectX 11 (VulkanMod approach - direct DirectX 11)
      */
     @Overwrite(remap = false)
@@ -120,4 +130,42 @@ public class GL15Mixin {
         GLInterceptor.glGetBufferParameteriv(target, pname, params);
     }
 
+    /**
+     * @author Vitra
+     * @reason Enhanced buffer mapping with validation (VulkanMod approach - direct DirectX 11)
+     */
+    @Overwrite(remap = false)
+    public static ByteBuffer glMapBuffer(@NativeType("GLenum") int target,
+                                       @NativeType("GLenum") int access,
+                                       long length,
+                                       @Nullable @NativeType("void *") ByteBuffer old_buffer) {
+        // Direct call to DirectX 11 implementation - no OpenGL fallback (VulkanMod approach)
+        return GLInterceptor.glMapBuffer(target, access, length, old_buffer);
     }
+
+    /**
+     * @author Vitra
+     * @reason Get buffer pointer query (OpenGL 1.5 glGetBufferPointerv)
+     */
+    @Overwrite(remap = false)
+    public static void glGetBufferPointerv(@NativeType("GLenum") int target,
+                                         @NativeType("GLenum") int pname,
+                                         @NativeType("void **") ByteBuffer params) {
+        // Direct call to DirectX 11 implementation - no OpenGL fallback (VulkanMod approach)
+        GLInterceptor.glGetBufferPointerv(target, pname, params);
+    }
+
+    /**
+     * @author Vitra
+     * @reason Get buffer sub-data readback (OpenGL 1.5 glGetBufferSubData)
+     */
+    @Overwrite(remap = false)
+    public static void glGetBufferSubData(@NativeType("GLenum") int target,
+                                        @NativeType("GLintptr") long offset,
+                                        @NativeType("GLsizeiptr") long size,
+                                        @NativeType("void *") ByteBuffer data) {
+        // Direct call to DirectX 11 implementation - no OpenGL fallback (VulkanMod approach)
+        GLInterceptor.glGetBufferSubData(target, offset, size, data);
+    }
+
+}

@@ -1,5 +1,5 @@
 // rendertype_lines.vsh - Vertex Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Used for rendering thick lines (hitboxes, debug rendering) with screen-space width
 
 #include "cbuffer_common.hlsli"

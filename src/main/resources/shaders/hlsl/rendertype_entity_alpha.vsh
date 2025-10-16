@@ -1,5 +1,5 @@
 // rendertype_entity_alpha.vsh - Vertex Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Used for rendering semi-transparent entities with alpha testing
 
 #include "cbuffer_common.hlsli"

@@ -19,7 +19,7 @@ import java.io.IOException;
  * the deadlock/access violation that occurs when worker threads load fonts
  * and trigger BGFX texture uploads on non-render threads.
  *
- * Minecraft 1.21.8 loads fonts asynchronously on worker threads during resource reload.
+ * Minecraft 1.21.1 loads fonts asynchronously on worker threads during resource reload.
  * This causes problems because BGFX texture operations must happen on the render thread.
  *
  * The load() method is private and called via lambda (invokedynamic) from unpack().

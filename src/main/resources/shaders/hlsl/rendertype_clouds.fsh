@@ -1,5 +1,5 @@
 // rendertype_clouds.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Applies distance-based alpha fade to cloud geometry
 
 #include "cbuffer_common.hlsli"

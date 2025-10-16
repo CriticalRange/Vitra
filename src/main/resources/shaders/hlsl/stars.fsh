@@ -1,5 +1,5 @@
 // stars.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Renders stars with solid color (brightness controlled by color modulator alpha)
 
 #include "cbuffer_common.hlsli"

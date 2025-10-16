@@ -9,9 +9,7 @@ import java.util.Map;
 /**
  * DirectX 12 Ultimate shader manager with support for traditional and ray tracing shaders
  */
-public class D3D12ShaderManager implements IShaderManager {
-    private static final Logger LOGGER = LoggerFactory.getLogger(D3D12ShaderManager.class);
-
+public class D3D12ShaderManager extends AbstractShaderManager {
     // Shader caches
     private final Map<String, Long> pixelShaderCache = new ConcurrentHashMap<>();
     private final Map<String, Long> vertexShaderCache = new ConcurrentHashMap<>();
@@ -31,6 +29,10 @@ public class D3D12ShaderManager implements IShaderManager {
     private int rayTracingShadersLoaded = 0;
     private int meshShadersLoaded = 0;
 
+    public D3D12ShaderManager() {
+        super(D3D12ShaderManager.class);
+    }
+
     // Native methods
     private static native long compilePixelShader(byte[] hlslCode, String entryPoint, String target);
     private static native long compileVertexShader(byte[] hlslCode, String entryPoint, String target);
@@ -44,13 +46,13 @@ public class D3D12ShaderManager implements IShaderManager {
     // Shader compilation methods
     public long loadPixelShader(String name, byte[] hlslCode, String entryPoint) {
         return pixelShaderCache.computeIfAbsent(name, k -> {
-            LOGGER.debug("Compiling pixel shader: {} ({})", name, entryPoint);
+            logger.debug("Compiling pixel shader: {} ({})", name, entryPoint);
             long shader = compilePixelShader(hlslCode, entryPoint, "ps_6_5");
             if (shader != 0L) {
                 totalShadersLoaded++;
-                LOGGER.debug("Successfully compiled pixel shader: {}", name);
+                logger.debug("Successfully compiled pixel shader: {}", name);
             } else {
-                LOGGER.error("Failed to compile pixel shader: {}", name);
+                logger.error("Failed to compile pixel shader: {}", name);
             }
             return shader;
         });
@@ -58,13 +60,13 @@ public class D3D12ShaderManager implements IShaderManager {
 
     public long loadVertexShader(String name, byte[] hlslCode, String entryPoint) {
         return vertexShaderCache.computeIfAbsent(name, k -> {
-            LOGGER.debug("Compiling vertex shader: {} ({})", name, entryPoint);
+            logger.debug("Compiling vertex shader: {} ({})", name, entryPoint);
             long shader = compileVertexShader(hlslCode, entryPoint, "vs_6_5");
             if (shader != 0L) {
                 totalShadersLoaded++;
-                LOGGER.debug("Successfully compiled vertex shader: {}", name);
+                logger.debug("Successfully compiled vertex shader: {}", name);
             } else {
-                LOGGER.error("Failed to compile vertex shader: {}", name);
+                logger.error("Failed to compile vertex shader: {}", name);
             }
             return shader;
         });
@@ -72,13 +74,13 @@ public class D3D12ShaderManager implements IShaderManager {
 
     public long loadComputeShader(String name, byte[] hlslCode, String entryPoint) {
         return computeShaderCache.computeIfAbsent(name, k -> {
-            LOGGER.debug("Compiling compute shader: {} ({})", name, entryPoint);
+            logger.debug("Compiling compute shader: {} ({})", name, entryPoint);
             long shader = compileComputeShader(hlslCode, entryPoint, "cs_6_5");
             if (shader != 0L) {
                 totalShadersLoaded++;
-                LOGGER.debug("Successfully compiled compute shader: {}", name);
+                logger.debug("Successfully compiled compute shader: {}", name);
             } else {
-                LOGGER.error("Failed to compile compute shader: {}", name);
+                logger.error("Failed to compile compute shader: {}", name);
             }
             return shader;
         });
@@ -86,14 +88,14 @@ public class D3D12ShaderManager implements IShaderManager {
 
     public long loadRayTracingShader(String name, byte[] dxilCode, String type) {
         return rayTracingShaderCache.computeIfAbsent(name, k -> {
-            LOGGER.debug("Loading ray tracing shader: {} ({})", name, type);
+            logger.debug("Loading ray tracing shader: {} ({})", name, type);
             long shader = compileRayTracingShader(dxilCode, type);
             if (shader != 0L) {
                 rayTracingShadersLoaded++;
                 totalShadersLoaded++;
-                LOGGER.debug("Successfully loaded ray tracing shader: {}", name);
+                logger.debug("Successfully loaded ray tracing shader: {}", name);
             } else {
-                LOGGER.error("Failed to load ray tracing shader: {}", name);
+                logger.error("Failed to load ray tracing shader: {}", name);
             }
             return shader;
         });
@@ -101,14 +103,14 @@ public class D3D12ShaderManager implements IShaderManager {
 
     public long loadMeshShader(String name, byte[] hlslCode, String entryPoint) {
         return meshShaderCache.computeIfAbsent(name, k -> {
-            LOGGER.debug("Compiling mesh shader: {} ({})", name, entryPoint);
+            logger.debug("Compiling mesh shader: {} ({})", name, entryPoint);
             long shader = compileMeshShader(hlslCode, entryPoint, "ms_6_5");
             if (shader != 0L) {
                 meshShadersLoaded++;
                 totalShadersLoaded++;
-                LOGGER.debug("Successfully compiled mesh shader: {}", name);
+                logger.debug("Successfully compiled mesh shader: {}", name);
             } else {
-                LOGGER.error("Failed to compile mesh shader: {}", name);
+                logger.error("Failed to compile mesh shader: {}", name);
             }
             return shader;
         });
@@ -117,12 +119,12 @@ public class D3D12ShaderManager implements IShaderManager {
     // Root signature management
     public long createRootSignature(String name, byte[] rootSignatureData) {
         return rootSignatureCache.computeIfAbsent(name, k -> {
-            LOGGER.debug("Creating root signature: {}", name);
+            logger.debug("Creating root signature: {}", name);
             long rootSignature = createRootSignature(rootSignatureData);
             if (rootSignature != 0L) {
-                LOGGER.debug("Successfully created root signature: {}", name);
+                logger.debug("Successfully created root signature: {}", name);
             } else {
-                LOGGER.error("Failed to create root signature: {}", name);
+                logger.error("Failed to create root signature: {}", name);
             }
             return rootSignature;
         });
@@ -133,12 +135,12 @@ public class D3D12ShaderManager implements IShaderManager {
                                    long blendState, long rasterizerState) {
         String key = String.format("%s_%s_%s", name, vertexShader, pixelShader);
         return pipelineStateCache.computeIfAbsent(key, k -> {
-            LOGGER.debug("Creating pipeline state: {}", name);
+            logger.debug("Creating pipeline state: {}", name);
             long pipelineState = createPipelineState(vertexShader, pixelShader, rootSignature, blendState, rasterizerState);
             if (pipelineState != 0L) {
-                LOGGER.debug("Successfully created pipeline state: {}", name);
+                logger.debug("Successfully created pipeline state: {}", name);
             } else {
-                LOGGER.error("Failed to create pipeline state: {}", name);
+                logger.error("Failed to create pipeline state: {}", name);
             }
             return pipelineState;
         });
@@ -147,12 +149,12 @@ public class D3D12ShaderManager implements IShaderManager {
     public long createRayTracingPipelineState(String name, long[] shaders, String[] shaderExports, long globalRootSignature) {
         String key = String.format("rt_%s_%d", name, shaders.length);
         return rtPipelineCache.computeIfAbsent(key, k -> {
-            LOGGER.debug("Creating ray tracing pipeline state: {}", name);
+            logger.debug("Creating ray tracing pipeline state: {}", name);
             long rtPipeline = createRayTracingPipelineState(shaders, shaderExports, globalRootSignature);
             if (rtPipeline != 0L) {
-                LOGGER.debug("Successfully created ray tracing pipeline state: {}", name);
+                logger.debug("Successfully created ray tracing pipeline state: {}", name);
             } else {
-                LOGGER.error("Failed to create ray tracing pipeline state: {}", name);
+                logger.error("Failed to create ray tracing pipeline state: {}", name);
             }
             return rtPipeline;
         });
@@ -160,7 +162,7 @@ public class D3D12ShaderManager implements IShaderManager {
 
     // Specialized shader loading for Minecraft rendering
     public void preloadMinecraftShaders() {
-        LOGGER.info("Preloading Minecraft shaders for DirectX 12 Ultimate...");
+        logger.info("Preloading Minecraft shaders for DirectX 12 Ultimate...");
 
         // Traditional rendering shaders
         loadStandardShaders();
@@ -175,20 +177,20 @@ public class D3D12ShaderManager implements IShaderManager {
             loadMeshShaders();
         }
 
-        LOGGER.info("Shader preloading completed. Total: {}, Ray Tracing: {}, Mesh: {}",
+        logger.info("Shader preloading completed. Total: {}, Ray Tracing: {}, Mesh: {}",
             totalShadersLoaded, rayTracingShadersLoaded, meshShadersLoaded);
     }
 
     private void loadStandardShaders() {
         // Standard Minecraft shaders would be loaded here
         // For now, we'll just log the process
-        LOGGER.debug("Loading standard Minecraft shaders...");
+        logger.debug("Loading standard Minecraft shaders...");
         // vertexShaderCache.put("minecraft_basic", loadVertexShader(...));
         // pixelShaderCache.put("minecraft_basic", loadPixelShader(...));
     }
 
     private void loadRayTracingShaders() {
-        LOGGER.debug("Loading ray tracing shaders...");
+        logger.debug("Loading ray tracing shaders...");
         // Ray tracing shader loading would happen here
         // rayTracingShaderCache.put("rt_closest_hit", loadRayTracingShader(...));
         // rayTracingShaderCache.put("rt_miss", loadRayTracingShader(...));
@@ -196,7 +198,7 @@ public class D3D12ShaderManager implements IShaderManager {
     }
 
     private void loadMeshShaders() {
-        LOGGER.debug("Loading mesh shaders...");
+        logger.debug("Loading mesh shaders...");
         // Mesh shader loading would happen here
         // meshShaderCache.put("chunk_mesh", loadMeshShader(...));
     }
@@ -231,24 +233,11 @@ public class D3D12ShaderManager implements IShaderManager {
     }
 
     // Statistics
+    @Override
     public String getCacheStats() {
         return String.format("Shaders - Total: %d, Pixel: %d, Vertex: %d, Compute: %d, RT: %d, Mesh: %d",
             totalShadersLoaded, pixelShaderCache.size(), vertexShaderCache.size(),
             computeShaderCache.size(), rayTracingShaderCache.size(), meshShadersLoaded);
-    }
-
-    // IShaderManager interface implementation
-
-    @Override
-    public void initialize() {
-        LOGGER.info("Initializing DirectX 12 Ultimate shader manager");
-        // No specific initialization needed for DirectX 12 JNI
-    }
-
-    @Override
-    public void shutdown() {
-        LOGGER.info("Shutting down DirectX 12 Ultimate shader manager");
-        clearCache();
     }
 
     @Override
@@ -266,12 +255,7 @@ public class D3D12ShaderManager implements IShaderManager {
         rayTracingShadersLoaded = 0;
         meshShadersLoaded = 0;
 
-        LOGGER.info("Shader cache cleared");
-    }
-
-    @Override
-    public boolean isInitialized() {
-        return true; // DirectX 12 shader manager is always ready
+        logger.info("Shader cache cleared");
     }
 
     @Override

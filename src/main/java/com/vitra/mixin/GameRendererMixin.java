@@ -2,9 +2,9 @@ package com.vitra.mixin;
 
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.server.packs.resources.ResourceProvider;
+import net.minecraft.client.DeltaTracker;
 import com.vitra.core.VitraCore;
 import com.vitra.render.jni.VitraNativeRenderer;
-import com.vitra.mixin.VitraErrorHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * CRITICAL MIXIN: Main render loop interception for DirectX 11
+ * CRITICAL MIXIN: Main render loop interception for DirectX 11 (Minecraft 1.21.1)
  *
  * This mixin handles the most critical rendering operations that prevent black screen:
  * 1. Main render loop interception (render method) - ESSENTIAL for any rendering
@@ -21,7 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 3. Clear color and clear operations - NEEDED to prevent pink/black background
  * 4. Shader preloading safety - PREVENTS deadlocks during resource reload
  *
- * Minecraft 1.21.8 uses DeltaTracker for render timing and RenderPipeline system.
+ * Minecraft 1.21.1 uses DeltaTracker for render timing.
  * This mixin ensures DirectX 11 frame synchronization happens at the right time.
  *
  * The render() method is called EVERY frame and is the hook point for:
@@ -43,18 +43,17 @@ public abstract class GameRendererMixin {
     private static boolean depthStencilInitialized = false;
 
     /**
-     * CRITICAL: Intercept the main render loop (Minecraft 1.21.8)
-     * Method signature: public void render(DeltaTracker tickCounter, boolean tick)
+     * CRITICAL: Intercept the main render loop (Minecraft 1.21.1)
+     * Method signature: public void render(DeltaTracker deltaTracker, boolean renderLevel)
      *
-     * This is called EVERY frame for the complete rendering pipeline.
-     * We intercept this for overall frame management.
+     * Following VulkanMod's pattern: intercept main render loop for DirectX 11 frame management
      */
     @Inject(
-        method = "render(Lnet/minecraft/util/DeltaTracker;Z)V",
+        method = "render(Lnet/minecraft/client/DeltaTracker;Z)V",
         at = @At("HEAD"),
         cancellable = false
     )
-    private void onRenderFrame(Object deltaTracker, boolean tick, CallbackInfo ci) {
+    private void onRenderFrame(DeltaTracker deltaTracker, boolean renderLevel, CallbackInfo ci) {
         try {
             frameCount++;
             long currentTime = System.currentTimeMillis();
@@ -62,10 +61,10 @@ public abstract class GameRendererMixin {
             // Log frame info periodically (not every frame to avoid spam)
             if (frameCount <= 10 || frameCount % 600 == 0 || (currentTime - lastFrameTime) > 5000) {
                 LOGGER.info("╔════════════════════════════════════════════════════════════╗");
-                LOGGER.info("║  DIRECTX 11 RENDER FRAME START                        ║");
+                LOGGER.info("║  DIRECTX 11 RENDER FRAME START (1.21.1)                ║");
                 LOGGER.info("╠════════════════════════════════════════════════════════════╣");
                 LOGGER.info("║ Frame #:        {}", frameCount);
-                LOGGER.info("║ Tick:           {}", tick);
+                LOGGER.info("║ Render Level:   {}", renderLevel);
                 LOGGER.info("║ Thread:         {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
                 LOGGER.info("║ DeltaTracker:   {}", deltaTracker.getClass().getSimpleName());
                 LOGGER.info("║ VitraCore Init: {}", VitraCore.getInstance().isInitialized());
@@ -75,7 +74,7 @@ public abstract class GameRendererMixin {
             }
 
             // Ensure VitraCore is initialized
-            if (!VitraErrorHandler.validateVitraCoreInitialized("GameRenderer.render")) {
+            if (!VitraCore.getInstance().isInitialized()) {
                 LOGGER.warn("VitraCore not initialized during render frame - skipping DirectX operations");
                 return;
             }
@@ -89,72 +88,62 @@ public abstract class GameRendererMixin {
             VitraNativeRenderer.beginFrameSafe();
 
             if (frameCount <= 5) {
-                LOGGER.info("✓ DirectX 11 render frame started");
+                LOGGER.info("✓ DirectX 11 render frame started (1.21.1)");
             }
 
         } catch (Exception e) {
-            VitraErrorHandler.handleRenderingError("GameRenderer", "render", e);
             LOGGER.error("Exception in render frame interception", e);
         }
     }
 
     /**
      * CRITICAL: Intercept render completion to end DirectX 11 frame
-     * This must be called at the end of the render method to present the frame.
      */
     @Inject(
-        method = "render(Lnet/minecraft/util/DeltaTracker;Z)V",
+        method = "render(Lnet/minecraft/client/DeltaTracker;Z)V",
         at = @At("RETURN"),
         cancellable = false
     )
-    private void onRenderFrameComplete(Object deltaTracker, boolean tick, CallbackInfo ci) {
+    private void onRenderFrameComplete(DeltaTracker deltaTracker, boolean renderLevel, CallbackInfo ci) {
         try {
             // CRITICAL: End DirectX 11 frame and present to screen
             VitraNativeRenderer.endFrameSafe();
 
             if (frameCount <= 5 || frameCount % 600 == 0) {
-                LOGGER.info("✓ DirectX 11 render frame completed and presented");
+                LOGGER.info("✓ DirectX 11 render frame completed and presented (1.21.1)");
             }
 
         } catch (Exception e) {
-            VitraErrorHandler.handleRenderingError("GameRenderer", "renderComplete", e);
             LOGGER.error("Exception in render frame completion", e);
         }
     }
 
     /**
-     * CRITICAL: Intercept world rendering (Minecraft 1.21.8)
-     * Method signature: public void renderLevel(DeltaTracker tickCounter)
-     *
-     * This is called EVERY frame for 3D world rendering specifically.
-     * This is where we set up the clear color and clear operations for the 3D world.
+     * CRITICAL: Intercept world rendering (Minecraft 1.21.1)
+     * Method signature: public void renderLevel(DeltaTracker deltaTracker)
      */
     @Inject(
-        method = "renderLevel(Lnet/minecraft/util/DeltaTracker;)V",
+        method = "renderLevel(Lnet/minecraft/client/DeltaTracker;)V",
         at = @At("HEAD"),
         cancellable = false
     )
-    private void onRenderLevel(Object deltaTracker, CallbackInfo ci) {
+    private void onRenderLevel(DeltaTracker deltaTracker, CallbackInfo ci) {
         try {
-            frameCount++;
-            long currentTime = System.currentTimeMillis();
-
             // Log world render info periodically
             if (frameCount <= 10 || frameCount % 600 == 0) {
                 LOGGER.info("╔════════════════════════════════════════════════════════════╗");
-                LOGGER.info("║  DIRECTX 11 WORLD RENDER START                        ║");
+                LOGGER.info("║  DIRECTX 11 WORLD RENDER START (1.21.1)                ║");
                 LOGGER.info("╠════════════════════════════════════════════════════════════╣");
                 LOGGER.info("║ Frame #:        {}", frameCount);
                 LOGGER.info("║ Thread:         {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
                 LOGGER.info("║ DeltaTracker:   {}", deltaTracker.getClass().getSimpleName());
                 LOGGER.info("║ VitraCore Init: {}", VitraCore.getInstance().isInitialized());
-                LOGGER.info("║ World Time:     {}ms", currentTime - lastFrameTime);
+                LOGGER.info("║ World Time:     {}ms", System.currentTimeMillis() - lastFrameTime);
                 LOGGER.info("╚════════════════════════════════════════════════════════════╝");
-                lastFrameTime = currentTime;
             }
 
             // Ensure VitraCore is initialized
-            if (!VitraErrorHandler.validateVitraCoreInitialized("GameRenderer.renderLevel")) {
+            if (!VitraCore.getInstance().isInitialized()) {
                 LOGGER.warn("VitraCore not initialized during world render - skipping DirectX operations");
                 return;
             }
@@ -170,18 +159,17 @@ public abstract class GameRendererMixin {
             if (depthStencilInitialized) {
                 VitraNativeRenderer.clearDepthStencilBuffer(depthStencilBuffer, true, true, 1.0f, 0);
                 if (frameCount <= 5) {
-                    LOGGER.info("✓ DirectX 11 depth stencil buffer cleared");
+                    LOGGER.info("✓ DirectX 11 depth stencil buffer cleared (1.21.1)");
                 }
             } else {
                 LOGGER.warn("⚠ Depth stencil buffer not initialized - 3D rendering may fail");
             }
 
             if (frameCount <= 5) {
-                LOGGER.info("✓ DirectX 11 world rendering started and cleared successfully");
+                LOGGER.info("✓ DirectX 11 world rendering started and cleared successfully (1.21.1)");
             }
 
         } catch (Exception e) {
-            VitraErrorHandler.handleRenderingError("GameRenderer", "renderLevel", e);
             LOGGER.error("Exception in world render interception", e);
         }
     }

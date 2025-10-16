@@ -15,17 +15,14 @@ import org.slf4j.LoggerFactory;
  * JNI DirectX 11 renderer for Vitra
  * Uses native DirectX 11 calls through JNI interface
  */
-public class VitraRenderer implements IVitraRenderer {
-    private static final Logger LOGGER = LoggerFactory.getLogger(VitraRenderer.class);
-
-    private boolean initialized = false;
-    private long windowHandle = 0L;
-    private VitraConfig config = null;
-    private VitraCore core = null;
-
+public class VitraRenderer extends AbstractRenderer {
     // DirectX 11 components
     private D3D11ShaderManager shaderManager;
     private D3D11BufferManager bufferManager;
+
+    public VitraRenderer() {
+        super(VitraRenderer.class);
+    }
 
     // Interface implementation methods
     @Override
@@ -36,11 +33,11 @@ public class VitraRenderer implements IVitraRenderer {
     @Override
     public void initialize(RendererType rendererType) {
         if (initialized) {
-            LOGGER.warn("VitraRenderer already initialized");
+            logger.warn("VitraRenderer already initialized");
             return;
         }
 
-        LOGGER.info("Preparing Vitra JNI DirectX 11 renderer (deferred initialization)");
+        logger.info("Preparing Vitra JNI DirectX 11 renderer (deferred initialization)");
 
         try {
             if (!rendererType.isSupported()) {
@@ -52,47 +49,33 @@ public class VitraRenderer implements IVitraRenderer {
             bufferManager = new D3D11BufferManager();
 
             initialized = true;
-            LOGGER.info("Vitra renderer prepared, native DirectX 11 will initialize when window handle is available");
+            logger.info("Vitra renderer prepared, native DirectX 11 will initialize when window handle is available");
 
         } catch (Exception e) {
-            LOGGER.error("Failed to prepare Vitra renderer", e);
+            logger.error("Failed to prepare Vitra renderer", e);
             throw new RuntimeException("Vitra renderer initialization failed", e);
-        }
-    }
-
-    @Override
-    public void setConfig(VitraConfig config) {
-        this.config = config;
-    }
-
-    @Override
-    public void setCore(VitraCore core) {
-        this.core = core;
-        // Set this renderer reference in the core for shader loading
-        if (core != null) {
-            core.setRenderer(this);
         }
     }
 
     @Override
     public boolean initializeWithWindowHandle(long windowHandle) {
         this.windowHandle = windowHandle;
-        LOGGER.info("JNI DirectX 11 window handle set: 0x{}", Long.toHexString(windowHandle));
+        logger.info("JNI DirectX 11 window handle set: 0x{}", Long.toHexString(windowHandle));
 
         // Actually initialize native DirectX 11 with the window handle
         if (windowHandle != 0L) {
             try {
-                // Get debug and verbose mode from config, default to false if config not set
-                boolean debugMode = (config != null) ? config.isDebugMode() : false;
-                boolean verboseMode = (config != null) ? config.isVerboseLogging() : false;
+                // Get debug and verbose mode from config
+                boolean debugMode = isDebugMode();
+                boolean verboseMode = isVerboseMode();
 
-                LOGGER.info("Initializing native DirectX 11 with debug={}, verbose={}", debugMode, verboseMode);
+                logger.info("Initializing native DirectX 11 with debug={}, verbose={}", debugMode, verboseMode);
                 if (verboseMode) {
-                    LOGGER.warn("╔════════════════════════════════════════════════════════════╗");
-                    LOGGER.warn("║  VERBOSE LOGGING ENABLED - JNI will log EVERYTHING        ║");
-                    LOGGER.warn("║  This may impact performance and generate huge log files  ║");
-                    LOGGER.warn("║  Disable in config/vitra.properties after debugging       ║");
-                    LOGGER.warn("╚════════════════════════════════════════════════════════════╝");
+                    logger.warn("╔════════════════════════════════════════════════════════════╗");
+                    logger.warn("║  VERBOSE LOGGING ENABLED - JNI will log EVERYTHING        ║");
+                    logger.warn("║  This may impact performance and generate huge log files  ║");
+                    logger.warn("║  Disable in config/vitra.properties after debugging       ║");
+                    logger.warn("╚════════════════════════════════════════════════════════════╝");
                 }
 
                 // Initialize debug system before DirectX initialization
@@ -101,27 +84,27 @@ public class VitraRenderer implements IVitraRenderer {
                 // Initialize OpenGL interceptor to redirect OpenGL calls to DirectX
                 GLInterceptor.initialize();
                 GLInterceptor.setActive(true);
-                LOGGER.info("OpenGL interceptor initialized and activated");
+                logger.info("OpenGL interceptor initialized and activated");
 
                 // Get Win32 HWND from GLFW window handle
                 long nativeWindowHandle = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(windowHandle);
                 if (nativeWindowHandle == 0) {
-                    LOGGER.error("Failed to get Win32 HWND from GLFW window");
+                    logger.error("Failed to get Win32 HWND from GLFW window");
                     return false;
                 }
 
-                LOGGER.info("GLFW window: 0x{}, Win32 HWND: 0x{}",
+                logger.info("GLFW window: 0x{}, Win32 HWND: 0x{}",
                     Long.toHexString(windowHandle), Long.toHexString(nativeWindowHandle));
 
                 boolean success = VitraNativeRenderer.initializeDirectXSafe(nativeWindowHandle, 1920, 1080, debugMode);
                 if (success) {
-                    LOGGER.info("Native DirectX 11 initialized successfully (debug={})", debugMode);
+                    logger.info("Native DirectX 11 initialized successfully (debug={})", debugMode);
 
                     // Preload shaders after initialization
                     if (shaderManager != null) {
-                        LOGGER.info("Preloading DirectX shaders...");
+                        logger.info("Preloading DirectX shaders...");
                         shaderManager.preloadShaders();
-                        LOGGER.info("Shader preloading completed: {}", shaderManager.getCacheStats());
+                        logger.info("Shader preloading completed: {}", shaderManager.getCacheStats());
                     }
 
                     // CRITICAL FIX: Ensure default shader pipeline is bound immediately after initialization
@@ -129,35 +112,26 @@ public class VitraRenderer implements IVitraRenderer {
                     long defaultPipeline = VitraNativeRenderer.getDefaultShaderPipeline();
                     if (defaultPipeline != 0) {
                         VitraNativeRenderer.setShaderPipeline(defaultPipeline);
-                        LOGGER.info("Default shader pipeline bound: handle=0x{}", Long.toHexString(defaultPipeline));
+                        logger.info("Default shader pipeline bound: handle=0x{}", Long.toHexString(defaultPipeline));
                     } else {
-                        LOGGER.error("Failed to get default shader pipeline handle - this will cause black screen!");
+                        logger.error("Failed to get default shader pipeline handle - this will cause black screen!");
                     }
 
                     // Load shaders after native initialization
                     if (core != null) {
-                        LOGGER.info("Loading custom shaders...");
+                        logger.info("Loading custom shaders...");
                         core.loadShaders();
                     } else {
-                        LOGGER.warn("VitraCore not set, skipping custom shader loading");
-                    }
-
-                    // Run comprehensive @Overwrite test suite now that everything is fully initialized
-                    LOGGER.info("Running @Overwrite test suite after complete DirectX 11 initialization...");
-                    try {
-                        com.vitra.debug.VitraOverwriteTester.runComprehensiveTests();
-                        LOGGER.info("@Overwrite test suite completed after full initialization");
-                    } catch (Exception e) {
-                        LOGGER.warn("@Overwrite test suite failed to run after initialization", e);
+                        logger.warn("VitraCore not set, skipping custom shader loading");
                     }
 
                     return true;
                 } else {
-                    LOGGER.error("Native DirectX 11 initialization failed");
+                    logger.error("Native DirectX 11 initialization failed");
                     return false;
                 }
             } catch (Exception e) {
-                LOGGER.error("Exception during native DirectX 11 initialization", e);
+                logger.error("Exception during native DirectX 11 initialization", e);
                 return false;
             }
         }
@@ -168,41 +142,41 @@ public class VitraRenderer implements IVitraRenderer {
     public void shutdown() {
         if (!initialized) return;
 
-        LOGGER.info("Shutting down Vitra JNI DirectX 11 renderer...");
+        logger.info("Shutting down Vitra JNI DirectX 11 renderer...");
 
         try {
             // Clear shader and buffer caches
             if (shaderManager != null) {
                 shaderManager.clearCache();
-                LOGGER.info("Cleared shader cache: {}", shaderManager.getCacheStats());
+                logger.info("Cleared shader cache: {}", shaderManager.getCacheStats());
             }
 
             if (bufferManager != null) {
                 bufferManager.clearAll();
-                LOGGER.info("Cleared buffer cache: {}", bufferManager.getBufferStats());
+                logger.info("Cleared buffer cache: {}", bufferManager.getBufferStats());
             }
 
             // Shutdown OpenGL interceptor
             GLInterceptor.setActive(false);
             GLInterceptor.shutdown();
-            LOGGER.info("OpenGL interceptor shutdown");
+            logger.info("OpenGL interceptor shutdown");
 
             // Shutdown native renderer safely with debug cleanup
             VitraNativeRenderer.shutdownSafe();
-            LOGGER.info("Native DirectX 11 shutdown completed");
+            logger.info("Native DirectX 11 shutdown completed");
 
         } catch (Exception e) {
-            LOGGER.error("Exception during shutdown", e);
+            logger.error("Exception during shutdown", e);
         }
 
         initialized = false;
         windowHandle = 0L;
-        LOGGER.info("Vitra renderer shutdown complete");
+        logger.info("Vitra renderer shutdown complete");
     }
 
     @Override
     public boolean isInitialized() {
-        return initialized && windowHandle != 0L && VitraNativeRenderer.isInitialized();
+        return super.isInitialized() && VitraNativeRenderer.isInitialized();
     }
 
     @Override
@@ -234,7 +208,7 @@ public class VitraRenderer implements IVitraRenderer {
     public void resize(int width, int height) {
         if (isInitialized()) {
             VitraNativeRenderer.resize(width, height);
-            LOGGER.info("DirectX 11 view resized to {}x{}", width, height);
+            logger.info("DirectX 11 view resized to {}x{}", width, height);
         }
     }
 

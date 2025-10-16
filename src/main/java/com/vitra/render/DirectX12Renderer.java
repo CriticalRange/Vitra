@@ -12,17 +12,14 @@ import org.slf4j.LoggerFactory;
  * DirectX 12 Ultimate renderer implementation that wraps VitraD3D12JNI
  * Implements IVitraRenderer interface for compatibility with the renderer system
  */
-public class DirectX12Renderer implements IVitraRenderer {
-    private static final Logger LOGGER = LoggerFactory.getLogger(DirectX12Renderer.class);
-
-    private boolean initialized = false;
-    private long windowHandle = 0L;
-    private VitraConfig config = null;
-    private com.vitra.core.VitraCore core = null;
-
+public class DirectX12Renderer extends AbstractRenderer {
     // DirectX 12 components
     private D3D12ShaderManager shaderManager;
     private D3D12BufferManager bufferManager;
+
+    public DirectX12Renderer() {
+        super(DirectX12Renderer.class);
+    }
 
     @Override
     public void initialize() {
@@ -32,11 +29,11 @@ public class DirectX12Renderer implements IVitraRenderer {
     @Override
     public void initialize(RendererType rendererType) {
         if (initialized) {
-            LOGGER.warn("DirectX 12 renderer already initialized");
+            logger.warn("DirectX 12 renderer already initialized");
             return;
         }
 
-        LOGGER.info("Initializing DirectX 12 Ultimate renderer (deferred until window handle available)");
+        logger.info("Initializing DirectX 12 Ultimate renderer (deferred until window handle available)");
 
         try {
             if (!rendererType.isSupported()) {
@@ -48,74 +45,60 @@ public class DirectX12Renderer implements IVitraRenderer {
             bufferManager = new D3D12BufferManager();
 
             initialized = true;
-            LOGGER.info("DirectX 12 renderer prepared, native DirectX 12 will initialize when window handle is available");
+            logger.info("DirectX 12 renderer prepared, native DirectX 12 will initialize when window handle is available");
 
         } catch (Exception e) {
-            LOGGER.error("Failed to prepare DirectX 12 renderer", e);
+            logger.error("Failed to prepare DirectX 12 renderer", e);
             throw new RuntimeException("DirectX 12 renderer initialization failed", e);
-        }
-    }
-
-    @Override
-    public void setConfig(VitraConfig config) {
-        this.config = config;
-    }
-
-    @Override
-    public void setCore(com.vitra.core.VitraCore core) {
-        this.core = core;
-        // Set this renderer reference in the core for shader loading
-        if (core != null) {
-            core.setRenderer(this);
         }
     }
 
     @Override
     public boolean initializeWithWindowHandle(long windowHandle) {
         this.windowHandle = windowHandle;
-        LOGGER.info("DirectX 12 window handle set: 0x{}", Long.toHexString(windowHandle));
+        logger.info("DirectX 12 window handle set: 0x{}", Long.toHexString(windowHandle));
 
         // Actually initialize native DirectX 12 with the window handle
         if (windowHandle != 0L) {
             try {
-                // Get debug and verbose mode from config, default to false if config not set
-                boolean debugMode = (config != null) ? config.isDebugMode() : false;
-                boolean verboseMode = (config != null) ? config.isVerboseLogging() : false;
+                // Get debug and verbose mode from config
+                boolean debugMode = isDebugMode();
+                boolean verboseMode = isVerboseMode();
 
-                LOGGER.info("Initializing native DirectX 12 Ultimate with debug={}, verbose={}", debugMode, verboseMode);
+                logger.info("Initializing native DirectX 12 Ultimate with debug={}, verbose={}", debugMode, verboseMode);
 
                 // Initialize DirectX 12 with configuration
                 boolean success = VitraD3D12Renderer.initializeWithConfig(windowHandle, config);
                 if (success) {
-                    LOGGER.info("Native DirectX 12 Ultimate initialized successfully (debug={})", debugMode);
+                    logger.info("Native DirectX 12 Ultimate initialized successfully (debug={})", debugMode);
 
                     // Initialize managers
                     if (shaderManager != null) {
                         shaderManager.initialize();
                         shaderManager.preloadMinecraftShaders();
-                        LOGGER.info("DirectX 12 shader manager initialized: {}", shaderManager.getCacheStats());
+                        logger.info("DirectX 12 shader manager initialized: {}", shaderManager.getCacheStats());
                     }
 
                     if (bufferManager != null) {
                         bufferManager.initialize();
-                        LOGGER.info("DirectX 12 buffer manager initialized: {}", bufferManager.getBufferStats());
+                        logger.info("DirectX 12 buffer manager initialized: {}", bufferManager.getBufferStats());
                     }
 
                     // Load shaders after native initialization
                     if (core != null) {
-                        LOGGER.info("Loading custom shaders...");
+                        logger.info("Loading custom shaders...");
                         core.loadShaders();
                     } else {
-                        LOGGER.warn("VitraCore not set, skipping custom shader loading");
+                        logger.warn("VitraCore not set, skipping custom shader loading");
                     }
 
                     return true;
                 } else {
-                    LOGGER.error("Native DirectX 12 Ultimate initialization failed");
+                    logger.error("Native DirectX 12 Ultimate initialization failed");
                     return false;
                 }
             } catch (Exception e) {
-                LOGGER.error("Exception during native DirectX 12 Ultimate initialization", e);
+                logger.error("Exception during native DirectX 12 Ultimate initialization", e);
                 return false;
             }
         }
@@ -126,36 +109,36 @@ public class DirectX12Renderer implements IVitraRenderer {
     public void shutdown() {
         if (!initialized) return;
 
-        LOGGER.info("Shutting down DirectX 12 Ultimate renderer...");
+        logger.info("Shutting down DirectX 12 Ultimate renderer...");
 
         try {
             // Clear shader and buffer caches
             if (shaderManager != null) {
                 shaderManager.shutdown();
-                LOGGER.info("DirectX 12 shader manager shutdown");
+                logger.info("DirectX 12 shader manager shutdown");
             }
 
             if (bufferManager != null) {
                 bufferManager.shutdown();
-                LOGGER.info("DirectX 12 buffer manager shutdown");
+                logger.info("DirectX 12 buffer manager shutdown");
             }
 
             // Shutdown native renderer
             VitraD3D12Renderer.shutdown();
-            LOGGER.info("Native DirectX 12 Ultimate shutdown completed");
+            logger.info("Native DirectX 12 Ultimate shutdown completed");
 
         } catch (Exception e) {
-            LOGGER.error("Exception during shutdown", e);
+            logger.error("Exception during shutdown", e);
         }
 
         initialized = false;
         windowHandle = 0L;
-        LOGGER.info("DirectX 12 renderer shutdown complete");
+        logger.info("DirectX 12 renderer shutdown complete");
     }
 
     @Override
     public boolean isInitialized() {
-        return initialized && windowHandle != 0L && VitraD3D12Renderer.isInitialized();
+        return super.isInitialized() && VitraD3D12Renderer.isInitialized();
     }
 
     @Override
@@ -188,7 +171,7 @@ public class DirectX12Renderer implements IVitraRenderer {
     public void resize(int width, int height) {
         if (isInitialized()) {
             VitraD3D12Renderer.resize(width, height);
-            LOGGER.info("DirectX 12 view resized to {}x{}", width, height);
+            logger.info("DirectX 12 view resized to {}x{}", width, height);
         }
     }
 

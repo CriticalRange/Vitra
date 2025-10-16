@@ -1,5 +1,5 @@
 // position_color.fsh
-// Converted from Minecraft 1.21.8 GLSL core/position_color.fsh
+// Converted from Minecraft 1.21.1 GLSL core/position_color.fsh
 // Shader Model 5.0 Pixel Shader
 // Purpose: Position + per-vertex color rendering with color modulation
 

@@ -1,5 +1,5 @@
 // rendertype_outline.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Renders solid color outline based on alpha mask
 
 #include "cbuffer_common.hlsli"

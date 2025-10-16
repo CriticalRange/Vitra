@@ -188,7 +188,7 @@ bool compileShader(const char* source, const char* target, ID3DBlob** blob) {
 }
 
 bool createInputLayout(ID3DBlob* vertexShaderBlob, ID3D11InputLayout** inputLayout) {
-    // Define vertex input layout matching Minecraft 1.21.8's 32-byte vertex format
+    // Define vertex input layout matching Minecraft 1.21.1's 32-byte vertex format
     // Based on DirectX 11 documentation: proper alignment is critical for correct rendering
     // Format: position (12 bytes) + padding (4 bytes) + texcoord (8 bytes) + color (4 bytes) + padding (4 bytes) = 32 bytes
     D3D11_INPUT_ELEMENT_DESC layout[] = {
@@ -1295,7 +1295,7 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_draw
     auto vbIt = g_vertexBuffers.find(vbHandle);
     if (vbIt != g_vertexBuffers.end()) {
         // Get the actual stride for this vertex buffer
-        // Minecraft 1.21.8 uses 32-byte vertex format (position=12 + padding=4 + texcoord=8 + color=4 + padding=4)
+        // Minecraft 1.21.1 uses 32-byte vertex format (position=12 + padding=4 + texcoord=8 + color=4 + padding=4)
         UINT stride = 32; // Default fallback - fixed to match Minecraft's actual vertex format
         auto strideIt = g_vertexBufferStrides.find(vbHandle);
         if (strideIt != g_vertexBufferStrides.end()) {

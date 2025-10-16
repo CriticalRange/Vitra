@@ -1,5 +1,5 @@
 // position.vsh
-// Converted from Minecraft 1.21.8 GLSL core/position.vsh
+// Converted from Minecraft 1.21.1 GLSL core/position.vsh
 // Shader Model 5.0 Vertex Shader
 // Purpose: Simple position-only rendering with fog distance calculation
 

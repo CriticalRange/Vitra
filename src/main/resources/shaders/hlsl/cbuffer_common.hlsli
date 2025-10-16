@@ -1,5 +1,5 @@
 // cbuffer_common.hlsli
-// Common constant buffer definitions for Minecraft 1.21.8 GLSL to HLSL conversion
+// Common constant buffer definitions for Minecraft 1.21.1 GLSL to HLSL conversion
 // This file should be included by all HLSL shaders
 
 // Use column-major matrix layout to match GLSL behavior

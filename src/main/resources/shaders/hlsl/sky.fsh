@@ -1,5 +1,5 @@
 // sky.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Applies sky color with special fog blending (uses FogSkyEnd)
 
 #include "cbuffer_common.hlsli"

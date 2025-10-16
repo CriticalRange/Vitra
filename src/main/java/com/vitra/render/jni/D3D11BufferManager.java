@@ -10,11 +10,13 @@ import java.util.Map;
 /**
  * DirectX 11 buffer manager that replaces BGFX buffer operations
  */
-public class D3D11BufferManager implements IBufferManager {
-    private static final Logger LOGGER = LoggerFactory.getLogger(D3D11BufferManager.class);
-
+public class D3D11BufferManager extends AbstractBufferManager {
     private final Map<Long, BufferInfo> vertexBuffers = new ConcurrentHashMap<>();
     private final Map<Long, BufferInfo> indexBuffers = new ConcurrentHashMap<>();
+
+    public D3D11BufferManager() {
+        super(D3D11BufferManager.class);
+    }
 
     private static class BufferInfo {
         long handle;
@@ -38,7 +40,7 @@ public class D3D11BufferManager implements IBufferManager {
      */
     public long createVertexBuffer(ByteBuffer data, int stride) {
         if (data == null || !data.hasRemaining()) {
-            LOGGER.error("Invalid vertex buffer data");
+            logger.error("Invalid vertex buffer data");
             return 0;
         }
 
@@ -48,10 +50,10 @@ public class D3D11BufferManager implements IBufferManager {
         long handle = VitraNativeRenderer.createVertexBuffer(dataArray, dataArray.length, stride);
         if (handle != 0) {
             vertexBuffers.put(handle, new BufferInfo(handle, dataArray.length, stride, BUFFER_TYPE_VERTEX));
-            LOGGER.debug("Created vertex buffer: handle=0x{}, size={}, stride={}",
+            logger.debug("Created vertex buffer: handle=0x{}, size={}, stride={}",
                 Long.toHexString(handle), dataArray.length, stride);
         } else {
-            LOGGER.error("Failed to create vertex buffer");
+            logger.error("Failed to create vertex buffer");
         }
 
         return handle;
@@ -62,7 +64,7 @@ public class D3D11BufferManager implements IBufferManager {
      */
     public long createIndexBuffer(ByteBuffer data, boolean use32Bit) {
         if (data == null || !data.hasRemaining()) {
-            LOGGER.error("Invalid index buffer data");
+            logger.error("Invalid index buffer data");
             return 0;
         }
 
@@ -73,10 +75,10 @@ public class D3D11BufferManager implements IBufferManager {
         long handle = VitraNativeRenderer.createIndexBuffer(dataArray, dataArray.length, format);
         if (handle != 0) {
             indexBuffers.put(handle, new BufferInfo(handle, dataArray.length, 0, BUFFER_TYPE_INDEX));
-            LOGGER.debug("Created index buffer: handle=0x{}, size={}, format={}",
+            logger.debug("Created index buffer: handle=0x{}, size={}, format={}",
                 Long.toHexString(handle), dataArray.length, use32Bit ? "32-bit" : "16-bit");
         } else {
-            LOGGER.error("Failed to create index buffer");
+            logger.error("Failed to create index buffer");
         }
 
         return handle;
@@ -95,7 +97,7 @@ public class D3D11BufferManager implements IBufferManager {
 
         if (info != null) {
             VitraNativeRenderer.destroyResource(handle);
-            LOGGER.debug("Destroyed buffer: handle=0x{}, type={}",
+            logger.debug("Destroyed buffer: handle=0x{}, type={}",
                 Long.toHexString(handle), info.type == BUFFER_TYPE_VERTEX ? "vertex" : "index");
         }
     }
@@ -131,10 +133,11 @@ public class D3D11BufferManager implements IBufferManager {
         return info;
     }
 
-    
+
     /**
      * Get buffer statistics
      */
+    @Override
     public String getBufferStats() {
         return String.format("Vertex buffers: %d, Index buffers: %d",
             vertexBuffers.size(), indexBuffers.size());
@@ -161,20 +164,6 @@ public class D3D11BufferManager implements IBufferManager {
         return total;
     }
 
-    // IBufferManager interface implementation
-
-    @Override
-    public void initialize() {
-        LOGGER.info("Initializing DirectX 11 buffer manager");
-        // No specific initialization needed for DirectX 11 JNI
-    }
-
-    @Override
-    public void shutdown() {
-        LOGGER.info("Shutting down DirectX 11 buffer manager");
-        clearAll();
-    }
-
     @Override
     public void clearAll() {
         // Destroy all vertex buffers
@@ -189,12 +178,7 @@ public class D3D11BufferManager implements IBufferManager {
         }
         indexBuffers.clear();
 
-        LOGGER.info("Cleared all buffers");
-    }
-
-    @Override
-    public boolean isInitialized() {
-        return true; // DirectX 11 buffer manager is always ready
+        logger.info("Cleared all buffers");
     }
 
     @Override

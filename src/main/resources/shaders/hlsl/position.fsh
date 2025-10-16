@@ -1,5 +1,5 @@
 // position.fsh
-// Converted from Minecraft 1.21.8 GLSL core/position.fsh
+// Converted from Minecraft 1.21.1 GLSL core/position.fsh
 // Shader Model 5.0 Pixel Shader
 // Purpose: Simple position-only rendering with fog application
 

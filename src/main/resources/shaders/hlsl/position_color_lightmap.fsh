@@ -1,5 +1,5 @@
 // position_color_lightmap.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Samples lightmap texture and applies to vertex color
 
 #include "cbuffer_common.hlsli"

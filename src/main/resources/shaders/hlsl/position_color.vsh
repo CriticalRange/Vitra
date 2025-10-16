@@ -1,5 +1,5 @@
 // position_color.vsh
-// Converted from Minecraft 1.21.8 GLSL core/position_color.vsh
+// Converted from Minecraft 1.21.1 GLSL core/position_color.vsh
 // Shader Model 5.0 Vertex Shader
 // Purpose: Position + per-vertex color rendering (UI, debug lines, etc.)
 

@@ -1,5 +1,5 @@
 // position_tex.vsh
-// Converted from Minecraft 1.21.8 GLSL core/position_tex.vsh
+// Converted from Minecraft 1.21.1 GLSL core/position_tex.vsh
 // Shader Model 5.0 Vertex Shader
 // Purpose: Position + texture coordinate rendering (textured quads, UI, blocks)
 

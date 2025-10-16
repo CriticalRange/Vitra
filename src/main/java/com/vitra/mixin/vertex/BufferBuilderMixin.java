@@ -3,6 +3,7 @@ package com.vitra.mixin.vertex;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.core.Vec3i;
+import net.minecraft.core.Direction;
 import com.vitra.render.opengl.GLInterceptor;
 import com.vitra.mixin.matrix.PoseAccessor;
 import com.vitra.render.util.MathUtil;
@@ -240,8 +241,8 @@ public abstract class BufferBuilderMixin implements VertexConsumer {
 
     @Unique
     private void putQuadData(PoseStack.Pose matrixEntry, BakedQuad quad, float[] brightness, float red, float green, float blue, float alpha, int[] lights, int overlay, boolean useQuadColorData) {
-        int[] quadData = quad.vertices();
-        Vec3i vec3i = quad.direction().getUnitVec3i();
+        int[] quadData = quad.getVertices();
+        Vec3i vec3i = quad.getDirection().getNormal();
         Matrix4f matrix4f = matrixEntry.pose();
 
         boolean trustedNormals = ((PoseAccessor)(Object)matrixEntry).trustedNormals();

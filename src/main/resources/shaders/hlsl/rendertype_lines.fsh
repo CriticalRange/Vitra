@@ -1,5 +1,5 @@
 // rendertype_lines.fsh - Pixel Shader
-// Minecraft 1.21.8 GLSL to HLSL Shader Model 5.0 conversion
+// Minecraft 1.21.1 GLSL to HLSL Shader Model 5.0 conversion
 // Renders lines with standard fog blending
 
 #include "cbuffer_common.hlsli"

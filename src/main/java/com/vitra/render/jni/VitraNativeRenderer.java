@@ -245,7 +245,7 @@ public class VitraNativeRenderer {
     public static native void setPrimitiveTopology(int topology);
 
     /**
-     * Draw mesh data directly from byte buffers (for 1.21.8 compatibility)
+     * Draw mesh data directly from byte buffers (for 1.21.1 compatibility)
      * @param vertexBuffer - Vertex data buffer
      * @param indexBuffer - Index data buffer (null for non-indexed)
      * @param vertexCount - Number of vertices
@@ -875,6 +875,41 @@ public class VitraNativeRenderer {
     public static final int TEXTURE_FORMAT_R8 = 2;
     public static final int TEXTURE_FORMAT_D24S8 = 3;
 
+    // DirectX 11 DXGI format constants
+    public static final int DXGI_FORMAT_R8G8B8A8_UNORM = 28;
+    public static final int DXGI_FORMAT_R8_UNORM = 61;
+    public static final int DXGI_FORMAT_R8G8_UNORM = 49;
+    public static final int DXGI_FORMAT_B8G8R8A8_UNORM = 87;
+
+    // Constant buffer slot constants
+    public static final int CONSTANT_BUFFER_SLOT_MATRICES = 0;
+    public static final int CONSTANT_BUFFER_SLOT_LIGHTING = 1;
+    public static final int CONSTANT_BUFFER_SLOT_VECTORS = 2;
+    public static final int CONSTANT_BUFFER_SLOT_COLORS = 3;
+
+    // Additional missing methods
+    /**
+     * Set shader light direction
+     * @param lightIndex - Light index (0 or 1)
+     * @param x - X component
+     * @param y - Y component
+     * @param z - Z component
+     */
+    public static native void setShaderLightDirection(int lightIndex, float x, float y, float z);
+
+    /**
+     * Set texture matrix
+     * @param matrixData - 4x4 matrix data (16 floats, column-major)
+     */
+    public static native void setTextureMatrix(float[] matrixData);
+
+    /**
+     * Update constant buffer with float data
+     * @param slot - Buffer slot
+     * @param data - FloatBuffer data
+     */
+    public static native void updateConstantBuffer(int slot, java.nio.FloatBuffer data);
+
     // ==================== SAFE WRAPPER METHODS ====================
 
     /**
@@ -1204,6 +1239,20 @@ public class VitraNativeRenderer {
     public static native void setProjectionMatrix(float[] matrixData);
 
     /**
+     * Set model-view matrix from Minecraft's RenderSystem
+     * This synchronizes Minecraft's Matrix4f model-view matrix (JOML column-major) to DirectX 11 (row-major)
+     *
+     * @param matrixData - Float array containing 16 elements of the 4x4 matrix in column-major order
+     */
+    public static native void setModelViewMatrix(float[] matrixData);
+
+    /**
+     * Apply model-view matrix from Minecraft's RenderSystem (for RenderSystemMixin)
+     * This applies the current model-view matrix stack state to DirectX 11
+     */
+    public static native void applyModelViewMatrix();
+
+    /**
      * Set ALL transformation matrices from Minecraft's RenderSystem
      * This is the CORRECT way to sync matrices - we need MVP, ModelView, and Projection!
      *
@@ -1212,6 +1261,85 @@ public class VitraNativeRenderer {
      * @param projectionData - Projection matrix (16 floats, column-major)
      */
     public static native void setTransformMatrices(float[] mvpData, float[] modelViewData, float[] projectionData);
+
+    /**
+     * Set shader color for vertex coloring (CRITICAL for correct block/entity colors)
+     *
+     * @param r - Red component (0.0-1.0)
+     * @param g - Green component (0.0-1.0)
+     * @param b - Blue component (0.0-1.0)
+     * @param a - Alpha component (0.0-1.0)
+     */
+    public static native void setShaderColor(float r, float g, float b, float a);
+
+    /**
+     * Set fog color for atmospheric effects (CRITICAL for proper fog rendering)
+     *
+     * @param r - Red component (0.0-1.0)
+     * @param g - Green component (0.0-1.0)
+     * @param b - Blue component (0.0-1.0)
+     * @param a - Alpha component (0.0-1.0)
+     */
+    public static native void setShaderFogColor(float r, float g, float b, float a);
+
+    /**
+     * Create main render target for Minecraft 1.21.1 (CRITICAL for MainTargetMixin)
+     *
+     * @param width - Render target width
+     * @param height - Render target height
+     * @param useDepth - Whether to include depth attachment
+     * @return Render target handle, or 0 on failure
+     */
+    public static native long createMainRenderTarget(int width, int height, boolean useDepth);
+
+    /**
+     * Resize render target (CRITICAL for window resize)
+     *
+     * @param renderTargetHandle - Render target handle from createMainRenderTarget()
+     * @param width - New width
+     * @param height - New height
+     * @param format - Depth format (from DEPTH_FORMAT_* constants)
+     * @return New render target handle, or 0 on failure
+     */
+    public static native long resizeRenderTarget(long renderTargetHandle, int width, int height, int format);
+
+    /**
+     * Bind render target for writing (CRITICAL for MainTargetMixin)
+     *
+     * @param renderTargetHandle - Render target handle from createMainRenderTarget()
+     * @param updateScissor - Whether to update scissor rectangle
+     */
+    public static native void bindRenderTargetForWriting(long renderTargetHandle, boolean updateScissor);
+
+    /**
+     * Bind render target as texture for reading (CRITICAL for MainTargetMixin)
+     *
+     * @param renderTargetHandle - Render target handle from createMainRenderTarget()
+     */
+    public static native void bindRenderTargetAsTexture(long renderTargetHandle);
+
+    /**
+     * Get color texture from render target (CRITICAL for MainTargetMixin)
+     *
+     * @param renderTargetHandle - Render target handle from createMainRenderTarget()
+     *return Color texture handle, or 0 if not available
+     */
+    public static native long getRenderTargetColorTexture(long renderTargetHandle);
+
+    /**
+     * Release render target (CRITICAL for MainTargetMixin)
+     *
+     * @param renderTargetHandle - Render target handle from createMainRenderTarget()
+     */
+    public static native void releaseRenderTarget(long renderTargetHandle);
+
+    /**
+     * Present texture using DirectX 11 (CRITICAL for CommandEncoderMixin)
+     *
+     * @param textureId - Texture ID from MainTargetMixin.getColorTexture()
+     * @return true if successful
+     */
+    public static native boolean presentTexture(int textureId);
 
     // ==================== BUFFER/TEXTURE COPY OPERATIONS ====================
 
@@ -1628,7 +1756,7 @@ public class VitraNativeRenderer {
      */
     public static native void setStencilMaskSeparate(int face, int mask);
 
-    // ==================== 1.21.8 MIXIN SUPPORT METHODS ====================
+    // ==================== 1.21.1 MIXIN SUPPORT METHODS ====================
 
     // VertexBufferMixin native methods
     /**
@@ -1689,74 +1817,48 @@ public class VitraNativeRenderer {
      */
     public static native boolean drawNonIndexed(int vertexBufferId, int mode);
 
-    // AbstractTextureMixin native methods (GpuTexture support)
+    // AbstractTextureMixin native methods - Following VulkanMod's approach (no GPU abstraction)
     /**
-     * Create GpuTexture for AbstractTextureMixin
-     * @param name - Texture name for debugging
-     * @return GpuTexture object or null on failure
-     */
-    public static native com.mojang.blaze3d.systems.GpuTexture createGpuTexture(String name);
-
-    /**
-     * Create GpuTextureView for texture
-     * @param texture - GpuTexture object
-     * @return GpuTextureView object or null on failure
-     */
-    public static native com.mojang.blaze3d.systems.GpuTextureView createGpuTextureView(com.mojang.blaze3d.systems.GpuTexture texture);
-
-    /**
-     * Bind GpuTexture for rendering
-     * @param texture - GpuTexture object
-     */
-    public static native void bindGpuTexture(com.mojang.blaze3d.systems.GpuTexture texture);
-
-    /**
-     * Release GpuTexture
-     * @param texture - GpuTexture object
-     */
-    public static native void releaseGpuTexture(com.mojang.blaze3d.systems.GpuTexture texture);
-
-    /**
-     * Release GpuTextureView
-     * @param textureView - GpuTextureView object
-     */
-    public static native void releaseGpuTextureView(com.mojang.blaze3d.systems.GpuTextureView textureView);
-
-    /**
-     * Upload NativeImage to GpuTexture
-     * @param texture - GpuTexture object
-     * @param image - NativeImage object
+     * Create texture using traditional OpenGL texture ID approach
+     * @param textureId - OpenGL texture ID
+     * @param width - Texture width
+     * @param height - Texture height
+     * @param format - Texture format (GL_RGBA, GL_RGB, etc.)
      * @return true if successful
      */
-    public static native boolean uploadNativeImageToTexture(com.mojang.blaze3d.systems.GpuTexture texture, net.minecraft.client.renderer.texture.NativeImage image);
+    public static native boolean createTexture(int textureId, int width, int height, int format);
 
     /**
-     * Set texture filter settings
-     * @param texture - GpuTexture object
-     * @param bilinear - Bilinear filtering
-     * @param mipmap - Mipmap filtering
+     * Upload texture data (following VulkanMod's VkGlTexture approach)
+     * @param textureId - OpenGL texture ID
+     * @param data - Pixel data
+     * @param width - Texture width
+     * @param height - Texture height
+     * @param format - Pixel format (GL_RGBA, GL_RGB, etc.)
+     * @return true if successful
      */
-    public static native void setTextureFilter(com.mojang.blaze3d.systems.GpuTexture texture, boolean bilinear, boolean mipmap);
+    public static native boolean uploadTextureData(int textureId, byte[] data, int width, int height, int format);
 
     /**
-     * Set texture clamp settings
-     * @param texture - GpuTexture object
-     * @param clamp - Clamp to edge
+     * Bind texture for rendering (OpenGL compatibility)
+     * @param textureId - OpenGL texture ID
+     * @param target - Texture target (GL_TEXTURE_2D, etc.)
      */
-    public static native void setTextureClamp(com.mojang.blaze3d.systems.GpuTexture texture, boolean clamp);
+    public static native void bindTextureId(int textureId, int target);
 
     /**
-     * Set texture mipmap usage
-     * @param texture - GpuTexture object
-     * @param useMipmaps - Use mipmaps
+     * Set texture parameter (OpenGL compatibility)
+     * @param textureId - OpenGL texture ID
+     * @param pname - Parameter name (GL_TEXTURE_MIN_FILTER, etc.)
+     * @param param - Parameter value
      */
-    public static native void setTextureMipmapUsage(com.mojang.blaze3d.systems.GpuTexture texture, boolean useMipmaps);
+    public static native void setTextureParameterId(int textureId, int pname, int param);
 
     /**
-     * Generate texture mipmaps
-     * @param texture - GpuTexture object
+     * Delete texture (OpenGL compatibility)
+     * @param textureId - OpenGL texture ID
      */
-    public static native void generateTextureMipmaps(com.mojang.blaze3d.systems.GpuTexture texture);
+    public static native void deleteTexture(int textureId);
 
     // ShaderInstanceMixin native methods
     /**
@@ -1821,12 +1923,7 @@ public class VitraNativeRenderer {
     public static native boolean useDefaultShader(String shaderName);
 
     // GlCommandEncoderMixin native methods
-    /**
-     * Present texture using DirectX 11
-     * @param textureId - Texture ID
-     * @return true if successful
-     */
-    public static native boolean presentTexture(int textureId);
+    // Note: presentTexture method is already defined above in MainTargetMixin section
 
     /**
      * Execute batched draw calls
@@ -1861,11 +1958,11 @@ public class VitraNativeRenderer {
     public static native boolean executeNonIndexedDraw(int[] vertexData, int baseVertex, int count, String vertexFormat);
 
     /**
-     * Extract texture ID from GpuTextureView
-     * @param texture - GpuTextureView object
-     * @return Texture ID or -1 on failure
+     * Get texture ID from bound texture (following VulkanMod's approach)
+     * @param target - Texture target (GL_TEXTURE_2D, etc.)
+     * @return Currently bound texture ID or 0 if none
      */
-    public static native int extractTextureId(com.mojang.blaze3d.systems.GpuTextureView texture);
+    public static native int getBoundTextureId(int target);
 
     // BufferUploaderMixin native methods
     /**
@@ -1951,29 +2048,30 @@ public class VitraNativeRenderer {
      */
     public static native void releasePipeline(int pipelineId);
 
-    // Additional utility methods for 1.21.8 compatibility
+    // Additional utility methods for 1.21.1 compatibility (following VulkanMod approach)
     /**
-     * Get texture from legacy texture ID
-     * @param textureId - Legacy texture ID
-     * @return GpuTexture object or null
+     * Get texture information from texture ID
+     * @param textureId - Texture ID
+     * @return Texture information string or null if not found
      */
-    public static native com.mojang.blaze3d.systems.GpuTexture getTextureFromId(int textureId);
+    public static native String getTextureInfo(int textureId);
 
     /**
-     * Get texture view from legacy texture ID
-     * @param textureId - Legacy texture ID
-     * @return GpuTextureView object or null
+     * Check if texture exists and is valid
+     * @param textureId - Texture ID
+     * @return true if texture exists and is valid
      */
-    public static native com.mojang.blaze3d.systems.GpuTextureView getTextureViewFromId(int textureId);
+    public static native boolean isTextureValid(int textureId);
 
     /**
-     * Create texture from legacy parameters
+     * Create texture with parameters (OpenGL compatibility)
+     * @param textureId - Desired texture ID
      * @param width - Texture width
      * @param height - Texture height
-     * @param format - Texture format
-     * @return GpuTexture object or null
+     * @param format - Texture format (GL_RGBA, GL_RGB, etc.)
+     * @return true if successful
      */
-    public static native com.mojang.blaze3d.systems.GpuTexture createTextureFromParams(int width, int height, int format);
+    public static native boolean createTextureWithParams(int textureId, int width, int height, int format);
 
     /**
      * Validate shader pipeline is ready for use
@@ -2131,13 +2229,6 @@ public class VitraNativeRenderer {
      */
     public static native String forceAndValidateCleanup();
 
-    // Debug severity constants
-    public static final int DEBUG_SEVERITY_INFO_MINIMAL = 0;     // Only critical errors
-    public static final int DEBUG_SEVERITY_WARNING = 1;          // Warnings and above
-    public static final int DEBUG_SEVERITY_ERROR = 2;            // Errors and above
-    public static final int DEBUG_SEVERITY_CRITICAL = 3;         // Critical errors only
-    public static final int DEBUG_SEVERITY_VERBOSE = 4;          // All messages
-
     // Debug object type constants
     public static final String DEBUG_OBJECT_TYPE_DEVICE = "Device";
     public static final String DEBUG_OBJECT_TYPE_BUFFER = "Buffer";
@@ -2158,5 +2249,233 @@ public class VitraNativeRenderer {
     public static final String DEBUG_OBJECT_TYPE_QUERY = "Query";
     public static final String DEBUG_OBJECT_TYPE_FENCE = "Fence";
     public static final String DEBUG_OBJECT_TYPE_PIPELINE = "Pipeline";
+
+    // ==================== ADVANCED TEXTURE METHODS (for MAbstractTexture) ====================
+
+    /**
+     * Update existing texture with new data (for MAbstractTexture)
+     * @param textureHandle - Texture handle
+     * @param data - Pixel data in RGBA format
+     * @param width - Texture width
+     * @param height - Texture height
+     * @param format - OpenGL format constant (GL_RGBA, etc.)
+     * @return true if successful
+     */
+    public static native boolean updateTexture(long textureHandle, byte[] data, int width, int height, int format);
+
+    /**
+     * Update texture sub-region (for MAbstractTexture)
+     * @param textureHandle - Texture handle
+     * @param data - Pixel data in RGBA format
+     * @param xOffset - X offset in pixels
+     * @param yOffset - Y offset in pixels
+     * @param width - Region width in pixels
+     * @param height - Region height in pixels
+     * @param format - OpenGL format constant (GL_RGBA, etc.)
+     * @return true if successful
+     */
+    public static native boolean updateTextureSubRegion(long textureHandle, byte[] data, int xOffset, int yOffset, int width, int height, int format);
+
+    /**
+     * Set texture filtering parameters (for MAbstractTexture)
+     * @param textureHandle - Texture handle
+     * @param blur - Enable blur (linear filtering)
+     * @param mipmap - Enable mipmapping
+     * @return true if successful
+     */
+    public static native boolean setTextureFilter(long textureHandle, boolean blur, boolean mipmap);
+
+    /**
+     * Set texture wrap mode (for MAbstractTexture)
+     * @param textureHandle - Texture handle
+     * @param wrapMode - Wrap mode constant
+     * @return true if successful
+     */
+    public static native boolean setTextureWrap(long textureHandle, int wrapMode);
+
+    /**
+     * Generate texture mipmaps (for MAbstractTexture)
+     * @param textureHandle - Texture handle
+     * @param levels - Number of mipmap levels to generate
+     * @return true if successful
+     */
+    public static native boolean generateTextureMipmaps(long textureHandle, int levels);
+
+    // Texture wrap mode constants
+    public static final int TEXTURE_WRAP_REPEAT = 0;
+    public static final int TEXTURE_WRAP_CLAMP_TO_EDGE = 1;
+    public static final int TEXTURE_WRAP_MIRRORED_REPEAT = 2;
+    public static final int TEXTURE_WRAP_CLAMP_TO_BORDER = 3;
+
+    // Texture filter constants
+    public static final int TEXTURE_FILTER_NEAREST = 0;
+    public static final int TEXTURE_FILTER_LINEAR = 1;
+    public static final int TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 2;
+    public static final int TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST = 3;
+    public static final int TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR = 4;
+    public static final int TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR = 5;
+
+    // ==================== ADDITIONAL MISSING METHODS ====================
+
+    /**
+     * Set VSync
+     */
+    public static native void setVsync(boolean enabled);
+
+    // ==================== TEXTURE MANAGEMENT FOR MTEXTUREUTIL ====================
+
+    /**
+     * Create texture for OpenGL texture ID compatibility (for MTextureUtil)
+     * @param textureId - OpenGL texture ID to associate with DirectX 11 texture
+     * @param data - Pixel data (can be null for placeholder)
+     * @param width - Texture width
+     * @param height - Texture height
+     * @param mipLevels - Number of mipmap levels
+     * @return DirectX 11 texture handle
+     */
+    public static native long createTexture(Integer textureId, int width, int height, int mipLevels);
+
+    /**
+     * Set texture format (for MTextureUtil)
+     * @param textureHandle - DirectX 11 texture handle
+     * @param directXFormat - DirectX 11 format constant (DXGI_FORMAT_*)
+     */
+    public static native void setTextureFormat(long textureHandle, int directXFormat);
+
+    /**
+     * Check if texture needs recreation (for MTextureUtil)
+     * @param textureHandle - DirectX 11 texture handle
+     * @param width - Desired width
+     * @param height - Desired height
+     * @param directXFormat - Desired DirectX 11 format
+     * @return true if texture needs to be recreated
+     */
+    public static native boolean needsTextureRecreation(long textureHandle, int width, int height, int directXFormat);
+
+    /**
+     * Release texture (for MTextureUtil)
+     * @param textureHandle - DirectX 11 texture handle to release
+     */
+    public static native void releaseTexture(long textureHandle);
+
+    // ==================== MTEXTUREUTIL SPECIFIC METHODS ====================
+
+    /**
+     * Generate OpenGL texture ID (for MTextureUtil compatibility)
+     * @return Generated OpenGL texture ID
+     */
+    public static native int generateGLTextureId();
+
+    /**
+     * Prepare texture image with mipmap levels (for MTextureUtil)
+     * @param textureHandle - DirectX 11 texture handle
+     * @param directXFormat - DirectX 11 format constant
+     * @param mipmapLevel - Number of mipmap levels
+     * @param width - Texture width
+     * @param height - Texture height
+     * @return true if successful
+     */
+    public static native boolean prepareTextureImage(long textureHandle, int directXFormat, int mipmapLevel, int width, int height);
+
+    /**
+     * Allocate texture level (for MTextureUtil)
+     * @param textureHandle - DirectX 11 texture handle
+     * @param level - Mipmap level
+     * @param width - Level width
+     * @param height - Level height
+     * @param directXFormat - DirectX 11 format constant
+     * @return true if successful
+     */
+    public static native boolean allocateTextureLevel(long textureHandle, int level, int width, int height, int directXFormat);
+
+    /**
+     * Create staging texture for readback operations (for MTextureUtil)
+     * @param width - Texture width
+     * @param height - Texture height
+     * @param directXFormat - DirectX 11 format constant
+     * @return Staging texture handle, or 0 on failure
+     */
+    public static native long createStagingTexture(int width, int height, int directXFormat);
+
+    /**
+     * Read texture data from staging texture (for MTextureUtil)
+     * @param stagingTexture - Staging texture handle
+     * @param width - Texture width
+     * @param height - Texture height
+     * @return Pixel data in RGBA format, or null on failure
+     */
+    public static native byte[] readTextureData(long stagingTexture, int width, int height);
+
+    /**
+     * Download texture data to byte array (for MNativeImage)
+     * Uses staging texture for CPU read access in DirectX 11
+     * @param textureHandle - DirectX 11 texture handle
+     * @param outputData - Output byte array to receive pixel data
+     * @param level - Mipmap level to download
+     * @return true if download succeeded
+     */
+    public static native boolean downloadTextureData(long textureHandle, byte[] outputData, int level);
+
+    // OpenGL constants for MTextureUtil compatibility
+    public static final int GL_TEXTURE_2D = 0x0DE1;
+    public static final int GL_TEXTURE_MAX_LEVEL = 0x813D;
+    public static final int GL_TEXTURE_BASE_LEVEL = 0x813C;
+    public static final int GL_TEXTURE_MAX_ANISOTROPY_EXT = 0x84FE;
+
+    /**
+     * Set depth test enabled state
+     * @param enabled - Enable/disable depth testing
+     */
+    public static native void setDepthTestEnabled(boolean enabled);
+
+    /**
+     * Set depth write mask
+     * @param mask - Enable/disable depth writes
+     */
+    public static native void setDepthWriteMask(boolean mask);
+
+    /**
+     * Set depth function
+     * @param func - Depth comparison function (GL_LESS, GL_LEQUAL, etc.)
+     */
+    public static native void setDepthFunc(int func);
+
+    /**
+     * Set blend enabled state
+     * @param enabled - Enable/disable blending
+     */
+    public static native void setBlendEnabled(boolean enabled);
+
+    /**
+     * Set cull enabled state
+     * @param enabled - Enable/disable face culling
+     */
+    public static native void setCullEnabled(boolean enabled);
+
+    /**
+     * Set polygon mode
+     * @param mode - Polygon mode (GL_FILL, GL_LINE, GL_POINT)
+     */
+    public static native void setPolygonMode(int mode);
+
+    /**
+     * Set depth bias (polygon offset)
+     * @param constant - Constant depth bias factor
+     * @param slope - Slope scaled depth bias factor
+     */
+    public static native void setDepthBias(float constant, float slope);
+
+    /**
+     * Clear render target with depth and stencil options
+     * @param clearColor - Clear color buffer
+     * @param clearDepth - Clear depth buffer
+     * @param clearStencil - Clear stencil buffer
+     * @param r - Red component
+     * @param g - Green component
+     * @param b - Blue component
+     * @param a - Alpha component
+     */
+    public static native void clearRenderTarget(boolean clearColor, boolean clearDepth, boolean clearStencil,
+                                               float r, float g, float b, float a);
 
   }

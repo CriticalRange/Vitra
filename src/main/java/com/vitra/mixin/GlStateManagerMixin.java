@@ -1,6 +1,6 @@
 package com.vitra.mixin;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.vitra.VitraMod;
 import com.vitra.render.jni.JniUtils;
 import org.slf4j.Logger;
@@ -398,7 +398,7 @@ public class GlStateManagerMixin {
      * @author Vitra
      * @reason Complete replacement of OpenGL clear with DirectX 11 clear
      *
-     * Minecraft 1.21.8 signature: _clear(int mask) - one parameter
+     * Minecraft 1.21.1 signature: _clear(int mask) - one parameter
      */
     @Overwrite(remap = false)
     public static void _clear(int mask) {
@@ -497,8 +497,8 @@ public class GlStateManagerMixin {
         // No-op: DirectX 11 JNI doesn't use VAOs
     }
 
-    // NOTE: _glDeleteVertexArrays doesn't exist in 1.21.8 GlStateManager
-    // NOTE: _disableVertexAttribArray doesn't exist in 1.21.8 GlStateManager
+    // NOTE: _glDeleteVertexArrays doesn't exist in 1.21.1 GlStateManager
+    // NOTE: _disableVertexAttribArray doesn't exist in 1.21.1 GlStateManager
 
     // ============================================================================
     // DRAWING OPERATIONS - CRITICAL FOR RENDERING
