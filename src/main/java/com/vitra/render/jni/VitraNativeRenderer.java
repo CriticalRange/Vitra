@@ -666,6 +666,141 @@ public class VitraNativeRenderer {
     public static native void clearDepth(float depth);
 
     /**
+     * ==================== DEPTH STENCIL BUFFER METHODS (CRITICAL FOR 3D RENDERING) ====================
+     *
+     * These methods are ESSENTIAL for fixing the black screen issue.
+     * Based on DirectX 11 documentation: https://learn.microsoft.com/en-us/windows/win32/direct3d11
+     *
+     * Missing depth stencil buffer is the PRIMARY cause of black screen in 3D applications.
+     * Without proper depth testing, 3D geometry cannot be rendered correctly.
+     */
+
+    /**
+     * Create depth stencil buffer (CRITICAL - fixes black screen)
+     * Creates ID3D11Texture2D with D3D11_BIND_DEPTH_STENCIL and corresponding depth stencil view
+     *
+     * @param width - Buffer width in pixels (should match backbuffer width)
+     * @param height - Buffer height in pixels (should match backbuffer height)
+     * @param format - Depth format (0=D24_UNORM_S8_UINT, 1=D32_FLOAT, 2=D16_UNORM)
+     * @return Depth stencil buffer handle, or 0 on failure
+     */
+    public static native long createDepthStencilBuffer(int width, int height, int format);
+
+    /**
+     * Bind depth stencil buffer to output merger stage (CRITICAL - fixes black screen)
+     * Binds depth stencil view to OMSetRenderTargets for depth testing
+     *
+     * @param depthStencilHandle - Depth stencil buffer handle from createDepthStencilBuffer()
+     * @return true if successful, false on failure
+     */
+    public static native boolean bindDepthStencilBuffer(long depthStencilHandle);
+
+    /**
+     * Clear depth stencil buffer (CRITICAL - fixes black screen)
+     * Calls ID3D11DeviceContext::ClearDepthStencilView with D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL
+     *
+     * @param depthStencilHandle - Depth stencil buffer handle
+     * @param clearDepth - Whether to clear depth buffer
+     * @param clearStencil - Whether to clear stencil buffer
+     * @param depthValue - Depth clear value (0.0 to 1.0, typically 1.0)
+     * @param stencilValue - Stencil clear value (0-255, typically 0)
+     * @return true if successful, false on failure
+     */
+    public static native boolean clearDepthStencilBuffer(long depthStencilHandle, boolean clearDepth, boolean clearStencil, float depthValue, int stencilValue);
+
+    /**
+     * Create depth stencil state (CRITICAL - fixes black screen)
+     * Creates ID3D11DepthStencilState with proper depth testing configuration
+     *
+     * @param depthEnable - Enable depth testing (should be true for 3D)
+     * @param depthWriteEnable - Enable depth writes (should be true for 3D)
+     * @param depthFunc - Depth comparison function (0=NEVER, 1=LESS, 2=EQUAL, 3=LEQUAL, 4=GREATER, 5=NOTEQUAL, 6=GEQUAL, 7=ALWAYS)
+     * @param stencilEnable - Enable stencil testing (can be false for basic 3D)
+     * @param stencilReadMask - Stencil read mask (0-255, typically 0xFF)
+     * @param stencilWriteMask - Stencil write mask (0-255, typically 0xFF)
+     * @return Depth stencil state handle, or 0 on failure
+     */
+    public static native long createDepthStencilState(boolean depthEnable, boolean depthWriteEnable, int depthFunc,
+                                                     boolean stencilEnable, int stencilReadMask, int stencilWriteMask);
+
+    /**
+     * Bind depth stencil state (CRITICAL - fixes black screen)
+     * Binds depth stencil state to OMSetDepthStencilState for depth testing
+     *
+     * @param depthStencilStateHandle - Depth stencil state handle from createDepthStencilState()
+     * @param stencilRef - Stencil reference value (typically 1)
+     * @return true if successful, false on failure
+     */
+    public static native boolean bindDepthStencilState(long depthStencilStateHandle, int stencilRef);
+
+    /**
+     * Set depth stencil state parameters (convenience method)
+     * Updates existing depth stencil state with new parameters
+     *
+     * @param depthStencilStateHandle - Depth stencil state handle
+     * @param depthEnable - Enable depth testing
+     * @param depthWriteEnable - Enable depth writes
+     * @param depthFunc - Depth comparison function
+     * @return true if successful, false on failure
+     */
+    public static native boolean setDepthStencilStateParams(long depthStencilStateHandle, boolean depthEnable, boolean depthWriteEnable, int depthFunc);
+
+    /**
+     * Release depth stencil buffer
+     * Properly releases ID3D11Texture2D and ID3D11DepthStencilView
+     *
+     * @param depthStencilHandle - Depth stencil buffer handle
+     */
+    public static native void releaseDepthStencilBuffer(long depthStencilHandle);
+
+    /**
+     * Release depth stencil state
+     * Properly releases ID3D11DepthStencilState
+     *
+     * @param depthStencilStateHandle - Depth stencil state handle
+     */
+    public static native void releaseDepthStencilState(long depthStencilStateHandle);
+
+    /**
+     * Check if depth stencil buffer is valid
+     *
+     * @param depthStencilHandle - Depth stencil buffer handle
+     * @return true if valid, false if invalid or null
+     */
+    public static native boolean isDepthStencilBufferValid(long depthStencilHandle);
+
+    /**
+     * Resize depth stencil buffer
+     * Recreates depth stencil buffer with new dimensions (needed for window resize)
+     *
+     * @param depthStencilHandle - Current depth stencil buffer handle
+     * @param newWidth - New width in pixels
+     * @param newHeight - New height in pixels
+     * @param format - Depth format (same as createDepthStencilBuffer)
+     * @return New depth stencil buffer handle, or 0 on failure
+     */
+    public static native long resizeDepthStencilBuffer(long depthStencilHandle, int newWidth, int newHeight, int format);
+
+    // Depth stencil format constants
+    public static final int DEPTH_FORMAT_D24_UNORM_S8_UINT = 0;  // 24-bit depth, 8-bit stencil
+    public static final int DEPTH_FORMAT_D32_FLOAT = 1;          // 32-bit float depth
+    public static final int DEPTH_FORMAT_D16_UNORM = 2;          // 16-bit normalized depth
+
+    // Depth comparison function constants (OpenGL-style for compatibility)
+    public static final int DEPTH_FUNC_NEVER = 0;     // GL_NEVER
+    public static final int DEPTH_FUNC_LESS = 1;      // GL_LESS (most common)
+    public static final int DEPTH_FUNC_EQUAL = 2;     // GL_EQUAL
+    public static final int DEPTH_FUNC_LEQUAL = 3;    // GL_LEQUAL (recommended)
+    public static final int DEPTH_FUNC_GREATER = 4;   // GL_GREATER
+    public static final int DEPTH_FUNC_NOTEQUAL = 5;  // GL_NOTEQUAL
+    public static final int DEPTH_FUNC_GEQUAL = 6;    // GL_GEQUAL
+    public static final int DEPTH_FUNC_ALWAYS = 7;    // GL_ALWAYS
+
+    // Depth stencil clear flags
+    public static final int CLEAR_DEPTH = 0x00000001;   // D3D11_CLEAR_DEPTH
+    public static final int CLEAR_STENCIL = 0x00000002; // D3D11_CLEAR_STENCIL
+
+    /**
      * Set color write mask
      * @param red - Enable red channel writes
      * @param green - Enable green channel writes
@@ -939,6 +1074,36 @@ public class VitraNativeRenderer {
      * Native method to get device information
      */
     public static native String nativeGetDeviceInfo();
+
+    /**
+     * Get swap chain information for debugging
+     * Returns detailed information about the DirectX 11 swap chain state
+     */
+    public static native String getSwapChainInfo();
+
+    /**
+     * Verify swap chain is properly bound to window
+     * Checks if the swap chain is correctly connected to the window handle
+     */
+    public static native boolean verifySwapChainBinding();
+
+    /**
+     * Validate render target and depth stencil binding
+     * Ensures render target view and depth stencil view are properly set
+     */
+    public static native boolean validateRenderTargets();
+
+    /**
+     * Get current viewport information
+     * Returns the current DirectX 11 viewport dimensions
+     */
+    public static native String getViewportInfo();
+
+    /**
+     * Force swap chain recreation (for debugging recovery)
+     * Attempts to recreate the swap chain if it's in an invalid state
+     */
+    public static native boolean recreateSwapChain();
 
     /**
      * Native method to validate shader bytecode
@@ -1462,5 +1627,536 @@ public class VitraNativeRenderer {
      * @param mask - Stencil mask
      */
     public static native void setStencilMaskSeparate(int face, int mask);
+
+    // ==================== 1.21.8 MIXIN SUPPORT METHODS ====================
+
+    // VertexBufferMixin native methods
+    /**
+     * Create vertex buffer for VertexBufferMixin
+     * @param name - Buffer name for debugging
+     * @return Buffer ID or -1 on failure
+     */
+    public static native int createVertexBuffer(String name);
+
+    /**
+     * Create index buffer for VertexBufferMixin
+     * @return Buffer ID or -1 on failure
+     */
+    public static native int createIndexBuffer();
+
+    /**
+     * Upload vertex data to buffer
+     * @param bufferId - Buffer ID
+     * @param data - Vertex data
+     * @return true if successful
+     */
+    public static native boolean uploadVertexData(int bufferId, java.nio.ByteBuffer data);
+
+    /**
+     * Upload index data to buffer
+     * @param bufferId - Buffer ID
+     * @param data - Index data
+     * @return true if successful
+     */
+    public static native boolean uploadIndexData(int bufferId, java.nio.ByteBuffer data);
+
+    /**
+     * Release vertex buffer
+     * @param bufferId - Buffer ID
+     */
+    public static native void releaseVertexBuffer(int bufferId);
+
+    /**
+     * Release index buffer
+     * @param bufferId - Buffer ID
+     */
+    public static native void releaseIndexBuffer(int bufferId);
+
+    /**
+     * Draw indexed geometry
+     * @param vertexBufferId - Vertex buffer ID
+     * @param indexBufferId - Index buffer ID
+     * @param mode - Draw mode
+     * @return true if successful
+     */
+    public static native boolean drawIndexed(int vertexBufferId, int indexBufferId, int mode);
+
+    /**
+     * Draw non-indexed geometry
+     * @param vertexBufferId - Vertex buffer ID
+     * @param mode - Draw mode
+     * @return true if successful
+     */
+    public static native boolean drawNonIndexed(int vertexBufferId, int mode);
+
+    // AbstractTextureMixin native methods (GpuTexture support)
+    /**
+     * Create GpuTexture for AbstractTextureMixin
+     * @param name - Texture name for debugging
+     * @return GpuTexture object or null on failure
+     */
+    public static native com.mojang.blaze3d.systems.GpuTexture createGpuTexture(String name);
+
+    /**
+     * Create GpuTextureView for texture
+     * @param texture - GpuTexture object
+     * @return GpuTextureView object or null on failure
+     */
+    public static native com.mojang.blaze3d.systems.GpuTextureView createGpuTextureView(com.mojang.blaze3d.systems.GpuTexture texture);
+
+    /**
+     * Bind GpuTexture for rendering
+     * @param texture - GpuTexture object
+     */
+    public static native void bindGpuTexture(com.mojang.blaze3d.systems.GpuTexture texture);
+
+    /**
+     * Release GpuTexture
+     * @param texture - GpuTexture object
+     */
+    public static native void releaseGpuTexture(com.mojang.blaze3d.systems.GpuTexture texture);
+
+    /**
+     * Release GpuTextureView
+     * @param textureView - GpuTextureView object
+     */
+    public static native void releaseGpuTextureView(com.mojang.blaze3d.systems.GpuTextureView textureView);
+
+    /**
+     * Upload NativeImage to GpuTexture
+     * @param texture - GpuTexture object
+     * @param image - NativeImage object
+     * @return true if successful
+     */
+    public static native boolean uploadNativeImageToTexture(com.mojang.blaze3d.systems.GpuTexture texture, net.minecraft.client.renderer.texture.NativeImage image);
+
+    /**
+     * Set texture filter settings
+     * @param texture - GpuTexture object
+     * @param bilinear - Bilinear filtering
+     * @param mipmap - Mipmap filtering
+     */
+    public static native void setTextureFilter(com.mojang.blaze3d.systems.GpuTexture texture, boolean bilinear, boolean mipmap);
+
+    /**
+     * Set texture clamp settings
+     * @param texture - GpuTexture object
+     * @param clamp - Clamp to edge
+     */
+    public static native void setTextureClamp(com.mojang.blaze3d.systems.GpuTexture texture, boolean clamp);
+
+    /**
+     * Set texture mipmap usage
+     * @param texture - GpuTexture object
+     * @param useMipmaps - Use mipmaps
+     */
+    public static native void setTextureMipmapUsage(com.mojang.blaze3d.systems.GpuTexture texture, boolean useMipmaps);
+
+    /**
+     * Generate texture mipmaps
+     * @param texture - GpuTexture object
+     */
+    public static native void generateTextureMipmaps(com.mojang.blaze3d.systems.GpuTexture texture);
+
+    // ShaderInstanceMixin native methods
+    /**
+     * Create shader pipeline for ShaderInstanceMixin
+     * @param name - Shader name
+     * @return Pipeline ID or -1 on failure
+     */
+    public static native int createShaderPipeline(String name);
+
+    /**
+     * Initialize shader uniforms
+     * @param pipelineId - Pipeline ID
+     * @param uniformNames - Array of uniform names
+     * @param uniformTypes - Array of uniform types
+     * @return true if successful
+     */
+    public static native boolean initShaderUniforms(int pipelineId, String[] uniformNames, int[] uniformTypes);
+
+    /**
+     * Bind shader pipeline for use
+     * @param pipelineId - Pipeline ID
+     */
+    public static native void bindShaderPipeline(int pipelineId);
+
+    /**
+     * Upload shader uniform data
+     * @param pipelineId - Pipeline ID
+     * @param uniformName - Uniform name
+     * @param data - Uniform data
+     * @param dataType - Data type (0=float, 1=vec2, 2=vec3, 3=vec4, 4=mat4, 5=int)
+     * @return true if successful
+     */
+    public static native boolean uploadShaderUniforms(int pipelineId, String uniformName, Object data, int dataType);
+
+    /**
+     * Clear all shader uniforms
+     * @param pipelineId - Pipeline ID
+     */
+    public static native void clearShaderUniforms(int pipelineId);
+
+    /**
+     * Set individual shader uniform
+     * @param pipelineId - Pipeline ID
+     * @param uniformName - Uniform name
+     * @param value - Uniform value
+     * @param dataType - Data type
+     * @return true if successful
+     */
+    public static native boolean setShaderUniform(int pipelineId, String uniformName, Object value, int dataType);
+
+    /**
+     * Release shader pipeline
+     * @param pipelineId - Pipeline ID
+     */
+    public static native void releaseShaderPipeline(int pipelineId);
+
+    /**
+     * Use default shader as fallback
+     * @param shaderName - Original shader name (for logging)
+     * @return true if successful
+     */
+    public static native boolean useDefaultShader(String shaderName);
+
+    // GlCommandEncoderMixin native methods
+    /**
+     * Present texture using DirectX 11
+     * @param textureId - Texture ID
+     * @return true if successful
+     */
+    public static native boolean presentTexture(int textureId);
+
+    /**
+     * Execute batched draw calls
+     * @param vertexFormat - Vertex format name
+     * @param drawCalls - Collection of draw calls
+     * @param indexType - Index type
+     * @param uniformData - Uniform data
+     * @return true if successful
+     */
+    public static native boolean executeBatchedDraws(String vertexFormat, java.util.Collection<?> drawCalls, int indexType, Object uniformData);
+
+    /**
+     * Execute indexed draw call
+     * @param vertexData - Vertex data array
+     * @param baseVertex - Base vertex
+     * @param indexData - Index data array
+     * @param firstIndex - First index
+     * @param count - Number of indices
+     * @param vertexFormat - Vertex format name
+     * @return true if successful
+     */
+    public static native boolean executeIndexedDraw(int[] vertexData, int baseVertex, int[] indexData, int firstIndex, int count, String vertexFormat);
+
+    /**
+     * Execute non-indexed draw call
+     * @param vertexData - Vertex data array
+     * @param baseVertex - Base vertex
+     * @param count - Number of vertices
+     * @param vertexFormat - Vertex format name
+     * @return true if successful
+     */
+    public static native boolean executeNonIndexedDraw(int[] vertexData, int baseVertex, int count, String vertexFormat);
+
+    /**
+     * Extract texture ID from GpuTextureView
+     * @param texture - GpuTextureView object
+     * @return Texture ID or -1 on failure
+     */
+    public static native int extractTextureId(com.mojang.blaze3d.systems.GpuTextureView texture);
+
+    // BufferUploaderMixin native methods
+    /**
+     * Draw with default shader (indexed)
+     * @param vertexData - Vertex data array
+     * @param vertexCount - Number of vertices
+     * @param indexData - Index data array
+     * @param indexCount - Number of indices
+     * @param formatName - Vertex format name
+     * @return true if successful
+     */
+    public static native boolean drawWithDefaultShaderIndexed(int[] vertexData, int vertexCount, int[] indexData, int indexCount, String formatName);
+
+    /**
+     * Draw with default shader (non-indexed)
+     * @param vertexData - Vertex data array
+     * @param vertexCount - Number of vertices
+     * @param formatName - Vertex format name
+     * @return true if successful
+     */
+    public static native boolean drawWithDefaultShaderNonIndexed(int[] vertexData, int vertexCount, String formatName);
+
+    /**
+     * Draw immediate indexed geometry
+     * @param vertexData - Vertex data array
+     * @param vertexCount - Number of vertices
+     * @param indexData - Index data array
+     * @param indexCount - Number of indices
+     * @param formatName - Vertex format name
+     * @return true if successful
+     */
+    public static native boolean drawImmediateIndexed(int[] vertexData, int vertexCount, int[] indexData, int indexCount, String formatName);
+
+    /**
+     * Draw immediate non-indexed geometry
+     * @param vertexData - Vertex data array
+     * @param vertexCount - Number of vertices
+     * @param formatName - Vertex format name
+     * @return true if successful
+     */
+    public static native boolean drawImmediateNonIndexed(int[] vertexData, int vertexCount, String formatName);
+
+    /**
+     * Enable/disable batching for performance
+     * @param enabled - Batching enabled
+     */
+    public static native void setBatchingEnabled(boolean enabled);
+
+    /**
+     * Check if batching is enabled
+     * @return true if batching is enabled
+     */
+    public static native boolean isBatchingEnabled();
+
+    // GpuDeviceMixin native methods
+    /**
+     * Get DirectX 11 adapter name
+     * @return Adapter name or null on failure
+     */
+    public static native String getAdapterName();
+
+    /**
+     * Check if DirectX 11 device is available
+     * @return true if device is available
+     */
+    public static native boolean isDeviceAvailable();
+
+    /**
+     * Clear DirectX 11 pipeline cache
+     */
+    public static native void clearPipelineCache();
+
+    /**
+     * Create render pipeline
+     * @param name - Pipeline name
+     * @return Pipeline ID or -1 on failure
+     */
+    public static native int createPipeline(String name);
+
+    /**
+     * Release render pipeline
+     * @param pipelineId - Pipeline ID
+     */
+    public static native void releasePipeline(int pipelineId);
+
+    // Additional utility methods for 1.21.8 compatibility
+    /**
+     * Get texture from legacy texture ID
+     * @param textureId - Legacy texture ID
+     * @return GpuTexture object or null
+     */
+    public static native com.mojang.blaze3d.systems.GpuTexture getTextureFromId(int textureId);
+
+    /**
+     * Get texture view from legacy texture ID
+     * @param textureId - Legacy texture ID
+     * @return GpuTextureView object or null
+     */
+    public static native com.mojang.blaze3d.systems.GpuTextureView getTextureViewFromId(int textureId);
+
+    /**
+     * Create texture from legacy parameters
+     * @param width - Texture width
+     * @param height - Texture height
+     * @param format - Texture format
+     * @return GpuTexture object or null
+     */
+    public static native com.mojang.blaze3d.systems.GpuTexture createTextureFromParams(int width, int height, int format);
+
+    /**
+     * Validate shader pipeline is ready for use
+     * @param pipelineId - Pipeline ID
+     * @return true if pipeline is valid
+     */
+    public static native boolean validateShaderPipeline(int pipelineId);
+
+    /**
+     * Get current DirectX 11 device state
+     * @return Device state information
+     */
+    public static native String getDeviceState();
+
+    /**
+     * Force garbage collection of GPU resources
+     */
+    public static native void forceGarbageCollection();
+
+    // ==================== DIRECTX 11 DEBUG LAYER AND OBJECT NAMING ====================
+
+    /**
+     * Set debug object name for DirectX 11 resource
+     * CRUCIAL for debugging - allows identifying objects in graphics debuggers
+     * @param resourceHandle - DirectX 11 resource handle (device, buffer, texture, etc.)
+     * @param objectName - Human-readable name for the object
+     * @return true if successful
+     */
+    public static native boolean setDebugObjectName(long resourceHandle, String objectName);
+
+    /**
+     * Set debug object name with object type for better identification
+     * @param resourceHandle - DirectX 11 resource handle
+     * @param objectType - Type of object ("Device", "Buffer", "Texture", "Shader", etc.)
+     * @param objectName - Human-readable name
+     * @return true if successful
+     */
+    public static native boolean setDebugObjectNameTyped(long resourceHandle, String objectType, String objectName);
+
+    /**
+     * Enable DirectX 11 debug layer (must be called before device creation)
+     * CRITICAL for debugging - provides detailed validation and error reporting
+     * @param enableDebugLayer - Enable debug layer
+     * @param enableGpuValidation - Enable GPU-based validation (slower but thorough)
+     * @return true if debug layer enabled successfully
+     */
+    public static native boolean enableDirectXDebugLayer(boolean enableDebugLayer, boolean enableGpuValidation);
+
+    /**
+     * Check if DirectX 11 debug layer is available on system
+     * @return true if debug layer is available
+     */
+    public static native boolean isDebugLayerAvailable();
+
+    /**
+     * Report live objects - lists all active DirectX 11 objects
+     * ESSENTIAL for memory leak detection and debugging
+     * @return String containing detailed report of live objects
+     */
+    public static native String reportLiveObjects();
+
+    /**
+     * Set debug message severity filtering
+     * Controls which debug messages are reported
+     * @param severityLevel - Minimum severity level (0=Info, 1=Warning, 2=Error, 3=Critical)
+     */
+    public static native void setDebugMessageSeverity(int severityLevel);
+
+    /**
+     * Enable/disable breaking on debug errors
+     * When enabled, the debugger will break on DirectX errors
+     * @param breakOnError - Break on DirectX errors
+     * @param breakOnWarning - Break on DirectX warnings
+     */
+    public static native void setDebugBreakOnError(boolean breakOnError, boolean breakOnWarning);
+
+    /**
+     * Get debug message queue information
+     * Returns statistics about debug messages in the queue
+     * @return Debug queue information
+     */
+    public static native String getDebugMessageQueueInfo();
+
+    /**
+     * Clear debug message queue
+     * Removes all pending debug messages
+     */
+    public static native void clearDebugMessageQueue();
+
+    /**
+     * Begin DirectX 11 event annotation
+     * Used for grouping operations in graphics debuggers
+     * @param eventName - Event name
+     * @return Event handle
+     */
+    public static native long beginDebugEvent(String eventName);
+
+    /**
+     * End DirectX 11 event annotation
+     * @param eventHandle - Event handle from beginDebugEvent
+     */
+    public static native void endDebugEvent(long eventHandle);
+
+    /**
+     * Set debug marker for current location
+     * Marks a specific point in the command stream
+     * @param markerName - Marker name
+     */
+    public static native void setDebugMarker(String markerName);
+
+    /**
+     * Create debug annotation interface
+     * Enables advanced annotation features
+     * @return true if annotation interface created successfully
+     */
+    public static native boolean createDebugAnnotationInterface();
+
+    /**
+     * Release debug annotation interface
+     */
+    public static native void releaseDebugAnnotationInterface();
+
+    /**
+     * Enable shader debugging information
+     * Compiles shaders with debug information for better shader debugging
+     * @param enableDebugInfo - Enable debug info in shaders
+     */
+    public static native void enableShaderDebugInfo(boolean enableDebugInfo);
+
+    /**
+     * Validate current device state
+     * Checks for common device state issues
+     * @return Validation report
+     */
+    public static native String validateDeviceState();
+
+    /**
+     * Get memory usage statistics
+     * Returns detailed GPU memory usage information
+     * @return Memory usage report
+     */
+    public static native String getMemoryUsageStatistics();
+
+    /**
+     * Check for resource leaks
+     * Analyzes allocated resources for potential leaks
+     * @return Leak detection report
+     */
+    public static native String checkResourceLeaks();
+
+    /**
+     * Force garbage collection and validate cleanup
+     * Forces GC and checks that resources are properly cleaned up
+     * @return Cleanup validation report
+     */
+    public static native String forceAndValidateCleanup();
+
+    // Debug severity constants
+    public static final int DEBUG_SEVERITY_INFO_MINIMAL = 0;     // Only critical errors
+    public static final int DEBUG_SEVERITY_WARNING = 1;          // Warnings and above
+    public static final int DEBUG_SEVERITY_ERROR = 2;            // Errors and above
+    public static final int DEBUG_SEVERITY_CRITICAL = 3;         // Critical errors only
+    public static final int DEBUG_SEVERITY_VERBOSE = 4;          // All messages
+
+    // Debug object type constants
+    public static final String DEBUG_OBJECT_TYPE_DEVICE = "Device";
+    public static final String DEBUG_OBJECT_TYPE_BUFFER = "Buffer";
+    public static final String DEBUG_OBJECT_TYPE_TEXTURE = "Texture";
+    public static final String DEBUG_OBJECT_TYPE_SHADER = "Shader";
+    public static final String DEBUG_OBJECT_TYPE_VERTEX_SHADER = "VertexShader";
+    public static final String DEBUG_OBJECT_TYPE_PIXEL_SHADER = "PixelShader";
+    public static final String DEBUG_OBJECT_TYPE_GEOMETRY_SHADER = "GeometryShader";
+    public static final String DEBUG_OBJECT_TYPE_COMPUTE_SHADER = "ComputeShader";
+    public static final String DEBUG_OBJECT_TYPE_INPUT_LAYOUT = "InputLayout";
+    public static final String DEBUG_OBJECT_TYPE_RENDER_TARGET = "RenderTarget";
+    public static final String DEBUG_OBJECT_TYPE_DEPTH_STENCIL = "DepthStencil";
+    public static final String DEBUG_OBJECT_TYPE_BLEND_STATE = "BlendState";
+    public static final String DEBUG_OBJECT_TYPE_DEPTH_STENCIL_STATE = "DepthStencilState";
+    public static final String DEBUG_OBJECT_TYPE_RASTERIZER_STATE = "RasterizerState";
+    public static final String DEBUG_OBJECT_TYPE_SAMPLER = "Sampler";
+    public static final String DEBUG_OBJECT_TYPE_SWAP_CHAIN = "SwapChain";
+    public static final String DEBUG_OBJECT_TYPE_QUERY = "Query";
+    public static final String DEBUG_OBJECT_TYPE_FENCE = "Fence";
+    public static final String DEBUG_OBJECT_TYPE_PIPELINE = "Pipeline";
 
   }

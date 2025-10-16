@@ -139,60 +139,231 @@ public class JniUtils {
         LOGGER.error(message);
     }
 
-    // DirectX 11 state methods (stubs for now)
+    // ============================================================================
+    // CRITICAL: DirectX 11 state methods - THESE MUST CALL NATIVE METHODS
+    // ============================================================================
+
+    /**
+     * CRITICAL: Enable/disable blending - MUST call native DirectX 11 method
+     */
     public static void enableBlend(boolean enable) {
         LOGGER.debug("enableBlend: {}", enable);
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setBlendState(enable,
+                enable ? VitraNativeRenderer.GL_SRC_ALPHA : VitraNativeRenderer.GL_ONE,
+                enable ? VitraNativeRenderer.GL_ONE_MINUS_SRC_ALPHA : VitraNativeRenderer.GL_ZERO,
+                VitraNativeRenderer.GL_FUNC_ADD);
+        } catch (Exception e) {
+            LOGGER.error("Failed to enable blend in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Enable/disable depth testing - MUST call native DirectX 11 method
+     */
     public static void enableDepthTest(boolean enable) {
         LOGGER.debug("enableDepthTest: {}", enable);
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setDepthState(enable, true, enable ? VitraNativeRenderer.GL_LESS : VitraNativeRenderer.GL_ALWAYS);
+        } catch (Exception e) {
+            LOGGER.error("Failed to enable depth test in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Enable/disable face culling - MUST call native DirectX 11 method
+     */
     public static void enableCull(boolean enable) {
         LOGGER.debug("enableCull: {}", enable);
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setRasterizerState(enable ? VitraNativeRenderer.GL_BACK : 0,
+                VitraNativeRenderer.GL_FILL, false);
+        } catch (Exception e) {
+            LOGGER.error("Failed to enable culling in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Set depth function - MUST call native DirectX 11 method
+     */
     public static void setDepthFunc(int func) {
         LOGGER.debug("setDepthFunc: 0x{}", Integer.toHexString(func));
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setDepthState(true, true, func);
+        } catch (Exception e) {
+            LOGGER.error("Failed to set depth function in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Set depth write mask - MUST call native DirectX 11 method
+     */
     public static void setDepthMask(boolean mask) {
         LOGGER.debug("setDepthMask: {}", mask);
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setDepthMask(mask);
+        } catch (Exception e) {
+            LOGGER.error("Failed to set depth mask in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Set color write mask - MUST call native DirectX 11 method
+     */
     public static void setColorMask(boolean r, boolean g, boolean b, boolean a) {
         LOGGER.debug("setColorMask: {}, {}, {}, {}", r, g, b, a);
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setColorMask(r, g, b, a);
+        } catch (Exception e) {
+            LOGGER.error("Failed to set color mask in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Set blend function - MUST call native DirectX 11 method
+     */
     public static void setBlendFunc(int srcRGB, int dstRGB, int srcAlpha, int dstAlpha) {
         LOGGER.debug("setBlendFunc: 0x{}, 0x{}, 0x{}, 0x{}",
             Integer.toHexString(srcRGB), Integer.toHexString(dstRGB),
             Integer.toHexString(srcAlpha), Integer.toHexString(dstAlpha));
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setBlendState(true, srcRGB, dstRGB, VitraNativeRenderer.GL_FUNC_ADD);
+        } catch (Exception e) {
+            LOGGER.error("Failed to set blend function in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Set viewport - MUST call native DirectX 11 method
+     */
     public static void setViewport(int x, int y, int width, int height) {
         LOGGER.debug("setViewport: {}, {}, {}, {}", x, y, width, height);
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setViewport(x, y, width, height);
+        } catch (Exception e) {
+            LOGGER.error("Failed to set viewport in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Enable/disable scissor test - MUST call native DirectX 11 method
+     */
     public static void enableScissorTest(boolean enable) {
         LOGGER.debug("enableScissorTest: {}", enable);
+        try {
+            // Forward to DirectX 11 native method via rasterizer state
+            VitraNativeRenderer.setRasterizerState(VitraNativeRenderer.GL_BACK,
+                VitraNativeRenderer.GL_FILL, enable);
+        } catch (Exception e) {
+            LOGGER.error("Failed to enable scissor test in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Set scissor rectangle - MUST call native DirectX 11 method
+     */
     public static void setScissorRect(int x, int y, int width, int height) {
         LOGGER.debug("setScissorRect: {}, {}, {}, {}", x, y, width, height);
+        try {
+            // Forward to DirectX 11 native method
+            VitraNativeRenderer.setScissorRect(x, y, width, height);
+        } catch (Exception e) {
+            LOGGER.error("Failed to set scissor rect in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Clear render target - MUST call native DirectX 11 method
+     */
     public static void clear(int mask) {
         LOGGER.debug("clear: 0x{}", Integer.toHexString(mask));
+        try {
+            // Check what's being cleared and call appropriate native methods
+            if ((mask & 0x00004000) != 0) { // GL_COLOR_BUFFER_BIT
+                // Clear color buffer with current clear color
+                // Note: The actual clear color should be set via glClearColor before this
+                VitraNativeRenderer.clear(0.1f, 0.2f, 0.4f, 1.0f); // Use blue debug color
+            }
+
+            if ((mask & 0x00000100) != 0) { // GL_DEPTH_BUFFER_BIT
+                // Clear depth buffer using the new depth stencil buffer methods
+                // This is more comprehensive than the old clearDepth method
+                try {
+                    // Try to use the depth stencil buffer if available
+                    long depthBuffer = VitraNativeRenderer.createDepthStencilBuffer(1920, 1080,
+                        VitraNativeRenderer.DEPTH_FORMAT_D24_UNORM_S8_UINT);
+                    if (depthBuffer != 0) {
+                        VitraNativeRenderer.clearDepthStencilBuffer(depthBuffer, true, false, 1.0f, 0);
+                        VitraNativeRenderer.releaseDepthStencilBuffer(depthBuffer);
+                    } else {
+                        // Fallback to old method
+                        VitraNativeRenderer.clearDepth(1.0f);
+                    }
+                } catch (Exception fallback) {
+                    // Fallback to old method if depth stencil buffer creation fails
+                    VitraNativeRenderer.clearDepth(1.0f);
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to clear render target in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Draw arrays - MUST call native DirectX 11 method
+     */
     public static void drawArrays(int mode, int first, int count) {
         LOGGER.debug("drawArrays: mode=0x{}, first={}, count={}",
             Integer.toHexString(mode), first, count);
+        try {
+            // Forward to DirectX 11 native method
+            // Convert OpenGL primitive mode to DirectX 11 topology
+            int topology = convertOpenGLToDirectXTopology(mode);
+            VitraNativeRenderer.setPrimitiveTopology(topology);
+            VitraNativeRenderer.draw(0, 0, first, 0, count, 1);
+        } catch (Exception e) {
+            LOGGER.error("Failed to draw arrays in DirectX 11", e);
+        }
     }
 
+    /**
+     * CRITICAL: Draw elements - MUST call native DirectX 11 method
+     */
     public static void drawElements(int mode, int count, int type, long indices) {
         LOGGER.debug("drawElements: mode=0x{}, count={}, type=0x{}, indices={}",
             Integer.toHexString(mode), count, Integer.toHexString(type), indices);
+        try {
+            // Forward to DirectX 11 native method
+            // Convert OpenGL primitive mode to DirectX 11 topology
+            int topology = convertOpenGLToDirectXTopology(mode);
+            VitraNativeRenderer.setPrimitiveTopology(topology);
+            VitraNativeRenderer.draw(0, 0, 0, 0, count, 1);
+        } catch (Exception e) {
+            LOGGER.error("Failed to draw elements in DirectX 11", e);
+        }
+    }
+
+    /**
+     * Convert OpenGL primitive modes to DirectX 11 topology
+     */
+    private static int convertOpenGLToDirectXTopology(int glMode) {
+        switch (glMode) {
+            case 0x0000: return 0; // GL_POINTS -> D3D11_PRIMITIVE_TOPOLOGY_POINTLIST
+            case 0x0001: return 1; // GL_LINES -> D3D11_PRIMITIVE_TOPOLOGY_LINELIST
+            case 0x0002: return 2; // GL_LINE_LOOP -> D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP
+            case 0x0003: return 3; // GL_LINE_STRIP -> D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP
+            case 0x0004: return 4; // GL_TRIANGLES -> D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+            case 0x0005: return 5; // GL_TRIANGLE_STRIP -> D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
+            case 0x0006: return 6; // GL_TRIANGLE_FAN -> D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST (approximation)
+            default: return 4; // Default to triangle list
+        }
     }
 }

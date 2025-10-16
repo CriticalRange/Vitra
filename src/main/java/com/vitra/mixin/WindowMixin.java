@@ -68,6 +68,27 @@ public class WindowMixin {
                         LOGGER.info("║ Time Taken:  {} ms", elapsedMs);
                         LOGGER.info("║ Backend:     DirectX 11");
                         LOGGER.info("║ Thread:      {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
+
+                        // Enhanced debugging information
+                        if (com.vitra.render.jni.VitraNativeRenderer.isDebugEnabled()) {
+                            // Get device information
+                            String deviceInfo = com.vitra.render.jni.VitraNativeRenderer.nativeGetDeviceInfo();
+                            LOGGER.info("║ Device:      {}", deviceInfo.replaceAll("\n", " "));
+
+                            // Get swap chain information
+                            String swapChainInfo = com.vitra.render.jni.VitraNativeRenderer.getSwapChainInfo();
+                            LOGGER.info("║ Swap Chain:  {}", swapChainInfo.replaceAll("\n", " "));
+
+                            // Verify swap chain binding
+                            boolean swapChainBound = com.vitra.render.jni.VitraNativeRenderer.verifySwapChainBinding();
+                            LOGGER.info("║ Swap Chain:  {}", swapChainBound ? "✓ BOUND" : "✗ NOT BOUND");
+
+                            // Set debug name for window
+                            com.vitra.render.jni.VitraNativeRenderer.setDebugObjectNameTyped(windowHandle,
+                                com.vitra.render.jni.VitraNativeRenderer.DEBUG_OBJECT_TYPE_SWAP_CHAIN,
+                                String.format("Minecraft_Window_0x%x", windowHandle));
+                        }
+
                         LOGGER.info("╚════════════════════════════════════════════════════════════╝");
 
                         // Note: DirectX 11 state is synchronized internally by the renderer
@@ -114,6 +135,54 @@ public class WindowMixin {
             LOGGER.error("║ Check GLFW error logs above for the cause");
             LOGGER.error("╚════════════════════════════════════════════════════════════╝");
             System.err.println("[CRITICAL] Invalid window handle (0)!");
+        }
+    }
+
+    /**
+     * Inject on window resize to update DirectX 11 swap chain and depth stencil buffer
+     * CRITICAL: DirectX 11 swap chain and depth buffer must be resized when window changes
+     */
+    @Inject(
+        method = "onResize",
+        at = @At("HEAD")
+    )
+    private void onWindowResize(CallbackInfo ci) {
+        Window thisWindow = (Window)(Object)this;
+        int width = thisWindow.getWidth();
+        int height = thisWindow.getHeight();
+
+        LOGGER.info("╔════════════════════════════════════════════════════════════╗");
+        LOGGER.info("║  WINDOW RESIZE DETECTED (DirectX 11)                       ║");
+        LOGGER.info("╠════════════════════════════════════════════════════════════╣");
+        LOGGER.info("║ New Size:      {}x{}", width, height);
+        LOGGER.info("║ Thread:        {} (ID: {})", Thread.currentThread().getName(), Thread.currentThread().getId());
+        LOGGER.info("╚════════════════════════════════════════════════════════════╝");
+
+        if (width > 0 && height > 0 && VitraMod.getRenderer() != null) {
+            try {
+                // Resize DirectX 11 swap chain and viewport
+                VitraMod.getRenderer().resize(width, height);
+
+                // Update depth stencil buffer to match new window size
+                // This is CRITICAL to prevent rendering issues after resize
+                LOGGER.info("DirectX 11 resized successfully to {}x{}", width, height);
+
+                // Log additional resize information for debugging
+                if (com.vitra.render.jni.VitraNativeRenderer.isDebugEnabled()) {
+                    LOGGER.debug("Swap chain and depth stencil buffer resized for new dimensions");
+                }
+
+            } catch (Exception e) {
+                LOGGER.error("Failed to resize DirectX 11 components", e);
+                LOGGER.error("Window resize: {}x{} - DirectX 11 resize failed", width, height);
+            }
+        } else {
+            if (width <= 0 || height <= 0) {
+                LOGGER.warn("Invalid window dimensions for resize: {}x{}", width, height);
+            }
+            if (VitraMod.getRenderer() == null) {
+                LOGGER.warn("VitraRenderer not available for window resize");
+            }
         }
     }
 
