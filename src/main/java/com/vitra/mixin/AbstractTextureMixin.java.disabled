@@ -1,0 +1,291 @@
+package com.vitra.mixin;
+
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.resources.ResourceLocation;
+import com.vitra.core.VitraCore;
+import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.mixin.VitraErrorHandler;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Critical mixin for replacing OpenGL texture management with DirectX 11 textures.
+ * This completely replaces the OpenGL texture system with DirectX 11 texture and sampler management.
+ * Based on VulkanMod's approach but adapted for DirectX 11.
+ */
+@Mixin(AbstractTexture.class)
+public class AbstractTextureMixin {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/AbstractTexture");
+
+    // DirectX 11 texture handles
+    private long dx11TextureHandle = 0;
+    private int textureId = -1;
+
+    // Filter settings
+    private boolean blur = false;
+    private boolean mipmap = false;
+    private boolean clamp = false;
+    private boolean useMipmaps = false;
+
+    // Whether this texture has been initialized
+    private boolean isInitialized = false;
+
+    @Shadow
+    protected int id;
+
+    /**
+     * Initialize DirectX 11 texture instead of OpenGL texture.
+     * This creates a DirectX 11 texture resource.
+     */
+    @Inject(
+        method = "<init>",
+        at = @At("RETURN")
+    )
+    private void onInit(CallbackInfo ci) {
+        try {
+            LOGGER.debug("Initializing DirectX 11 texture");
+
+            if (!VitraErrorHandler.validateVitraCoreInitialized("AbstractTexture")) {
+                return;
+            }
+
+            // Create DirectX 11 texture using native renderer
+            this.dx11TextureHandle = VitraNativeRenderer.createTextureFromData(null, 1, 1, 0);
+
+            if (this.dx11TextureHandle == 0) {
+                LOGGER.error("Failed to create DirectX 11 texture");
+                return;
+            }
+
+            this.textureId = this.id;
+            this.isInitialized = true;
+            LOGGER.debug("Successfully initialized DirectX 11 texture: handle=0x{}, id={}",
+                Long.toHexString(this.dx11TextureHandle), this.textureId);
+
+        } catch (Exception e) {
+            VitraErrorHandler.handleInitializationError("AbstractTexture", e);
+            this.isInitialized = false;
+        }
+    }
+
+    /**
+     * Binds the DirectX 11 texture instead of OpenGL texture.
+     * This sets the DirectX 11 texture as the active texture.
+     */
+    @Overwrite
+    public void bind() {
+        try {
+            if (!isInitialized) {
+                LOGGER.warn("Attempting to bind uninitialized texture");
+                return;
+            }
+
+            // Bind DirectX 11 texture
+            VitraNativeRenderer.bindTexture(dx11TextureHandle, 0);
+
+            LOGGER.debug("Bound DirectX 11 texture: handle=0x{}", Long.toHexString(dx11TextureHandle));
+
+        } catch (Exception e) {
+            VitraErrorHandler.handleRenderingError("AbstractTexture", "bind", e);
+        }
+    }
+
+    /**
+     * Sets texture filter settings for DirectX 11 instead of OpenGL.
+     * This updates the DirectX 11 sampler state.
+     */
+    @Overwrite
+    public void setFilter(boolean bilinear, boolean mipmap) {
+        try {
+            if (!isInitialized) {
+                LOGGER.warn("Attempting to set filter on uninitialized texture");
+                return;
+            }
+
+            this.blur = bilinear;
+            this.mipmap = mipmap;
+
+            // Update DirectX 11 texture filter settings
+            VitraNativeRenderer.setTextureFilter(dx11TextureHandle, bilinear, mipmap);
+
+            LOGGER.debug("Updated filter settings for texture: handle=0x{} (bilinear={}, mipmap={})",
+                Long.toHexString(dx11TextureHandle), bilinear, mipmap);
+
+        } catch (Exception e) {
+            VitraErrorHandler.handleRenderingError("AbstractTexture", "setFilter", e);
+        }
+    }
+
+    /**
+     * Sets texture clamp behavior for DirectX 11 instead of OpenGL.
+     * This is a new method in Minecraft 1.21.8.
+     */
+    @Overwrite
+    public void setClamp(boolean clamp) {
+        try {
+            if (!isInitialized) {
+                LOGGER.warn("Attempting to set clamp on uninitialized texture");
+                return;
+            }
+
+            this.clamp = clamp;
+
+            // Update DirectX 11 texture clamp settings
+            VitraNativeRenderer.setTextureWrap(dx11TextureHandle, clamp ? VitraNativeRenderer.TEXTURE_WRAP_CLAMP_TO_EDGE : VitraNativeRenderer.TEXTURE_WRAP_REPEAT);
+
+            LOGGER.debug("Updated clamp setting for texture: handle=0x{} (clamp={})", Long.toHexString(dx11TextureHandle), clamp);
+
+        } catch (Exception e) {
+            VitraErrorHandler.handleRenderingError("AbstractTexture", "setClamp", e);
+        }
+    }
+
+    /**
+     * Sets mipmap usage for DirectX 11 instead of OpenGL.
+     * This is a new method in Minecraft 1.21.8.
+     */
+    @Overwrite
+    public void setUseMipmaps(boolean useMipmaps) {
+        try {
+            if (!isInitialized) {
+                LOGGER.warn("Attempting to set mipmap usage on uninitialized texture");
+                return;
+            }
+
+            this.useMipmaps = useMipmaps;
+
+            LOGGER.debug("Updated mipmap usage for texture: handle=0x{} (useMipmaps={})", Long.toHexString(dx11TextureHandle), useMipmaps);
+
+        } catch (Exception e) {
+            VitraErrorHandler.handleRenderingError("AbstractTexture", "setUseMipmaps", e);
+        }
+    }
+
+    /**
+     * Uploads texture data to DirectX 11 instead of OpenGL.
+     * This uploads the image data to the DirectX 11 texture.
+     */
+    @Overwrite
+    public void upload(com.mojang.blaze3d.platform.NativeImage image) {
+        try {
+            if (!isInitialized) {
+                LOGGER.warn("Attempting to upload to uninitialized texture");
+                return;
+            }
+
+            if (image == null) {
+                LOGGER.warn("Attempted to upload null image to texture");
+                return;
+            }
+
+            LOGGER.debug("Uploading texture data to DirectX 11: handle=0x{} ({}x{})",
+                Long.toHexString(dx11TextureHandle), image.getWidth(), image.getHeight());
+
+            // Convert NativeImage to byte array for DirectX 11 upload
+            byte[] pixelData = nativeImageToByteArray(image);
+
+            // Upload to DirectX 11 texture
+            boolean success = VitraNativeRenderer.updateTextureMipLevel(dx11TextureHandle, pixelData, image.getWidth(), image.getHeight(), 0);
+
+            if (!success) {
+                LOGGER.error("Failed to upload texture data to DirectX 11: handle=0x{}", Long.toHexString(dx11TextureHandle));
+                return;
+            }
+
+            // Generate mipmaps if needed
+            if (useMipmaps || mipmap) {
+                VitraNativeRenderer.generateTextureMipmaps(dx11TextureHandle, 1); // Generate 1 mipmap level
+            }
+
+            LOGGER.debug("Successfully uploaded texture data to DirectX 11: handle=0x{}", Long.toHexString(dx11TextureHandle));
+
+        } catch (Exception e) {
+            VitraErrorHandler.handleTextureError("AbstractTexture", "upload", -1, e);
+        }
+    }
+
+    private byte[] nativeImageToByteArray(com.mojang.blaze3d.platform.NativeImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        byte[] pixelData = new byte[width * height * 4];
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int pixel = image.getPixelRGBA(x, y);
+                int offset = (y * width + x) * 4;
+                pixelData[offset] = (byte) ((pixel >> 0) & 0xFF);     // R
+                pixelData[offset + 1] = (byte) ((pixel >> 8) & 0xFF); // G
+                pixelData[offset + 2] = (byte) ((pixel >> 16) & 0xFF); // B
+                pixelData[offset + 3] = (byte) ((pixel >> 24) & 0xFF); // A
+            }
+        }
+
+        return pixelData;
+    }
+
+    /**
+     * Releases the DirectX 11 texture resources.
+     * This cleans up the DirectX 11 texture and sampler state.
+     */
+    @Overwrite
+    public void close() {
+        try {
+            LOGGER.debug("Releasing DirectX 11 texture: handle=0x{}", Long.toHexString(dx11TextureHandle));
+
+            if (dx11TextureHandle != 0) {
+                VitraNativeRenderer.destroyResource(dx11TextureHandle);
+                dx11TextureHandle = 0;
+            }
+
+            this.isInitialized = false;
+
+            LOGGER.debug("Successfully released DirectX 11 texture");
+
+        } catch (Exception e) {
+            VitraErrorHandler.handleTextureError("AbstractTexture", "close", -1, e);
+        }
+    }
+
+    /**
+     * Gets the DirectX 11 texture for external use.
+     * This is the correct method signature for Minecraft 1.21.8.
+     */
+    @Overwrite
+    public int getId() {
+        return this.id;
+    }
+
+    /**
+     * Checks if the texture has been properly initialized.
+     */
+    @Overwrite
+    public boolean isInitialized() {
+        return isInitialized && dx11TextureHandle != 0;
+    }
+
+    /**
+     * Gets the DirectX 11 texture handle for external access.
+     */
+    public long getDx11TextureHandle() {
+        return dx11TextureHandle;
+    }
+
+    /**
+     * Finalize method to ensure cleanup.
+     */
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            close();
+        } finally {
+            super.finalize();
+        }
+    }
+}

@@ -417,7 +417,7 @@ swarm:
     # ================================================================================
     shader_compiler:
       description: "HLSL shader development expert specializing in shader compilation, optimization, and DirectX shader models"
-      directory: [./src/main/resources/shaders, ./shader-conversion]
+      directory: [./src/main/resources/shaders]
       model: sonnet
       connections: []
       allowed_tools: [Read, Edit, Write, Bash]

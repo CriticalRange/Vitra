@@ -2,7 +2,6 @@ package com.vitra.mixin.texture.update;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.texture.NativeImageAccessor;
 import com.vitra.VitraMod;
 import com.vitra.render.opengl.GLInterceptor;
 import com.vitra.render.jni.VitraNativeRenderer;
@@ -88,9 +87,16 @@ public abstract class MLightTexture {
 
             if (directXHandle == null) {
                 LOGGER.warn("No DirectX 11 handle found for light texture ID {}, creating new one", lightTextureId);
-                directXHandle = VitraNativeRenderer.createTexture(lightTextureId, 16, 16, 1);
-                if (directXHandle != null) {
-                    GLInterceptor.registerTexture(lightTextureId, directXHandle);
+                boolean success = VitraNativeRenderer.createTextureFromId(lightTextureId, 16, 16, 1);
+                if (success) {
+                    // Get the newly created handle
+                    directXHandle = GLInterceptor.getDirectXHandle(lightTextureId);
+                    if (directXHandle != null) {
+                        LOGGER.debug("Successfully created and registered DirectX 11 texture handle 0x{} for light texture ID {}",
+                            Long.toHexString(directXHandle), lightTextureId);
+                    }
+                } else {
+                    LOGGER.error("Failed to create DirectX 11 texture for light texture ID {}", lightTextureId);
                 }
             }
 
@@ -154,7 +160,8 @@ public abstract class MLightTexture {
                 float ambientLight = clientLevel.dimensionType().ambientLight();
 
                 // Get direct access to pixel data
-                long pixelsPtr = ((NativeImageAccessor)(Object)this.lightPixels).getPixels();
+                // TODO: NativeImageAccessor not available - need alternative approach
+                // long pixelsPtr = ((NativeImageAccessor)(Object)this.lightPixels).getPixels();
                 int width = this.lightPixels.getWidth();
                 Vector3f tVec3f = this.tempVecs[2];
 
@@ -210,11 +217,14 @@ public abstract class MLightTexture {
                         int b = (int)lightColor.z();
 
                         // Write pixel data in ABGR format for DirectX 11
+                        // TODO: Need alternative approach without NativeImageAccessor
+                        /*
                         long pixelPtr = pixelsPtr + (((long) y * width + x) * 4L);
                         int pixelValue = 0xFF000000 | b << 16 | g << 8 | r;
 
                         // Write directly to native memory
                         unsafePutInt(pixelPtr, pixelValue);
+                        */
                     }
                 }
 
@@ -245,18 +255,23 @@ public abstract class MLightTexture {
 
             if (directXHandle == null) {
                 LOGGER.warn("Creating DirectX 11 texture for light texture ID {}", lightTextureId);
-                directXHandle = VitraNativeRenderer.createTexture(lightTextureId, 16, 16, 1);
-                if (directXHandle != null) {
-                    GLInterceptor.registerTexture(lightTextureId, directXHandle);
+                boolean success = VitraNativeRenderer.createTextureFromId(lightTextureId, 16, 16, 1);
+                if (success) {
+                    // Get the newly created handle
+                    directXHandle = GLInterceptor.getDirectXHandle(lightTextureId);
+                    if (directXHandle != null) {
+                        LOGGER.debug("Successfully created DirectX 11 texture handle 0x{} for light texture ID {}",
+                            Long.toHexString(directXHandle), lightTextureId);
+                    }
                 } else {
-                    LOGGER.error("Failed to create DirectX 11 texture for light texture");
+                    LOGGER.error("Failed to create DirectX 11 texture for light texture ID {}", lightTextureId);
                     return;
                 }
             }
 
             // Upload the light texture data
             boolean uploadSuccess = VitraNativeRenderer.updateTexture(
-                directXHandle, null, 16, 16, 0 // mipLevel 0
+                lightTextureId, null, 16, 16, 0 // mipLevel 0
             );
 
             if (!uploadSuccess) {

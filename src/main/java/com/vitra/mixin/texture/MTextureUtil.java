@@ -52,7 +52,7 @@ public class MTextureUtil {
             int glTextureId = GLInterceptor.glGenTextures();
 
             // Create corresponding DirectX 11 texture resource
-            long directXHandle = VitraNativeRenderer.createTexture(null, 1, 1, 0);
+            long directXHandle = VitraNativeRenderer.createTextureFromData(null, 1, 1, 0);
 
             if (directXHandle != 0) {
                 // Register the DirectX 11 handle with GLInterceptor
@@ -92,16 +92,14 @@ public class MTextureUtil {
             GLInterceptor.glBindTexture(GL11.GL_TEXTURE_2D, id);
 
             // Get DirectX 11 handle for this texture
-            Long directXHandleObj = GLInterceptor.getDirectXHandle(id);
-            if (directXHandleObj == null) {
+            long directXHandle = GLInterceptor.validateAndGetDirectXHandle(id);
+            if (directXHandle == 0) {
                 LOGGER.warn("No DirectX 11 handle found for texture ID {}, creating new one", id);
-                directXHandleObj = VitraNativeRenderer.createTexture(null, width, height, mipLevels);
-                if (directXHandleObj != null) {
-                    GLInterceptor.registerTexture(id, directXHandleObj);
+                directXHandle = VitraNativeRenderer.createTextureFromData(null, width, height, mipLevels);
+                if (directXHandle != 0) {
+                    GLInterceptor.registerTexture(id, directXHandle);
                 }
             }
-
-            long directXHandle = directXHandleObj != null ? directXHandleObj : 0L;
 
             if (directXHandle == 0) {
                 LOGGER.error("Failed to get DirectX 11 handle for texture ID {}", id);
@@ -110,7 +108,7 @@ public class MTextureUtil {
 
             // Set up mipmap levels if requested
             if (mipLevels > 0) {
-                // DirectX 11 texture parameters
+                // DirectX 11 texture parameters (using DirectX handle)
                 VitraNativeRenderer.setTextureParameter(directXHandle,
                     GL30.GL_TEXTURE_MAX_LEVEL, mipLevels);
                 VitraNativeRenderer.setTextureParameter(directXHandle,
@@ -118,7 +116,7 @@ public class MTextureUtil {
                 VitraNativeRenderer.setTextureParameter(directXHandle,
                     GL30.GL_TEXTURE_MAX_LOD, mipLevels);
                 VitraNativeRenderer.setTextureParameter(directXHandle,
-                    GL30.GL_TEXTURE_LOD_BIAS, 0.0f);
+                    GL30.GL_TEXTURE_LOD_BIAS, Float.floatToIntBits(0.0f));
 
                 LOGGER.debug("Set up {} mipmap levels for texture ID {} ({}x{})",
                     mipLevels, id, width, height);
@@ -140,7 +138,7 @@ public class MTextureUtil {
 
                 // Release old texture and create new one
                 VitraNativeRenderer.releaseTexture(directXHandle);
-                long newHandle = VitraNativeRenderer.createTexture(null, width, height, mipLevels);
+                long newHandle = VitraNativeRenderer.createTextureFromData(null, width, height, mipLevels);
 
                 if (newHandle != 0) {
                     GLInterceptor.registerTexture(id, newHandle);

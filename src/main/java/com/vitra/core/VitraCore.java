@@ -40,30 +40,25 @@ public class VitraCore {
             return;
         }
 
-        LOGGER.info("Initializing Vitra core systems...");
+        LOGGER.info("Initializing Vitra core systems - AGGRESSIVE MODE");
 
-        try {
-            config = new VitraConfig(Paths.get("config"));
-            LOGGER.info("Configuration loaded: {}", config.getRendererType().getDisplayName());
+        // Load configuration
+        config = new VitraConfig(Paths.get("config"));
+        LOGGER.info("Configuration loaded: {}", config.getRendererType().getDisplayName());
 
-            // Initialize the appropriate renderer based on configuration
-            initializeRenderer(config.getRendererType());
+        // Initialize renderer - NO SAFETY NETS
+        initializeRenderer(config.getRendererType());
 
-            initialized = true;
-            LOGGER.info("Vitra core initialization complete - Ready for {} renderer",
-                config.getRendererType().getDisplayName());
-
-        } catch (Exception e) {
-            LOGGER.error("Failed to initialize Vitra core", e);
-            throw new RuntimeException("Vitra core initialization failed", e);
-        }
+        initialized = true;
+        LOGGER.info("Vitra core initialization complete - Ready for {} renderer",
+            config.getRendererType().getDisplayName());
     }
 
     /**
-     * Initialize the appropriate renderer based on renderer type
+     * Initialize the appropriate renderer - AGGRESSIVE, NO SAFETY
      */
     private void initializeRenderer(RendererType rendererType) {
-        LOGGER.info("Initializing {} renderer...", rendererType.getDisplayName());
+        LOGGER.info("AGGRESSIVELY initializing {} renderer...", rendererType.getDisplayName());
 
         switch (rendererType) {
             case DIRECTX11:
@@ -74,7 +69,6 @@ public class VitraCore {
 
             case DIRECTX12:
             case DIRECTX12_ULTIMATE:
-                // Initialize DirectX 12 renderer
                 renderer = new DirectX12Renderer();
                 renderer.setConfig(config);
                 renderer.setCore(this);
@@ -85,8 +79,8 @@ public class VitraCore {
                 throw new RuntimeException("Unsupported renderer type: " + rendererType.getDisplayName());
         }
 
-        if (renderer == null) {
-            throw new RuntimeException("Failed to initialize renderer: " + rendererType.getDisplayName());
+        if (renderer == null || !renderer.isInitialized()) {
+            throw new RuntimeException("Failed to initialize renderer: " + rendererType.getDisplayName() + " - NO FALLBACKS");
         }
 
         LOGGER.info("Successfully initialized {} renderer", rendererType.getDisplayName());
@@ -257,5 +251,12 @@ public class VitraCore {
 
     public boolean isInitialized() {
         return initialized;
+    }
+
+    /**
+     * Get the logger for external access
+     */
+    public static Logger getLogger() {
+        return LOGGER;
     }
 }

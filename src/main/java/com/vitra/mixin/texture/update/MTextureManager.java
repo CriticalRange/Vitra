@@ -1,7 +1,7 @@
 package com.vitra.mixin.texture.update;
 
 import com.vitra.VitraMod;
-import com.vitra.render.VitraRenderer;
+import com.vitra.render.IVitraRenderer;
 import com.vitra.render.opengl.GLInterceptor;
 import com.vitra.render.jni.VitraNativeRenderer;
 import net.minecraft.client.renderer.texture.TextureManager;
@@ -62,10 +62,8 @@ public abstract class MTextureManager {
         long startTime = System.nanoTime();
 
         try {
-            // Flush any pending sprite uploads from previous tick
-            MSpriteContents.flushPendingUploads();
-
             // Tick all registered textures with performance monitoring
+            // Note: Sprite contents are handled by MSpriteContents mixin
             if (enableTextureOptimizations) {
                 tickTexturesWithOptimization();
             } else {
@@ -277,7 +275,7 @@ public abstract class MTextureManager {
     @Unique
     private static int getActiveTextureCount() {
         try {
-            VitraRenderer renderer = com.vitra.VitraMod.getInstance().getRenderer();
+            IVitraRenderer renderer = com.vitra.VitraMod.getInstance().getRenderer();
             if (renderer != null) {
                 // This would need to be implemented in VitraRenderer
                 // For now, return the number of registered textures

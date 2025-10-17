@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -128,7 +129,7 @@ public abstract class MNativeImage {
             if (directXHandle == null) {
                 LOGGER.warn("No DirectX 11 handle found for texture ID {}, creating new one", boundTexture);
                 // Create DirectX 11 texture on-demand
-                directXHandle = VitraNativeRenderer.createTexture(boundTexture, this.width, this.height, level);
+                directXHandle = VitraNativeRenderer.createTextureWithId(boundTexture, this.width, this.height, level);
                 if (directXHandle != null) {
                     GLInterceptor.registerTexture(boundTexture, directXHandle);
                 } else {

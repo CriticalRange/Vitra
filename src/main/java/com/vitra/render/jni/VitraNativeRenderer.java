@@ -270,7 +270,7 @@ public class VitraNativeRenderer {
      * @param format - Pixel format
      * @return Texture handle
      */
-    public static native long createTexture(byte[] data, int width, int height, int format);
+    public static native long createTextureFromData(byte[] data, int width, int height, int format);
 
     /**
      * Update existing texture data without recreating the texture
@@ -283,7 +283,7 @@ public class VitraNativeRenderer {
      * @param mipLevel - Mip level to update (0 for base level)
      * @return true if update succeeded, false if texture needs to be recreated
      */
-    public static native boolean updateTexture(long textureHandle, byte[] data, int width, int height, int mipLevel);
+    public static native boolean updateTextureMipLevel(long textureHandle, byte[] data, int width, int height, int mipLevel);
 
     /**
      * Bind texture to a slot
@@ -880,6 +880,16 @@ public class VitraNativeRenderer {
     public static final int DXGI_FORMAT_R8_UNORM = 61;
     public static final int DXGI_FORMAT_R8G8_UNORM = 49;
     public static final int DXGI_FORMAT_B8G8R8A8_UNORM = 87;
+
+    // Additional DXGI format constants for VertexFormatMixin
+    public static final int DXGI_FORMAT_R32G32B32_FLOAT = 6;
+    public static final int DXGI_FORMAT_R32G32B32A32_FLOAT = 2;
+    public static final int DXGI_FORMAT_R32G32_FLOAT = 16;
+    public static final int DXGI_FORMAT_R16G16B16A16_UNORM = 35;
+    public static final int DXGI_FORMAT_R16G16B16A16_SNORM = 36;
+    public static final int DXGI_FORMAT_R32G32B32A32_UINT = 3;
+    public static final int DXGI_FORMAT_R32G32B32A32_SINT = 4;
+    public static final int DXGI_FORMAT_R8G8B8A8_SNORM = 30;
 
     // Constant buffer slot constants
     public static final int CONSTANT_BUFFER_SLOT_MATRICES = 0;
@@ -1826,7 +1836,7 @@ public class VitraNativeRenderer {
      * @param format - Texture format (GL_RGBA, GL_RGB, etc.)
      * @return true if successful
      */
-    public static native boolean createTexture(int textureId, int width, int height, int format);
+    public static native boolean createTextureFromId(int textureId, int width, int height, int format);
 
     /**
      * Upload texture data (following VulkanMod's VkGlTexture approach)
@@ -2252,17 +2262,7 @@ public class VitraNativeRenderer {
 
     // ==================== ADVANCED TEXTURE METHODS (for MAbstractTexture) ====================
 
-    /**
-     * Update existing texture with new data (for MAbstractTexture)
-     * @param textureHandle - Texture handle
-     * @param data - Pixel data in RGBA format
-     * @param width - Texture width
-     * @param height - Texture height
-     * @param format - OpenGL format constant (GL_RGBA, etc.)
-     * @return true if successful
-     */
-    public static native boolean updateTexture(long textureHandle, byte[] data, int width, int height, int format);
-
+  
     /**
      * Update texture sub-region (for MAbstractTexture)
      * @param textureHandle - Texture handle
@@ -2333,7 +2333,7 @@ public class VitraNativeRenderer {
      * @param mipLevels - Number of mipmap levels
      * @return DirectX 11 texture handle
      */
-    public static native long createTexture(Integer textureId, int width, int height, int mipLevels);
+    public static native long createTextureWithId(Integer textureId, int width, int height, int mipLevels);
 
     /**
      * Set texture format (for MTextureUtil)
@@ -2477,5 +2477,147 @@ public class VitraNativeRenderer {
      */
     public static native void clearRenderTarget(boolean clearColor, boolean clearDepth, boolean clearStencil,
                                                float r, float g, float b, float a);
+
+    // ==================== MISSING METHODS FROM COMPILATION ERRORS ====================
+
+    /**
+     * Initialize renderer system (for RenderSystemMixin)
+     */
+    public static native void initRenderer();
+
+    /**
+     * Get maximum supported texture size (for RenderSystemMixin)
+     * @return Maximum texture dimension
+     */
+    public static native int maxSupportedTextureSize();
+
+    /**
+     * Add frame operation for deferred execution (for GameRendererMixin)
+     * @param operation - Runnable operation to execute next frame
+     */
+    public static void addFrameOperation(Runnable operation) {
+        // For now, execute immediately - proper frame queue can be implemented later
+        try {
+            operation.run();
+        } catch (Exception e) {
+            LOGGER.error("Error in frame operation", e);
+        }
+    }
+
+    /**
+     * Get active shader pipeline count (for GameRendererMixin)
+     * @return Number of active shader pipelines
+     */
+    public static native int getActiveShaderPipelineCount();
+
+    /**
+     * Get total shader pipeline count (for GameRendererMixin)
+     * @return Total number of shader pipelines
+     */
+    public static native int getTotalShaderPipelineCount();
+
+    /**
+     * Upload and bind uniform buffer objects (for BufferUploaderMixin)
+     */
+    public static native void uploadAndBindUBOs();
+
+    /**
+     * Set texture parameter using long handle (for texture management)
+     * @param textureHandle - DirectX texture handle
+     * @param pname - Parameter name
+     * @param param - Parameter value
+     */
+    public static native void setTextureParameter(long textureHandle, int pname, int param);
+
+    // ==================== MISSING NATIVE METHODS FOR COMPILATION ====================
+
+    /**
+     * Set clear depth value for depth buffer clearing
+     * @param depth - Depth clear value (0.0 to 1.0)
+     */
+    public static native void setClearDepth(float depth);
+
+    /**
+     * Set render targets for drawing operations
+     * @param framebuffer - Framebuffer handle (0 for default)
+     */
+    public static native void setRenderTargets(int framebuffer);
+
+    /**
+     * Set read render target for read operations
+     * @param framebuffer - Framebuffer handle (0 for default)
+     */
+    public static native void setReadRenderTarget(int framebuffer);
+
+    /**
+     * Create render target with color and depth attachments
+     * @param width - Render target width
+     * @param height - Render target height
+     * @param hasColor - Create color attachment
+     * @param hasDepth - Create depth attachment
+     * @return Render target handle, or 0 on failure
+     */
+    public static native long createRenderTarget(int width, int height, boolean hasColor, boolean hasDepth);
+
+    /**
+     * Set active texture unit for texture operations
+     * @param textureUnit - Texture unit index (0-31)
+     */
+    public static native void setActiveTextureUnit(int textureUnit);
+
+    /**
+     * Wait for GPU to complete all pending operations
+     * Blocks until GPU finishes processing all commands in the command queue
+     */
+    public static native void waitForIdle();
+
+    /**
+     * Update texture with pixel data (for GlStateManagerMixin)
+     * @param textureId - OpenGL texture ID
+     * @param data - Pixel data
+     * @param width - Texture width
+     * @param height - Texture height
+     * @param format - Pixel format
+     * @return true if successful
+     */
+    public static native boolean updateTexture(int textureId, byte[] data, int width, int height, int format);
+
+    /**
+     * Create GPU texture (for AbstractTextureMixin)
+     * @param name - Texture name for debugging
+     * @return DirectX 11 texture handle
+     */
+    public static native long createGpuTexture(String name);
+
+    // ==================== DIRECTX 11 TOPOLOGY CONSTANTS ====================
+
+    public static final int D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED = 0;
+    public static final int D3D11_PRIMITIVE_TOPOLOGY_POINTLIST = 1;
+    public static final int D3D11_PRIMITIVE_TOPOLOGY_LINELIST = 2;
+    public static final int D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP = 3;
+    public static final int D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST = 4;
+    public static final int D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP = 5;
+
+    // ==================== INPUT LAYOUT MANAGEMENT ====================
+
+    /**
+     * Create DirectX 11 input layout for vertex format
+     * @param elementDescriptions - Array of input layout element descriptions
+     * @param elementCount - Number of elements
+     * @return Input layout handle, or 0 on failure
+     */
+    public static native long createInputLayout(int[] elementDescriptions, int elementCount);
+
+    /**
+     * Release DirectX 11 input layout
+     * @param inputLayoutHandle - Input layout handle
+     */
+    public static native void releaseInputLayout(long inputLayoutHandle);
+
+    /**
+     * Bind input layout for rendering
+     * @param inputLayoutHandle - Input layout handle
+     */
+    public static native void bindInputLayout(long inputLayoutHandle);
 
   }

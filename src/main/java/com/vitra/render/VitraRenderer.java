@@ -187,6 +187,11 @@ public class VitraRenderer extends AbstractRenderer {
     @Override
     public void beginFrame() {
         if (isInitialized()) {
+            // Handle pending resize
+            if (resizePending) {
+                // Actual resize will be handled by resize() method
+                resizePending = false;
+            }
             VitraNativeRenderer.beginFrameSafe();
         }
     }
@@ -349,5 +354,229 @@ public class VitraRenderer extends AbstractRenderer {
             return VitraNativeRenderer.isInitialized() ? 0x12345678L : 0L;
         }
         return 0L;
+    }
+
+    // Additional methods for VulkanMod compatibility
+
+    public static VitraRenderer getRenderer() {
+        return (VitraRenderer) com.vitra.VitraMod.getRenderer();
+    }
+
+    public void waitForIdle() {
+        if (isInitialized()) {
+            VitraNativeRenderer.waitForIdle();
+        }
+    }
+
+    public void cleanup() {
+        shutdown();
+    }
+
+    public void scheduleResize() {
+        // Mark that resize should happen on next frame
+        resizePending = true;
+    }
+
+    private boolean resizePending = false;
+
+    // New debug and utility methods for enhanced mixin structure
+
+    // GUI Optimization Methods
+    public void optimizeCrosshairRendering() {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeCrosshairRendering();
+        }
+    }
+
+    public void beginTextBatch() {
+        if (isInitialized()) {
+            VitraNativeRenderer.beginTextBatch();
+        }
+    }
+
+    public void endTextBatch() {
+        if (isInitialized()) {
+            VitraNativeRenderer.endTextBatch();
+        }
+    }
+
+    // Screen Optimization Methods
+    public void optimizeScreenBackground() {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeScreenBackground();
+        }
+    }
+
+    public void optimizeDirtBackground(int vOffset) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeDirtBackground(vOffset);
+        }
+    }
+
+    public void optimizeTooltipRendering(int lineCount) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeTooltipRendering(lineCount);
+        }
+    }
+
+    public void optimizeSlotRendering(int x, int y) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeSlotRendering(x, y);
+        }
+    }
+
+    public void optimizeSlotHighlight(int x, int y) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeSlotHighlight(x, y);
+        }
+    }
+
+    public void optimizeContainerLabels() {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeContainerLabels();
+        }
+    }
+
+    public void optimizeContainerBackground() {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeContainerBackground();
+        }
+    }
+
+    public void optimizePanoramaRendering() {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizePanoramaRendering();
+        }
+    }
+
+    public void optimizeLogoRendering() {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeLogoRendering();
+        }
+    }
+
+    public void optimizeButtonRendering() {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeButtonRendering();
+        }
+    }
+
+    public void optimizeFadingBackground(int alpha) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeFadingBackground(alpha);
+        }
+    }
+
+    // Utility Methods
+    public void prepareRenderContext() {
+        if (isInitialized()) {
+            VitraNativeRenderer.prepareRenderContext();
+        }
+    }
+
+    public void cleanupRenderContext() {
+        if (isInitialized()) {
+            VitraNativeRenderer.cleanupRenderContext();
+        }
+    }
+
+    public int getOptimalFramerateLimit() {
+        if (isInitialized()) {
+            return VitraNativeRenderer.getOptimalFramerateLimit();
+        }
+        return 0;
+    }
+
+    public void handleDisplayResize() {
+        if (isInitialized()) {
+            VitraNativeRenderer.handleDisplayResize();
+        }
+    }
+
+    public void setWindowActiveState(boolean active) {
+        if (isInitialized()) {
+            VitraNativeRenderer.setWindowActiveState(active);
+        }
+    }
+
+    public static boolean isDirectX11Initialized() {
+        return VitraNativeRenderer.isInitialized();
+    }
+
+    // Shader Helper Methods
+    public void precompileShaderForDirectX11(Object shader) {
+        if (isInitialized()) {
+            VitraNativeRenderer.precompileShaderForDirectX11(shader);
+        }
+    }
+
+    public boolean isShaderDirectX11Compatible(Object shader) {
+        if (isInitialized()) {
+            return VitraNativeRenderer.isShaderDirectX11Compatible(shader);
+        }
+        return false;
+    }
+
+    public Object getOptimizedDirectX11Shader(Object original) {
+        if (isInitialized()) {
+            return VitraNativeRenderer.getOptimizedDirectX11Shader(original);
+        }
+        return original;
+    }
+
+    // Matrix Helper Methods
+    public void optimizeMatrixMultiplication(Object matrix1, Object matrix2) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeMatrixMultiplication(matrix1, matrix2);
+        }
+    }
+
+    public void optimizeMatrixInversion(Object matrix) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeMatrixInversion(matrix);
+        }
+    }
+
+    public void optimizeMatrixTranspose(Object matrix) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeMatrixTranspose(matrix);
+        }
+    }
+
+    public void adjustOrthographicProjection(float left, float right, float bottom, float top, float zNear, float zFar) {
+        if (isInitialized()) {
+            VitraNativeRenderer.adjustOrthographicProjection(left, right, bottom, top, zNear, zFar);
+        }
+    }
+
+    public void adjustPerspectiveProjection(float fovy, float aspect, float zNear, float zFar) {
+        if (isInitialized()) {
+            VitraNativeRenderer.adjustPerspectiveProjection(fovy, aspect, zNear, zFar);
+        }
+    }
+
+    public void optimizeTranslationMatrix(float x, float y, float z) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeTranslationMatrix(x, y, z);
+        }
+    }
+
+    public void optimizeScaleMatrix(float x, float y, float z) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeScaleMatrix(x, y, z);
+        }
+    }
+
+    public void optimizeRotationMatrix(float angle, float x, float y, float z) {
+        if (isInitialized()) {
+            VitraNativeRenderer.optimizeRotationMatrix(angle, x, y, z);
+        }
+    }
+
+    public boolean isMatrixDirectX11Optimized(Object matrix) {
+        if (isInitialized()) {
+            return VitraNativeRenderer.isMatrixDirectX11Optimized(matrix);
+        }
+        return false;
     }
 }

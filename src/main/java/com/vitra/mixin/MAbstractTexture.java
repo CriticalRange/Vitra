@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.util.concurrent.Executor;
 
@@ -107,7 +107,7 @@ public abstract class MAbstractTexture {
 
             // Register with GLInterceptor for proper tracking
             if (id != -1) {
-                vitraDirectXHandle = VitraNativeRenderer.createTexture(null, 1, 1, 0);
+                vitraDirectXHandle = VitraNativeRenderer.createTextureFromData(null, 1, 1, 0);
                 GLInterceptor.registerMAbstractTexture(id, vitraDirectXHandle);
                 LOGGER.debug("MAbstractTexture: Created DirectX 11 texture handle 0x{} for OpenGL texture ID {}",
                     Long.toHexString(vitraDirectXHandle), id);
@@ -129,7 +129,7 @@ public abstract class MAbstractTexture {
             totalTexturesCreated++;
 
             if (id != -1) {
-                vitraDirectXHandle = VitraNativeRenderer.createTexture(null, 1, 1, 0);
+                vitraDirectXHandle = VitraNativeRenderer.createTextureFromData(null, 1, 1, 0);
                 GLInterceptor.registerMAbstractTexture(id, vitraDirectXHandle);
                 LOGGER.debug("MAbstractTexture: Created DirectX 11 texture handle 0x{} for registered texture {}",
                     Long.toHexString(vitraDirectXHandle), path);
@@ -219,29 +219,25 @@ public abstract class MAbstractTexture {
                 vitraWidth, vitraHeight, Long.toHexString(vitraDirectXHandle), getId());
 
             // Extract pixel data from NativeImage
-            byte[] pixelData = null;
-            if (image.pixels != null) {
-                // Get direct access to pixel data
-                pixelData = new byte[vitraWidth * vitraHeight * 4]; // RGBA = 4 bytes per pixel
+            byte[] pixelData = new byte[vitraWidth * vitraHeight * 4]; // RGBA = 4 bytes per pixel
 
-                // Copy pixel data from NativeImage to byte array
-                for (int y = 0; y < vitraHeight; y++) {
-                    for (int x = 0; x < vitraWidth; x++) {
-                        int pixel = image.getPixelRGBA(x, y);
-                        int offset = (y * vitraWidth + x) * 4;
+            // Copy pixel data from NativeImage to byte array
+            for (int y = 0; y < vitraHeight; y++) {
+                for (int x = 0; x < vitraWidth; x++) {
+                    int pixel = image.getPixelRGBA(x, y);
+                    int offset = (y * vitraWidth + x) * 4;
 
-                        // Extract RGBA components (NativeImage stores as ABGR)
-                        pixelData[offset] = (byte) ((pixel >> 0) & 0xFF);   // R
-                        pixelData[offset + 1] = (byte) ((pixel >> 8) & 0xFF); // G
-                        pixelData[offset + 2] = (byte) ((pixel >> 16) & 0xFF); // B
-                        pixelData[offset + 3] = (byte) ((pixel >> 24) & 0xFF); // A
-                    }
+                    // Extract RGBA components (NativeImage stores as ABGR)
+                    pixelData[offset] = (byte) ((pixel >> 0) & 0xFF);   // R
+                    pixelData[offset + 1] = (byte) ((pixel >> 8) & 0xFF); // G
+                    pixelData[offset + 2] = (byte) ((pixel >> 16) & 0xFF); // B
+                    pixelData[offset + 3] = (byte) ((pixel >> 24) & 0xFF); // A
                 }
             }
 
             // Upload to DirectX 11
             if (vitraDirectXHandle != 0 && pixelData != null) {
-                VitraNativeRenderer.updateTexture(vitraDirectXHandle, pixelData, vitraWidth, vitraHeight, vitraFormat);
+                VitraNativeRenderer.updateTextureMipLevel(vitraDirectXHandle, pixelData, vitraWidth, vitraHeight, 0);
 
                 // Apply filtering settings
                 VitraNativeRenderer.setTextureFilter(vitraDirectXHandle, blur, mipmap);
