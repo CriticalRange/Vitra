@@ -161,4 +161,21 @@ public interface IVitraRenderer {
      * Get native device handle for debugging and verification
      */
     long getNativeHandle();
+
+    // Additional methods needed by mixins
+
+    /**
+     * Draw mesh with provided buffers
+     */
+    void drawMesh(Object vertexBuffer, Object indexBuffer, Object mode, Object format, int vertexCount);
+
+    /**
+     * Clear depth buffer
+     */
+    void clearDepthBuffer();
+
+    /**
+     * Wait for GPU commands to complete
+     */
+    void waitForGpuCommands();
 }

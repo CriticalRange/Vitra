@@ -462,6 +462,190 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setHint
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_copyTexSubImage2D
     (JNIEnv* env, jclass clazz, jint target, jint level, jint xoffset, jint yoffset, jint x, jint y, jint width, jint height);
 
+// ==================== PERFORMANCE OPTIMIZATION METHODS ====================
+// Based on Direct3D 11 Performance Optimization Documentation
+
+// Multithreading and Command List Support
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createDeferredContext
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createCommandList
+    (JNIEnv* env, jclass clazz, jlong deferredContextHandle);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_executeCommandList
+    (JNIEnv* env, jclass clazz, jlong commandListHandle);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_closeCommandList
+    (JNIEnv* env, jclass clazz, jlong commandListHandle);
+
+// Batching and Optimization
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_beginTextBatch
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_endTextBatch
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_beginFrameSafe
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_endFrameSafe
+    (JNIEnv* env, jclass clazz);
+
+// Performance Profiling and Debugging
+JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getDebugStats
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_processDebugMessages
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_isDebugEnabled
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_initializeDebug
+    (JNIEnv* env, jclass clazz, jboolean enable);
+
+// Resource Optimization
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_precompileShaderForDirectX11
+    (JNIEnv* env, jclass clazz, jbyteArray hlslBytecode, jint size, jstring entryPoint, jstring target);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_discardResource
+    (JNIEnv* env, jclass clazz, jlong resourceHandle);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_evictResource
+    (JNIEnv* env, jclass clazz, jlong resourceHandle);
+
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_isResident
+    (JNIEnv* env, jclass clazz, jlong resourceHandle);
+
+// Rendering Optimizations (Minecraft-Specific)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeCrosshairRendering
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeButtonRendering
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeContainerBackground
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeContainerLabels
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeDirtBackground
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeFadingBackground
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeLogoRendering
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizePanoramaRendering
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeScreenBackground
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeSlotHighlight
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeSlotRendering
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeTooltipRendering
+    (JNIEnv* env, jclass clazz);
+
+// Matrix Optimizations
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_isMatrixDirectX11Optimized
+    (JNIEnv* env, jclass clazz, jfloatArray matrix);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeMatrixMultiplication
+    (JNIEnv* env, jclass clazz, jfloatArray result, jfloatArray matrixA, jfloatArray matrixB);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeMatrixInversion
+    (JNIEnv* env, jclass clazz, jfloatArray result, jfloatArray matrix);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeMatrixTranspose
+    (JNIEnv* env, jclass clazz, jfloatArray result, jfloatArray matrix);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeTranslationMatrix
+    (JNIEnv* env, jclass clazz, jfloatArray result, jfloat x, jfloat y, jfloat z);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeRotationMatrix
+    (JNIEnv* env, jclass clazz, jfloatArray result, jfloat angle, jfloat x, jfloat y, jfloat z);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_optimizeScaleMatrix
+    (JNIEnv* env, jclass clazz, jfloatArray result, jfloat x, jfloat y, jfloat z);
+
+// Shader Optimizations
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_isShaderDirectX11Compatible
+    (JNIEnv* env, jclass clazz, jlong shaderHandle);
+
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getOptimizedDirectX11Shader
+    (JNIEnv* env, jclass clazz, jlong originalShaderHandle);
+
+// Frame Synchronization and VSync
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setVsync
+    (JNIEnv* env, jclass clazz, jboolean enabled);
+
+JNIEXPORT jint JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getOptimalFramerateLimit
+    (JNIEnv* env, jclass clazz);
+
+// GPU Synchronization and Resource Management
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_waitForGpuCommands
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_waitForIdle
+    (JNIEnv* env, jclass clazz);
+
+// Display and Window Management
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_handleDisplayResize
+    (JNIEnv* env, jclass clazz, jint width, jint height);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setWindowActiveState
+    (JNIEnv* env, jclass clazz, jboolean isActive);
+
+// Initialization and Cleanup
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_initializeDirectXSafe
+    (JNIEnv* env, jclass clazz, jlong windowHandle, jint width, jint height, jboolean enableDebug);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_shutdownSafe
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_prepareRenderContext
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_cleanupRenderContext
+    (JNIEnv* env, jclass clazz);
+
+// Buffer Management Optimizations
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_adjustOrthographicProjection
+    (JNIEnv* env, jclass clazz, jfloat left, jfloat right, jfloat bottom, jfloat top, jfloat zNear, jfloat zFar);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_adjustPerspectiveProjection
+    (JNIEnv* env, jclass clazz, jfloat fovy, jfloat aspect, jfloat zNear, jfloat zFar);
+
+// Rendering Pipeline
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_drawMesh
+    (JNIEnv* env, jclass clazz, jobject vertexBuffer, jobject indexBuffer,
+     jint vertexCount, jint indexCount, jint primitiveMode, jint vertexSize);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_clearDepthBuffer
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_presentFrame
+    (JNIEnv* env, jclass clazz);
+
+// Shader Pipeline Management
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getDefaultShaderPipeline
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setShaderPipeline
+    (JNIEnv* env, jclass clazz, jlong pipelineHandle);
+
+// Resource Resize
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_resize
+    (JNIEnv* env, jclass clazz, jint width, jint height);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,7 @@
 package com.vitra;
 
 import com.vitra.core.VitraCore;
+import com.vitra.config.VitraConfig;
 import com.vitra.debug.VitraMixinVerifier;
 import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
@@ -131,5 +132,13 @@ public final class VitraMod {
     public static boolean areMixinsWorking() {
         return VitraMixinVerifier.testGLInterception() &&
                VitraMixinVerifier.testDirectX11Renderer();
+    }
+
+    /**
+     * Get the configuration instance
+     * @return VitraConfig instance or null if not initialized
+     */
+    public static VitraConfig getConfig() {
+        return core != null ? core.getConfig() : null;
     }
 }

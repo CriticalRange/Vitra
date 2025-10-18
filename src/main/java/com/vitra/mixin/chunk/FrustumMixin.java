@@ -1,8 +1,8 @@
 package com.vitra.mixin.chunk;
 
+import net.minecraft.client.renderer.culling.Frustum;
 import com.vitra.interfaces.FrustumMixed;
 import com.vitra.render.chunk.frustum.VFrustum;
-import net.minecraft.client.renderer.culling.Frustum;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -20,14 +20,13 @@ public class FrustumMixin implements FrustumMixed {
 
     @Inject(method = "calculateFrustum", at = @At("HEAD"), cancellable = true)
     private void calculateFrustum(Matrix4f modelView, Matrix4f projection, CallbackInfo ci) {
-        // DirectX 11 frustum calculation override
+//        this.vFrustum = new VFrustum(modelView, projection);
         this.vFrustum.calculateFrustum(modelView, projection);
         ci.cancel();
     }
 
     @Inject(method = "prepare", at = @At("RETURN"))
     public void prepare(double d, double e, double f, CallbackInfo ci) {
-        // Update camera offset for DirectX 11 frustum
         this.vFrustum.setCamOffset(this.camX, this.camY, this.camZ);
     }
 

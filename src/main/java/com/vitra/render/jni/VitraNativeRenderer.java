@@ -24,22 +24,27 @@ public class VitraNativeRenderer {
     // Load the native library
     static {
         try {
+            // Verify Windows platform
+            String osName = System.getProperty("os.name").toLowerCase();
+            if (!osName.contains("win")) {
+                throw new RuntimeException("Vitra DirectX 11 mod requires Windows operating system. Current OS: " + osName);
+            }
+
             // Try loading from the jar resources first
             System.loadLibrary("vitra-native");
+            LOGGER.info("✓ Loaded native DirectX 11 library");
         } catch (UnsatisfiedLinkError e) {
             try {
                 // Fallback to loading from the native directory
-                String osName = System.getProperty("os.name").toLowerCase();
-                String libName = osName.contains("win") ? "vitra-native.dll" : "libvitra-native.so";
-
-                String nativePath = VitraNativeRenderer.class.getResource("/native/windows/" + libName).getPath();
+                String nativePath = VitraNativeRenderer.class.getResource("/native/windows/vitra-native.dll").getPath();
                 if (nativePath != null) {
                     System.load(nativePath);
+                    LOGGER.info("✓ Loaded native DirectX 11 library from resources");
                 } else {
-                    throw new RuntimeException("Native library not found: " + libName);
+                    throw new RuntimeException("DirectX 11 native library (vitra-native.dll) not found");
                 }
             } catch (Exception ex) {
-                throw new RuntimeException("Failed to load native library", ex);
+                throw new RuntimeException("Failed to load native DirectX 11 library. Ensure you are running on Windows with DirectX 11 support.", ex);
             }
         }
     }
@@ -2619,5 +2624,254 @@ public class VitraNativeRenderer {
      * @param inputLayoutHandle - Input layout handle
      */
     public static native void bindInputLayout(long inputLayoutHandle);
+
+    // ==================== MISSING METHODS FROM COMPILATION ERRORS ====================
+
+    /**
+     * Adjust orthographic projection matrix
+     * @param left - Left bound
+     * @param right - Right bound
+     * @param bottom - Bottom bound
+     * @param top - Top bound
+     * @param zNear - Near plane
+     * @param zFar - Far plane
+     */
+    public static native void adjustOrthographicProjection(float left, float right, float bottom, float top, float zNear, float zFar);
+
+    /**
+     * Adjust perspective projection matrix
+     * @param fovy - Field of view in y direction
+     * @param aspect - Aspect ratio
+     * @param zNear - Near plane
+     * @param zFar - Far plane
+     */
+    public static native void adjustPerspectiveProjection(float fovy, float aspect, float zNear, float zFar);
+
+    /**
+     * Begin text batch rendering
+     */
+    public static native void beginTextBatch();
+
+    /**
+     * Cleanup render context
+     */
+    public static native void cleanupRenderContext();
+
+    /**
+     * Clear depth buffer
+     * @param depth - Depth value
+     */
+    public static native void clearDepthBuffer(float depth);
+
+    /**
+     * Draw mesh with advanced parameters
+     * @param vertexBuffer - Vertex buffer
+     * @param indexBuffer - Index buffer
+     * @param vertexCount - Vertex count
+     * @param indexCount - Index count
+     * @param primitiveMode - Primitive mode
+     * @param vertexSize - Vertex size
+     */
+    public static native void drawMesh(Object vertexBuffer, Object indexBuffer, int vertexCount, int indexCount, int primitiveMode, int vertexSize);
+
+    /**
+     * End text batch rendering
+     */
+    public static native void endTextBatch();
+
+  
+    /**
+     * Get optimal framerate limit
+     * @return Framerate limit
+     */
+    public static native int getOptimalFramerateLimit();
+
+    /**
+     * Get optimized DirectX 11 shader
+     * @param shaderName - Shader name
+     * @return Shader handle
+     */
+    public static native long getOptimizedDirectX11Shader(String shaderName);
+
+    /**
+     * Handle display resize
+     * @param width - New width
+     * @param height - New height
+     */
+    public static native void handleDisplayResize(int width, int height);
+
+    /**
+     * Initialize debug system
+     */
+    public static native void initializeDebug();
+
+    /**
+     * Initialize DirectX with safety checks
+     * @return true if successful
+     */
+    public static native boolean initializeDirectXSafe();
+
+    
+    /**
+     * Check if matrix is DirectX 11 optimized
+     * @param matrix - Matrix data
+     * @return true if optimized
+     */
+    public static native boolean isMatrixDirectX11Optimized(float[] matrix);
+
+    /**
+     * Check if shader is DirectX 11 compatible
+     * @param shaderData - Shader bytecode
+     * @return true if compatible
+     */
+    public static native boolean isShaderDirectX11Compatible(byte[] shaderData);
+
+    /**
+     * Optimize button rendering
+     * @param buttonId - Button ID
+     */
+    public static native void optimizeButtonRendering(int buttonId);
+
+    /**
+     * Optimize container background rendering
+     * @param containerId - Container ID
+     */
+    public static native void optimizeContainerBackground(int containerId);
+
+    /**
+     * Optimize container labels rendering
+     * @param labelId - Label ID
+     */
+    public static native void optimizeContainerLabels(int labelId);
+
+    /**
+     * Optimize crosshair rendering
+     */
+    public static native void optimizeCrosshairRendering();
+
+    /**
+     * Optimize dirt background rendering
+     * @param dirtType - Dirt type
+     */
+    public static native void optimizeDirtBackground(int dirtType);
+
+    /**
+     * Optimize fading background rendering
+     * @param fadeAmount - Fade amount
+     */
+    public static native void optimizeFadingBackground(float fadeAmount);
+
+    /**
+     * Optimize logo rendering
+     * @param logoSize - Logo size
+     */
+    public static native void optimizeLogoRendering(int logoSize);
+
+    /**
+     * Optimize matrix inversion
+     * @param matrix - Input matrix
+     * @return Inverted matrix
+     */
+    public static native float[] optimizeMatrixInversion(float[] matrix);
+
+    /**
+     * Optimize matrix multiplication
+     * @param matrixA - First matrix
+     * @param matrixB - Second matrix
+     * @return Result matrix
+     */
+    public static native float[] optimizeMatrixMultiplication(float[] matrixA, float[] matrixB);
+
+    /**
+     * Optimize matrix transpose
+     * @param matrix - Input matrix
+     * @return Transposed matrix
+     */
+    public static native float[] optimizeMatrixTranspose(float[] matrix);
+
+    /**
+     * Optimize panorama rendering
+     * @param panoramaId - Panorama ID
+     */
+    public static native void optimizePanoramaRendering(int panoramaId);
+
+    /**
+     * Optimize rotation matrix
+     * @param angle - Rotation angle
+     * @param axis - Rotation axis
+     * @return Rotation matrix
+     */
+    public static native float[] optimizeRotationMatrix(float angle, float[] axis);
+
+    /**
+     * Optimize scale matrix
+     * @param scaleX - X scale
+     * @param scaleY - Y scale
+     * @param scaleZ - Z scale
+     * @return Scale matrix
+     */
+    public static native float[] optimizeScaleMatrix(float scaleX, float scaleY, float scaleZ);
+
+    /**
+     * Optimize screen background rendering
+     * @param screenType - Screen type
+     */
+    public static native void optimizeScreenBackground(int screenType);
+
+    /**
+     * Optimize slot highlight rendering
+     * @param slotId - Slot ID
+     */
+    public static native void optimizeSlotHighlight(int slotId);
+
+    /**
+     * Optimize slot rendering
+     * @param slotId - Slot ID
+     */
+    public static native void optimizeSlotRendering(int slotId);
+
+    /**
+     * Optimize tooltip rendering
+     * @param tooltipId - Tooltip ID
+     */
+    public static native void optimizeTooltipRendering(int tooltipId);
+
+    /**
+     * Optimize translation matrix
+     * @param translateX - X translation
+     * @param translateY - Y translation
+     * @param translateZ - Z translation
+     * @return Translation matrix
+     */
+    public static native float[] optimizeTranslationMatrix(float translateX, float translateY, float translateZ);
+
+    /**
+     * Precompile shader for DirectX 11
+     * @param shaderSource - Shader source code
+     * @param shaderType - Shader type
+     * @return Compiled shader handle
+     */
+    public static native long precompileShaderForDirectX11(String shaderSource, int shaderType);
+
+    /**
+     * Prepare render context
+     */
+    public static native void prepareRenderContext();
+
+    /**
+     * Present frame to screen
+     */
+    public static native void presentFrame();
+
+    /**
+     * Set window active state
+     * @param active - Window active
+     */
+    public static native void setWindowActiveState(boolean active);
+
+    /**
+     * Wait for GPU commands to complete
+     */
+    public static native void waitForGpuCommands();
 
   }

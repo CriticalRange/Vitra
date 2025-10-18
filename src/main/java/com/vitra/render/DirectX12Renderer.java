@@ -326,4 +326,27 @@ public class DirectX12Renderer extends AbstractRenderer {
     public void processDebugMessages() {
         VitraD3D12Renderer.processDebugMessages();
     }
+
+    // Additional methods needed by mixins (interface implementation)
+    @Override
+    public void drawMesh(Object vertexBuffer, Object indexBuffer, Object mode, Object format, int vertexCount) {
+        if (isInitialized()) {
+            // DirectX 12 implementation would use command lists
+            logger.debug("DirectX 12 drawMesh called - would use command lists");
+        }
+    }
+
+    @Override
+    public void clearDepthBuffer() {
+        if (isInitialized()) {
+            VitraD3D12Renderer.clearDepthBuffer();
+        }
+    }
+
+    @Override
+    public void waitForGpuCommands() {
+        if (isInitialized()) {
+            VitraD3D12Renderer.waitForGpuCommands();
+        }
+    }
 }
