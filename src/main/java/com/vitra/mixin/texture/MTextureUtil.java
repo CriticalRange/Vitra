@@ -1,24 +1,24 @@
 package com.vitra.mixin.texture;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.vitra.render.Dx11Texture;
-import com.vitra.VitraMod;
-import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
 
-// DirectX 11 format constants (replacing Vulkan VK10 constants)
-
+/**
+ * Mixin to replace OpenGL texture operations with DirectX 11 equivalents.
+ * Intercepts TextureUtil methods and redirects to Dx11Texture wrapper.
+ */
 @Mixin(TextureUtil.class)
 public class MTextureUtil {
 
     /**
-     * @author
+     * @author Vitra
+     * @reason Replace OpenGL texture generation with DirectX 11 texture ID generation
      */
     @Overwrite(remap = false)
     public static int generateTextureId() {
@@ -27,7 +27,8 @@ public class MTextureUtil {
     }
 
     /**
-     * @author
+     * @author Vitra
+     * @reason Replace OpenGL texture preparation with DirectX 11 texture creation
      */
     @Overwrite(remap = false)
     public static void prepareImage(NativeImage.InternalGlFormat internalGlFormat, int id, int mipLevels, int width, int height) {
@@ -35,15 +36,13 @@ public class MTextureUtil {
         Dx11Texture.bindTexture(id);
         Dx11Texture dx11Texture = Dx11Texture.getTexture(id);
 
-        if (dx11Texture == null || dx11Texture.needsRecreation(mipLevels, width, height)) {
+        if (dx11Texture == null || dx11Texture.needsRecreation(mipLevels + 1, width, height)) {
             if (dx11Texture != null) {
                 dx11Texture.release();
             }
 
             // Create DirectX 11 texture with specified parameters
             Dx11Texture.createTexture(id, width, height, mipLevels + 1, convertFormat(internalGlFormat));
-
-            System.out.println("[Vitra] Created DirectX 11 texture: " + id + " (" + width + "x" + height + ", mipLevels=" + (mipLevels + 1) + ")");
         }
 
         if (mipLevels > 0) {

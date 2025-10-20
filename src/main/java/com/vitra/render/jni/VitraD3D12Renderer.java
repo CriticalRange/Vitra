@@ -150,6 +150,22 @@ public class VitraD3D12Renderer {
         nativeClear(r, g, b, a);
     }
 
+    public static void clearDepthBuffer() {
+        // DirectX 12 depth buffer clear - stub for now
+        // In a full implementation, this would clear the depth stencil buffer
+        if (isInitialized()) {
+            LOGGER.debug("DirectX 12 clearDepthBuffer called (stub)");
+        }
+    }
+
+    public static void waitForGpuCommands() {
+        // DirectX 12 GPU fence synchronization - stub for now
+        // In a full implementation, this would wait for GPU command queue to finish
+        if (isInitialized()) {
+            LOGGER.debug("DirectX 12 waitForGpuCommands called (stub)");
+        }
+    }
+
     public static boolean queryRayTracingSupport() {
         return nativeQueryRayTracingSupport();
     }

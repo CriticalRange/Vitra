@@ -286,11 +286,24 @@ public class JniUtils {
     public static void clear(int mask) {
         LOGGER.debug("clear: 0x{}", Integer.toHexString(mask));
         try {
+            // Use new clear implementation - just pass the mask directly
+            // The clear color should already be set via setClearColor
+            VitraNativeRenderer.clear(mask);
+        } catch (Exception e) {
+            LOGGER.error("Failed to clear with mask 0x{}: {}", Integer.toHexString(mask), e.getMessage());
+        }
+    }
+
+    public static void clearOld(int mask) {
+        LOGGER.debug("clearOld (deprecated): 0x{}", Integer.toHexString(mask));
+        try {
+            // OLD IMPLEMENTATION - kept for reference
             // Check what's being cleared and call appropriate native methods
             if ((mask & 0x00004000) != 0) { // GL_COLOR_BUFFER_BIT
                 // Clear color buffer with current clear color
                 // Note: The actual clear color should be set via glClearColor before this
-                VitraNativeRenderer.clear(0.1f, 0.2f, 0.4f, 1.0f); // Use blue debug color
+                VitraNativeRenderer.setClearColor(0.1f, 0.2f, 0.4f, 1.0f); // Use blue debug color
+                VitraNativeRenderer.clear(0x00004000);
             }
 
             if ((mask & 0x00000100) != 0) { // GL_DEPTH_BUFFER_BIT

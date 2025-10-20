@@ -2,7 +2,6 @@ package com.vitra;
 
 import com.vitra.core.VitraCore;
 import com.vitra.config.VitraConfig;
-import com.vitra.debug.VitraMixinVerifier;
 import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
 import com.vitra.render.jni.JniUtils;
@@ -47,12 +46,6 @@ public final class VitraMod {
             core.initialize();
 
             initialized = true;
-            LOGGER.info("Vitra initialization complete");
-
-            // Run @Overwrite mixin verification after successful initialization
-            LOGGER.info("Running @Overwrite mixin verification...");
-            VitraMixinVerifier.verifyAllOverwriteMixins();
-
             LOGGER.info("Vitra initialization complete");
 
         } catch (Exception e) {
@@ -118,21 +111,6 @@ public final class VitraMod {
     }
 
     private static final VitraMod instance = new VitraMod();
-
-    /**
-     * Get the current status of @Overwrite mixin application
-     */
-    public static String getMixinStatus() {
-        return VitraMixinVerifier.getDetailedStatus();
-    }
-
-    /**
-     * Check if @Overwrite mixins are working
-     */
-    public static boolean areMixinsWorking() {
-        return VitraMixinVerifier.testGLInterception() &&
-               VitraMixinVerifier.testDirectX11Renderer();
-    }
 
     /**
      * Get the configuration instance

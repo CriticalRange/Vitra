@@ -141,21 +141,11 @@ public class GLInterceptor {
         interceptedCalls++;
         currentState.setBoundTexture(target, texture);
 
-        if (texture != 0) {
-            // First check MAbstractTexture mapping
-            Long directXHandle = textureToDirectXHandle.get(texture);
-            if (directXHandle != null && directXHandle != 0) {
-                VitraNativeRenderer.bindTexture(directXHandle, 0);
-                LOGGER.debug("GLInterceptor: Bound texture ID {} via MAbstractTexture mapping (handle 0x{})",
-                    texture, Long.toHexString(directXHandle));
-            } else {
-                // Fallback to resource tracking
-                GLResource resource = resources.get(texture);
-                if (resource != null) {
-                    VitraNativeRenderer.bindTexture(resource.getDirectXHandle(), 0);
-                }
-            }
-        }
+        // Use Dx11Texture system for texture binding (VulkanMod pattern)
+        // This handles texture ID -> DirectX resource mapping internally
+        com.vitra.render.Dx11Texture.bindTexture(texture);
+
+        LOGGER.debug("GLInterceptor: Bound texture ID {} via Dx11Texture system", texture);
 
         translatedCalls++;
     }
@@ -432,18 +422,15 @@ public class GLInterceptor {
 
         LOGGER.debug("glClear: mask=0x{}", Integer.toHexString(mask));
 
-        // Translate clear mask to DirectX clear using tracked clear color (FIX: Use actual clear color)
-        if ((mask & GL11.GL_COLOR_BUFFER_BIT) != 0) {
-            VitraNativeRenderer.clear(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
-            LOGGER.debug("  -> Clearing color buffer to: [{}, {}, {}, {}]",
-                clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
-        }
+        // Use new clear implementation: set color first, then clear with mask
+        // Set the clear color that was previously set via glClearColor
+        VitraNativeRenderer.setClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
 
-        // Handle depth buffer clear
-        if ((mask & GL11.GL_DEPTH_BUFFER_BIT) != 0) {
-            VitraNativeRenderer.clearDepth(1.0f);
-            LOGGER.debug("  -> Clearing depth buffer");
-        }
+        // Now call clear with the mask - it will use the color we just set
+        VitraNativeRenderer.clear(mask);
+
+        LOGGER.debug("  -> Cleared with mask 0x{}, color=[{}, {}, {}, {}]",
+            Integer.toHexString(mask), clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
 
         translatedCalls++;
     }
@@ -1398,8 +1385,9 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // VULKANMOD APPROACH: Direct OpenGL → DirectX 11 shader creation
-        int result = VitraNativeRenderer.createGLProgramShader(type);
+        // NOTE: Shader creation now happens in ShaderInstance mixin, not here
+        // Return a dummy handle for OpenGL compatibility
+        int result = (int) System.nanoTime() & 0x7FFFFFFF; // Generate unique ID
         translatedCalls++;
         return result;
     }

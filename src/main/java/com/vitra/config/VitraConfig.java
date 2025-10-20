@@ -29,6 +29,11 @@ public class VitraConfig {
     // Verbose Logging: Enables DirectX 11 trace-level logging (very detailed, impacts performance)
     private boolean verboseLogging = false;
 
+    // WARP Mode: Use Windows Advanced Rasterization Platform (CPU software renderer)
+    // WARNING: WARP is extremely slow but provides complete debug layer validation
+    // Enable this when GPU driver doesn't support debug layer messages
+    private boolean useWarp = false;
+
     // Performance Optimization Configuration
     private boolean frustumCulling = true;
     private boolean asyncMeshBuilding = true;
@@ -94,6 +99,7 @@ public class VitraConfig {
         maxFPS = Integer.parseInt(properties.getProperty("renderer.maxFPS", "144"));
         debugMode = Boolean.parseBoolean(properties.getProperty("renderer.debug", "false"));
         verboseLogging = Boolean.parseBoolean(properties.getProperty("renderer.verboseLogging", "false"));
+        useWarp = Boolean.parseBoolean(properties.getProperty("renderer.useWarp", "false"));
 
         // Performance optimization settings
         frustumCulling = Boolean.parseBoolean(properties.getProperty("optimization.frustumCulling", "true"));
@@ -124,6 +130,7 @@ public class VitraConfig {
         properties.setProperty("renderer.maxFPS", String.valueOf(maxFPS));
         properties.setProperty("renderer.debug", String.valueOf(debugMode));
         properties.setProperty("renderer.verboseLogging", String.valueOf(verboseLogging));
+        properties.setProperty("renderer.useWarp", String.valueOf(useWarp));
 
         // Performance optimization settings
         properties.setProperty("optimization.frustumCulling", String.valueOf(frustumCulling));
@@ -161,6 +168,9 @@ public class VitraConfig {
 
     public boolean isVerboseLogging() { return verboseLogging; }
     public void setVerboseLogging(boolean verboseLogging) { this.verboseLogging = verboseLogging; }
+
+    public boolean isUseWarp() { return useWarp; }
+    public void setUseWarp(boolean useWarp) { this.useWarp = useWarp; }
 
     public boolean isFrustumCulling() { return frustumCulling; }
     public void setFrustumCulling(boolean frustumCulling) { this.frustumCulling = frustumCulling; }

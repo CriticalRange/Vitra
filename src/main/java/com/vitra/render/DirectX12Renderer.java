@@ -138,7 +138,16 @@ public class DirectX12Renderer extends AbstractRenderer {
 
     @Override
     public boolean isInitialized() {
-        return super.isInitialized() && VitraD3D12Renderer.isInitialized();
+        // For deferred initialization: return true if prepared
+        // Full DirectX 12 initialization happens in initializeWithWindowHandle()
+        return initialized;
+    }
+
+    /**
+     * Check if DirectX 12 is fully initialized (has window handle and native context)
+     */
+    public boolean isFullyInitialized() {
+        return initialized && windowHandle != 0L && VitraD3D12Renderer.isInitialized();
     }
 
     @Override

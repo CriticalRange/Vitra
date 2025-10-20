@@ -113,7 +113,7 @@ public abstract class D3D11RenderSystem {
             // Initialize DirectX 11 via JNI
             // Note: Window handle is set via WindowMixin after GLFW window creation
             if (window != 0L) {
-                boolean success = VitraNativeRenderer.initializeDirectX(window, 1920, 1080, false);
+                boolean success = VitraNativeRenderer.initializeDirectX(window, 1920, 1080, false, false);
                 if (success) {
                     LOGGER.info("✓ DirectX 11 initialized successfully");
                 } else {

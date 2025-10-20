@@ -131,7 +131,11 @@ public class VitraDebugUtils {
         }
 
         try {
-            // Get messages from native DirectX debug layer via VitraNativeRenderer
+            // CRITICAL: Call native processDebugMessages to write dx11_native_*.log
+            // This processes ID3D11InfoQueue messages and writes them to native log file
+            VitraNativeRenderer.nativeProcessDebugMessages();
+
+            // Also get messages from native DirectX debug layer for Java-side logging
             String nativeMessages = VitraNativeRenderer.nativeGetDebugMessages();
             if (nativeMessages != null && !nativeMessages.isEmpty()) {
                 String[] messages = nativeMessages.split("\n");

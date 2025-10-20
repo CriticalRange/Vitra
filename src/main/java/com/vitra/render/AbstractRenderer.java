@@ -37,7 +37,15 @@ public abstract class AbstractRenderer implements IVitraRenderer {
 
     @Override
     public boolean isInitialized() {
-        return initialized && windowHandle != 0L;
+        return initialized;
+    }
+
+    /**
+     * Check if the renderer is prepared (basic initialization done)
+     * This is different from isInitialized() which checks for full DirectX initialization
+     */
+    public boolean isPrepared() {
+        return initialized;
     }
 
     /**
@@ -79,6 +87,20 @@ public abstract class AbstractRenderer implements IVitraRenderer {
     }
 
     /**
+     * Get the window handle (GLFW window pointer)
+     */
+    public long getWindowHandle() {
+        return windowHandle;
+    }
+
+    /**
+     * Set the window handle (called by WindowMixin before initRenderer)
+     */
+    public void setWindowHandle(long windowHandle) {
+        this.windowHandle = windowHandle;
+    }
+
+    /**
      * Common helper method for checking debug mode
      */
     protected boolean isDebugMode() {
@@ -90,5 +112,12 @@ public abstract class AbstractRenderer implements IVitraRenderer {
      */
     protected boolean isVerboseMode() {
         return config != null && config.isVerboseLogging();
+    }
+
+    /**
+     * Common helper method for checking WARP mode
+     */
+    protected boolean isUseWarp() {
+        return config != null && config.isUseWarp();
     }
 }

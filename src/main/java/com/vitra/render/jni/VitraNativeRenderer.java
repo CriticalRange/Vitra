@@ -55,9 +55,10 @@ public class VitraNativeRenderer {
      * @param width - Window width
      * @param height - Window height
      * @param enableDebug - Enable debug layer and advanced debugging
+     * @param useWarp - Use WARP (Windows Advanced Rasterization Platform) CPU renderer
      * @return true if successful
      */
-    public static native boolean initializeDirectX(long windowHandle, int width, int height, boolean enableDebug);
+    public static native boolean initializeDirectX(long windowHandle, int width, int height, boolean enableDebug, boolean useWarp);
 
     /**
      * Initialize debugging system (called before initializeDirectX)
@@ -74,17 +75,17 @@ public class VitraNativeRenderer {
     /**
      * Safe wrapper around initializeDirectX with exception handling
      */
-    public static boolean initializeDirectXSafe(long windowHandle, int width, int height, boolean enableDebug) {
+    public static boolean initializeDirectXSafe(long windowHandle, int width, int height, boolean enableDebug, boolean useWarp) {
         try {
             // Initialize debug system first if needed
             if (enableDebug && !VitraDebugUtils.isDebugInitialized()) {
                 initializeDebug(true, false);
             }
 
-            LOGGER.info("Initializing DirectX 11 renderer: window=0x{}, size={}x{}, debug={}",
-                Long.toHexString(windowHandle), width, height, enableDebug);
+            LOGGER.info("Initializing DirectX 11 renderer: window=0x{}, size={}x{}, debug={}, warp={}",
+                Long.toHexString(windowHandle), width, height, enableDebug, useWarp);
 
-            boolean success = initializeDirectX(windowHandle, width, height, enableDebug);
+            boolean success = initializeDirectX(windowHandle, width, height, enableDebug, useWarp);
 
             if (success) {
                 LOGGER.info("✓ DirectX 11 renderer initialized successfully");
@@ -163,9 +164,15 @@ public class VitraNativeRenderer {
     public static native void endFrame();
 
     /**
-     * Clear the render target
+     * Clear the render target (DEPRECATED - use clear(int mask) instead)
+     * This old method is kept for compatibility but should not be used
      */
-    public static native void clear(float r, float g, float b, float a);
+    @Deprecated
+    public static void clearOld(float r, float g, float b, float a) {
+        // Deprecated - redirect to new implementation
+        setClearColor(r, g, b, a);
+        clear(0x4100); // GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT
+    }
 
     /**
      * Set clear color for subsequent clear operations (FIX: Missing - causes pink background)
@@ -212,6 +219,17 @@ public class VitraNativeRenderer {
     public static native long createShaderPipeline(long vertexShader, long pixelShader);
 
     /**
+     * Create shader pipeline from HLSL source (VulkanMod pattern).
+     * Compiles HLSL shaders and creates pipeline in one step.
+     *
+     * @param vsSource Vertex shader HLSL source code
+     * @param psSource Pixel shader HLSL source code
+     * @param debugName Name for debugging
+     * @return Pipeline handle, or 0 on failure
+     */
+    public static native long createShaderPipelineFromSource(String vsSource, String psSource, String debugName);
+
+    /**
      * Destroy a resource (buffer, shader, pipeline)
      */
     public static native void destroyResource(long handle);
@@ -237,6 +255,20 @@ public class VitraNativeRenderer {
      * @param instanceCount - Number of instances (1 for non-instanced)
      */
     public static native void draw(long vertexBuffer, long indexBuffer, int baseVertex, int firstIndex, int indexCount, int instanceCount);
+
+    /**
+     * Draw with explicit vertex format specification.
+     * This allows the native code to create the correct input layout based on actual vertex data.
+     *
+     * @param vertexBuffer - Vertex buffer handle
+     * @param indexBuffer - Index buffer handle (0 for non-indexed draw)
+     * @param baseVertex - Base vertex offset
+     * @param firstIndex - First index offset
+     * @param vertexOrIndexCount - Vertex count (non-indexed) or index count (indexed)
+     * @param instanceCount - Number of instances (1 for non-instanced)
+     * @param vertexFormatDesc - Encoded vertex format: [elementCount, usage1, type1, count1, offset1, ...]
+     */
+    public static native void drawWithVertexFormat(long vertexBuffer, long indexBuffer, int baseVertex, int firstIndex, int vertexOrIndexCount, int instanceCount, int[] vertexFormatDesc);
 
     /**
      * Check if the native renderer is initialized
@@ -291,11 +323,13 @@ public class VitraNativeRenderer {
     public static native boolean updateTextureMipLevel(long textureHandle, byte[] data, int width, int height, int mipLevel);
 
     /**
-     * Bind texture to a slot
-     * @param texture - Texture handle
-     * @param slot - Texture slot (0-15)
+     * Bind a DirectX 11 texture to a shader resource slot
+     * CRITICAL: This fixes the yellow screen issue by properly binding textures to shaders
+     *
+     * @param slot - Texture slot (0-15, corresponding to t0-t15 in HLSL)
+     * @param textureHandle - DirectX 11 texture handle (0 to unbind)
      */
-    public static native void bindTexture(long texture, int slot);
+    public static native void bindTexture(int slot, long textureHandle);
 
     /**
      * Set shader constant buffer
@@ -482,12 +516,8 @@ public class VitraNativeRenderer {
 
     // ==================== SHADER CREATION METHODS ====================
 
-    /**
-     * Create a shader (vertex or pixel)
-     * @param type - Shader type (GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, etc.)
-     * @return Shader handle/ID
-     */
-    public static native int createGLProgramShader(int type);
+    // REMOVED: Stub version createGLProgramShader(int type)
+    // Use the bytecode version: createGLProgramShader(byte[], int, int) instead
 
     /**
      * Set shader source code
@@ -538,6 +568,92 @@ public class VitraNativeRenderer {
      * @param program - Program handle/ID
      */
     public static native void deleteProgram(int program);
+
+    // ==================== HLSL SHADER COMPILATION METHODS (DirectX 11) ====================
+
+    /**
+     * Compile HLSL shader source to bytecode using D3DCompile.
+     *
+     * @param source - HLSL shader source code as UTF-8 bytes
+     * @param sourceLength - Length of source code
+     * @param target - Shader target profile ("vs_5_0", "ps_5_0", etc.)
+     * @param debugName - Debug name for the shader (for error messages)
+     * @return Shader handle, or 0 on failure
+     */
+    public static native long compileShader(byte[] source, int sourceLength, String target, String debugName);
+
+    /**
+     * Compile HLSL shader from file.
+     *
+     * @param filePath - Path to HLSL shader file
+     * @param target - Shader target profile ("vs_5_0", "ps_5_0", etc.)
+     * @param debugName - Debug name for the shader
+     * @return Shader handle, or 0 on failure
+     */
+    public static native long compileShaderFromFile(String filePath, String target, String debugName);
+
+    /**
+     * Create shader from precompiled bytecode.
+     *
+     * @param bytecode - Compiled shader bytecode
+     * @param bytecodeLength - Length of bytecode
+     * @param shaderType - Shader type ("vertex" or "pixel")
+     * @return Shader handle, or 0 on failure
+     */
+    public static native long createShaderFromBytecode(byte[] bytecode, int bytecodeLength, String shaderType);
+
+    /**
+     * Bind a shader pipeline for rendering.
+     *
+     * @param pipelineHandle - Pipeline handle
+     */
+    public static native void bindShaderPipeline(long pipelineHandle);
+
+    /**
+     * Destroy a shader pipeline.
+     *
+     * @param pipelineHandle - Pipeline handle
+     */
+    public static native void destroyShaderPipeline(long pipelineHandle);
+
+    /**
+     * Create a constant buffer for uniforms.
+     *
+     * @param size - Buffer size in bytes (must be 16-byte aligned)
+     * @return Constant buffer handle, or 0 on failure
+     */
+    public static native long createConstantBuffer(int size);
+
+    /**
+     * Update constant buffer data.
+     *
+     * @param bufferHandle - Constant buffer handle
+     * @param data - Buffer data (16-byte aligned)
+     */
+    public static native void updateConstantBuffer(long bufferHandle, byte[] data);
+
+    /**
+     * Bind constant buffer to vertex shader stage.
+     *
+     * @param slot - Buffer slot (b0-b3)
+     * @param bufferHandle - Constant buffer handle
+     */
+    public static native void bindConstantBufferVS(int slot, long bufferHandle);
+
+    /**
+     * Bind constant buffer to pixel shader stage.
+     *
+     * @param slot - Buffer slot (b0-b3)
+     * @param bufferHandle - Constant buffer handle
+     */
+    public static native void bindConstantBufferPS(int slot, long bufferHandle);
+
+    /**
+     * Get the last shader compilation error message.
+     *
+     * @return Error message string, or null if no error
+     */
+    public static native String getLastShaderError();
 
     // ==================== VERTEX ATTRIBUTE METHODS ====================
 
@@ -927,55 +1043,8 @@ public class VitraNativeRenderer {
 
     // ==================== SAFE WRAPPER METHODS ====================
 
-    /**
-     * Safe beginFrame with error handling and debug integration
-     */
-    public static void beginFrameSafe() {
-        if (!safeModeEnabled) {
-            beginFrame();
-            return;
-        }
-
-        try {
-            beginFrame();
-
-            // Process debug messages
-            if (debugEnabled) {
-                VitraDebugUtils.processDebugMessages();
-            }
-
-        } catch (Exception e) {
-            LOGGER.error("Error in beginFrame", e);
-            if (debugEnabled) {
-                VitraDebugUtils.queueDebugMessage("FRAME_ERROR: beginFrame failed - " + e.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Safe endFrame with error handling and debug integration
-     */
-    public static void endFrameSafe() {
-        if (!safeModeEnabled) {
-            endFrame();
-            return;
-        }
-
-        try {
-            endFrame();
-
-            // Process debug messages after frame completion
-            if (debugEnabled) {
-                VitraDebugUtils.processDebugMessages();
-            }
-
-        } catch (Exception e) {
-            LOGGER.error("Error in endFrame", e);
-            if (debugEnabled) {
-                VitraDebugUtils.queueDebugMessage("FRAME_ERROR: endFrame failed - " + e.getMessage());
-            }
-        }
-    }
+    // REMOVED: beginFrameSafe() and endFrameSafe() - use beginFrame()/endFrame() directly instead
+    // Safe wrappers were redundant since the native methods are already simple
 
     /**
      * Safe draw operation with validation
@@ -1036,8 +1105,21 @@ public class VitraNativeRenderer {
         stats.append("=== DirectX 11 Debug Stats ===\n");
         stats.append("Debug Enabled: ").append(debugEnabled).append("\n");
         stats.append("Safe Mode: ").append(safeModeEnabled).append("\n");
+        stats.append("Renderer Initialized: ").append(isInitialized()).append("\n\n");
+
+        // Get native debug layer statistics
+        try {
+            String nativeStats = nativeGetDebugStats();
+            if (nativeStats != null && !nativeStats.isEmpty()) {
+                stats.append(nativeStats).append("\n");
+            }
+        } catch (UnsatisfiedLinkError e) {
+            stats.append("Native debug stats unavailable\n");
+        }
+
+        // Get Java-side debug utils stats
         stats.append(VitraDebugUtils.getDebugStats());
-        stats.append("Renderer Initialized: ").append(isInitialized()).append("\n");
+
         return stats.toString();
     }
 
@@ -1061,6 +1143,19 @@ public class VitraNativeRenderer {
      * Native method to get debug messages from DirectX debug layer
      */
     public static native String nativeGetDebugMessages();
+
+    /**
+     * Native method to get comprehensive debug statistics from DirectX debug layer
+     * Returns formatted string with error counts, warning counts, etc.
+     */
+    public static native String nativeGetDebugStats();
+
+    /**
+     * Native method to process debug messages from ID3D11InfoQueue
+     * This directly writes messages to native log file (dx11_native_*.log)
+     * Should be called every frame to capture DirectX debug layer output
+     */
+    public static native void nativeProcessDebugMessages();
 
     // ==================== NATIVE LOGGING CALLBACKS ====================
 
@@ -1124,6 +1219,22 @@ public class VitraNativeRenderer {
      * Native method to get device information
      */
     public static native String nativeGetDeviceInfo();
+
+    /**
+     * Get DirectX 11 device information
+     * Returns information about the GPU adapter, driver version, and feature level
+     */
+    public static String getDeviceInfo() {
+        try {
+            return nativeGetDeviceInfo();
+        } catch (UnsatisfiedLinkError e) {
+            LOGGER.error("Native library not available for getDeviceInfo: {}", e.getMessage());
+            return "DirectX 11 device info unavailable (native library error)";
+        } catch (Exception e) {
+            LOGGER.error("Error getting device info", e);
+            return "DirectX 11 device info unavailable (error: " + e.getMessage() + ")";
+        }
+    }
 
     /**
      * Get swap chain information for debugging
@@ -1893,10 +2004,11 @@ public class VitraNativeRenderer {
     public static native boolean initShaderUniforms(int pipelineId, String[] uniformNames, int[] uniformTypes);
 
     /**
-     * Bind shader pipeline for use
+     * Bind shader pipeline for use (DEPRECATED - use long version instead)
      * @param pipelineId - Pipeline ID
      */
-    public static native void bindShaderPipeline(int pipelineId);
+    @Deprecated
+    public static native void bindShaderPipelineOld(int pipelineId);
 
     /**
      * Upload shader uniform data
@@ -2873,5 +2985,235 @@ public class VitraNativeRenderer {
      * Wait for GPU commands to complete
      */
     public static native void waitForGpuCommands();
+
+    // ==================== GLSTATEMANAGER COMPATIBILITY METHODS ====================
+
+    /**
+     * Bind texture (int ID version for GlStateManager compatibility)
+     * @param textureId - OpenGL-style texture ID
+     */
+    public static native void bindTexture(int textureId);
+
+    /**
+     * Upload texture data (texImage2D)
+     */
+    public static native void texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, java.nio.ByteBuffer pixels);
+
+    /**
+     * Update texture subregion (texSubImage2D)
+     */
+    public static native void texSubImage2D(int target, int level, int offsetX, int offsetY, int width, int height, int format, int type, long pixels);
+
+    /**
+     * Update texture subregion with explicit row pitch (for GL_UNPACK_ROW_LENGTH support)
+     * CRITICAL for font textures
+     */
+    public static native void texSubImage2DWithPitch(int target, int level, int offsetX, int offsetY, int width, int height, int format, int type, long pixels, int rowPitch);
+
+    /**
+     * Set active texture unit
+     */
+    public static native void activeTexture(int texture);
+
+    /**
+     * Set texture parameter (integer)
+     */
+    public static native void texParameteri(int target, int pname, int param);
+
+    /**
+     * Get texture level parameter
+     */
+    public static native int getTexLevelParameter(int target, int level, int pname);
+
+    /**
+     * Pixel store parameter
+     */
+    public static native void pixelStore(int pname, int param);
+
+    /**
+     * Enable blending
+     */
+    public static native void enableBlend();
+
+    /**
+     * Disable blending
+     */
+    public static native void disableBlend();
+
+    /**
+     * Set blend function
+     */
+    public static native void blendFunc(int srcFactor, int dstFactor);
+
+    /**
+     * Set blend function separate
+     */
+    public static native void blendFuncSeparate(int srcRGB, int dstRGB, int srcAlpha, int dstAlpha);
+
+    /**
+     * Set blend equation
+     */
+    public static native void blendEquation(int mode);
+
+    /**
+     * Enable depth test
+     */
+    public static native void enableDepthTest();
+
+    /**
+     * Disable depth test
+     */
+    public static native void disableDepthTest();
+
+    /**
+     * Set depth function
+     */
+    public static native void depthFunc(int func);
+
+    /**
+     * Set depth mask
+     */
+    public static native void depthMask(boolean flag);
+
+    /**
+     * Enable backface culling
+     */
+    public static native void enableCull();
+
+    /**
+     * Disable backface culling
+     */
+    public static native void disableCull();
+
+    /**
+     * Reset scissor to full viewport
+     */
+    public static native void resetScissor();
+
+    /**
+     * Set scissor rectangle
+     */
+    public static native void setScissor(int x, int y, int width, int height);
+
+    /**
+     * Clear operation (glClear)
+     */
+    public static native void clear(int mask);
+
+    /**
+     * Set color write mask
+     */
+    public static native void colorMask(boolean red, boolean green, boolean blue, boolean alpha);
+
+    /**
+     * Enable polygon offset
+     */
+    public static native void enablePolygonOffset();
+
+    /**
+     * Disable polygon offset
+     */
+    public static native void disablePolygonOffset();
+
+    /**
+     * Set polygon offset
+     */
+    public static native void polygonOffset(float factor, float units);
+
+    /**
+     * Enable color logic op
+     */
+    public static native void enableColorLogicOp();
+
+    /**
+     * Disable color logic op
+     */
+    public static native void disableColorLogicOp();
+
+    /**
+     * Set logic operation
+     */
+    public static native void logicOp(int opcode);
+
+    /**
+     * Bind buffer (int ID version for GlStateManager compatibility)
+     */
+    public static native void bindBuffer(int target, int buffer);
+
+    /**
+     * Upload buffer data (ByteBuffer version)
+     */
+    public static native void bufferData(int target, java.nio.ByteBuffer data, int usage);
+
+    /**
+     * Upload buffer data with stride - ByteBuffer version with explicit stride for DirectX 11
+     * @param target - GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER
+     * @param data - Buffer data
+     * @param usage - Usage hint (GL_STATIC_DRAW, GL_DYNAMIC_DRAW, etc.)
+     * @param stride - Vertex stride in bytes (size of one vertex)
+     */
+    public static native void bufferData(int target, java.nio.ByteBuffer data, int usage, int stride);
+
+    /**
+     * Allocate buffer data (size version)
+     */
+    public static native void bufferData(int target, long size, int usage);
+
+    /**
+     * Delete buffer
+     */
+    public static native void deleteBuffer(int buffer);
+
+    /**
+     * Map buffer (int ID version for GlStateManager - returns mapped memory)
+     */
+    public static native java.nio.ByteBuffer mapBuffer(int target, int access);
+
+    /**
+     * Unmap buffer (int target version)
+     */
+    public static native void unmapBuffer(int target);
+
+    /**
+     * Framebuffer texture attachment (int ID version)
+     */
+    public static native void framebufferTexture2D(int target, int attachment, int textarget, int texture, int level);
+
+    /**
+     * Framebuffer renderbuffer attachment (int ID version)
+     */
+    public static native void framebufferRenderbuffer(int target, int attachment, int renderbuffertarget, int renderbuffer);
+
+    /**
+     * Renderbuffer storage (int ID version)
+     */
+    public static native void renderbufferStorage(int target, int internalformat, int width, int height);
+
+    /**
+     * Bind framebuffer (int ID version)
+     */
+    public static native void bindFramebuffer(int target, int framebuffer);
+
+    /**
+     * Bind renderbuffer (int ID version)
+     */
+    public static native void bindRenderbuffer(int target, int renderbuffer);
+
+    // ==================== MAINTARGET COMPATIBILITY METHODS ====================
+
+    /**
+     * Bind main render target (back buffer)
+     */
+    public static native void bindMainRenderTarget();
+
+    /**
+     * Bind main render target texture for reading
+     */
+    public static native void bindMainRenderTargetTexture();
+
+    /**
+     * Get main color texture ID
+     */
+    public static native int getMainColorTextureId();
 
   }

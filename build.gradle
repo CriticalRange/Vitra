@@ -125,19 +125,44 @@ task compileShaders {
 
 		println "Using DirectX Shader Compiler: ${fxcExe}"
 
-		// Shader list to compile - ALL 35 Minecraft 1.21.8 shaders
+		// Shader list to compile - extended set covering Minecraft 1.21+ pipelines
 		def shaderNames = [
-			'blit_screen', 'entity', 'glint', 'gui', 'panorama', 'particle',
-			'position', 'position_color', 'position_color_lightmap', 'position_color_tex_lightmap',
-			'position_tex', 'position_tex_color',
-			'rendertype_beacon_beam', 'rendertype_clouds', 'rendertype_crumbling', 'rendertype_end_portal',
-			'rendertype_entity_alpha', 'rendertype_entity_decal', 'rendertype_entity_shadow',
-			'rendertype_item_entity_translucent_cull', 'rendertype_leash', 'rendertype_lightning',
-			'rendertype_lines', 'rendertype_outline',
-			'rendertype_text', 'rendertype_text_background', 'rendertype_text_background_see_through',
-			'rendertype_text_intensity', 'rendertype_text_intensity_see_through', 'rendertype_text_see_through',
-			'rendertype_translucent_moving_block', 'rendertype_water_mask', 'rendertype_world_border',
-			'sky', 'stars', 'terrain'
+			'blit_screen',
+			'entity',
+			'glint',
+			'gui',
+			'panorama',
+			'particle',
+			'position',
+			'position_color',
+			'position_color_lightmap',
+			'position_color_tex_lightmap',
+			'position_tex',
+			'position_tex_color',
+			'rendertype_beacon_beam',
+			'rendertype_clouds',
+			'rendertype_crumbling',
+			'rendertype_end_portal',
+			'rendertype_entity_alpha',
+			'rendertype_entity_decal',
+			'rendertype_entity_shadow',
+			'rendertype_item_entity_translucent_cull',
+			'rendertype_leash',
+			'rendertype_lightning',
+			'rendertype_lines',
+			'rendertype_outline',
+			'rendertype_text',
+			'rendertype_text_background',
+			'rendertype_text_background_see_through',
+			'rendertype_text_intensity',
+			'rendertype_text_intensity_see_through',
+			'rendertype_text_see_through',
+			'rendertype_translucent_moving_block',
+			'rendertype_water_mask',
+			'rendertype_world_border',
+			'sky',
+			'stars',
+			'terrain'
 		]
 
 		// Generate vertex and pixel shader entries for each shader
@@ -222,7 +247,7 @@ task compileNativeDX11(type: Exec) {
 	commandLine 'cmd', '/c', "call \"${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt && " +
 		"set /p VS_PATH=<vs_path.txt && " +
 		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
-		"cl /LD /EHsc /I\"src/main/include\" " +
+		"cl /LD /EHsc /D_DEBUG /MDd /I\"src/main/include\" " +
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
 		"\"src/main/cpp/vitra_d3d11.cpp\" " +
 		"/Fe:\"$buildDir/native/vitra-native.dll\" " +

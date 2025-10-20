@@ -7,8 +7,34 @@
   "mixins": [
   ],
   "client": [
+    "compatibility.gl.GL11M",
+    "compatibility.gl.GL14M",
+    "compatibility.gl.GL15M",
+    "compatibility.gl.GL20M",
+    "compatibility.gl.GL30M",
+    "compatibility.ProgramM",
+    "compatibility.UniformM",
     "debug.GlDebugInfoM",
-    "render.RenderTypeM"
+    "matrix.Matrix4fM",
+    "matrix.PoseAccessor",
+    "render.RenderTypeM",
+    "render.GlStateManagerM",
+    "render.ProgramManagerM",
+    "render.BufferUploaderM",
+    "render.vertex.VertexBufferM",
+    "render.vertex.BufferBuilderM",
+    "render.ShaderInstanceM",
+    "render.GameRendererMixin",
+    "render.frame.RenderSystemMixin",
+    "render.frame.MinecraftMixin",
+    "render.target.MainTargetMixin",
+    "render.target.RenderTargetMixin",
+    "texture.MAbstractTexture",
+    "texture.MTextureUtil",
+    "texture.image.NativeImageAccessor",
+    "texture.image.MNativeImage",
+    "window.WindowAccessor",
+    "window.WindowMixin"
   ],
   "injectors": {
     "defaultRequire": 1

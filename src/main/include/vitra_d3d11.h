@@ -4,8 +4,8 @@
 #include <jni.h>
 #include <cstdint>
 #include <windows.h>
-#include <d3d11.h>
-#include <dxgi.h>
+#include <d3d11_3.h>
+#include <dxgi1_4.h>
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 #include <vector>
@@ -47,6 +47,8 @@ struct D3D11Resources {
     UINT currentVertexOffset;
     DXGI_FORMAT currentIndexFormat;
     D3D11_PRIMITIVE_TOPOLOGY currentTopology;
+    uint64_t boundVertexShader;  // Track current vertex shader for input layout creation
+    uint64_t boundPixelShader;   // Track current pixel shader
 
     // Texture management
     std::vector<ComPtr<ID3D11ShaderResourceView>> shaderResourceViews;
@@ -71,6 +73,18 @@ struct D3D11Resources {
 
     // Debug layer support
     ComPtr<ID3D11InfoQueue> infoQueue;
+
+    // Debug statistics tracking
+    struct {
+        uint64_t totalMessages;
+        uint64_t corruptionCount;
+        uint64_t errorCount;
+        uint64_t warningCount;
+        uint64_t infoCount;
+        uint64_t messagesProcessed;
+        uint64_t framesWithErrors;
+        uint64_t currentFrameErrors;
+    } debugStats;
 
     // Clear color state (FIX: Missing - causes pink background)
     float clearColor[4];
@@ -111,7 +125,7 @@ void setRenderDocResourceName(ID3D11DeviceChild* resource, const char* name);
 
 // JNI export functions
 JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_initializeDirectX
-    (JNIEnv* env, jclass clazz, jlong windowHandle, jint width, jint height, jboolean enableDebug);
+    (JNIEnv* env, jclass clazz, jlong windowHandle, jint width, jint height, jboolean enableDebug, jboolean useWarp);
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_shutdown
     (JNIEnv* env, jclass clazz);
@@ -119,14 +133,16 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_shutdown
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_resize
     (JNIEnv* env, jclass clazz, jint width, jint height);
 
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_recreateSwapChain
+    (JNIEnv* env, jclass clazz);
+
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_beginFrame
     (JNIEnv* env, jclass clazz);
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_endFrame
     (JNIEnv* env, jclass clazz);
 
-JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_clear
-    (JNIEnv* env, jclass clazz, jfloat r, jfloat g, jfloat b, jfloat a);
+// REMOVED: Old clear(float, float, float, float) - replaced by clear__I(int mask)
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setClearColor
     (JNIEnv* env, jclass clazz, jfloat r, jfloat g, jfloat b, jfloat a);
@@ -155,6 +171,9 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getDefault
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_draw
     (JNIEnv* env, jclass clazz, jlong vertexBuffer, jlong indexBuffer, jint baseVertex, jint firstIndex, jint indexCount, jint instanceCount);
 
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_drawWithVertexFormat
+    (JNIEnv* env, jclass clazz, jlong vbHandle, jlong ibHandle, jint baseVertex, jint firstIndex, jint vertexOrIndexCount, jint instanceCount, jintArray vertexFormatDesc);
+
 JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_isInitialized
     (JNIEnv* env, jclass clazz);
 
@@ -168,11 +187,14 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_drawMeshDat
 JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createTexture
     (JNIEnv* env, jclass clazz, jbyteArray data, jint width, jint height, jint format);
 
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createTextureFromId
+    (JNIEnv* env, jclass clazz, jint textureId, jint width, jint height, jint format);
+
 JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_updateTexture
     (JNIEnv* env, jclass clazz, jlong textureHandle, jbyteArray data, jint width, jint height, jint mipLevel);
 
-JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindTexture
-    (JNIEnv* env, jclass clazz, jlong texture, jint slot);
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindTexture__IJ
+    (JNIEnv* env, jclass clazz, jint slot, jlong textureHandle);
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setConstantBuffer
     (JNIEnv* env, jclass clazz, jbyteArray data, jint size, jint slot);
@@ -196,6 +218,12 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeBreak
     (JNIEnv* env, jclass clazz, jboolean enabled);
 
 JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeGetDeviceInfo
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeGetDebugStats
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeProcessDebugMessages
     (JNIEnv* env, jclass clazz);
 
 JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_nativeValidateShader
@@ -226,9 +254,10 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setColorMas
 
 // ==================== DIRECT OPENGL → DIRECTX 11 TRANSLATION (VULKANMOD APPROACH) ====================
 
-// Direct OpenGL shader to DirectX 11 HLSL translation
-JNIEXPORT jint JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createGLProgramShader
-    (JNIEnv* env, jclass clazz, jint type);
+// Create shader from precompiled bytecode (bytecode array, size, type)
+// This is the ONLY version of createGLProgramShader - stub version removed
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createGLProgramShader___3BII
+    (JNIEnv* env, jclass clazz, jbyteArray bytecode, jint size, jint type);
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_shaderSource
     (JNIEnv* env, jclass clazz, jint shader, jstring source);
@@ -313,6 +342,24 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setOrthogra
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setProjectionMatrix
     (JNIEnv* env, jclass clazz, jfloatArray matrixData);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setModelViewMatrix
+    (JNIEnv* env, jclass clazz, jfloatArray matrixData);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setTextureMatrix
+    (JNIEnv* env, jclass clazz, jfloatArray matrixData);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setShaderColor
+    (JNIEnv* env, jclass clazz, jfloat r, jfloat g, jfloat b, jfloat a);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setShaderFogColor
+    (JNIEnv* env, jclass clazz, jfloat r, jfloat g, jfloat b, jfloat a);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setShaderLightDirection
+    (JNIEnv* env, jclass clazz, jint index, jfloat x, jfloat y, jfloat z);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindRenderTargetForWriting
+    (JNIEnv* env, jclass clazz, jlong renderTargetHandle, jboolean updateScissor);
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setTransformMatrices
     (JNIEnv* env, jclass clazz, jfloatArray mvpData, jfloatArray modelViewData, jfloatArray projectionData);
@@ -485,18 +532,12 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_beginTextBa
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_endTextBatch
     (JNIEnv* env, jclass clazz);
 
-JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_beginFrameSafe
-    (JNIEnv* env, jclass clazz);
-
-JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_endFrameSafe
-    (JNIEnv* env, jclass clazz);
+// REMOVED: beginFrameSafe and endFrameSafe declarations
 
 // Performance Profiling and Debugging
 JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getDebugStats
     (JNIEnv* env, jclass clazz);
 
-JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_processDebugMessages
-    (JNIEnv* env, jclass clazz);
 
 JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_isDebugEnabled
     (JNIEnv* env, jclass clazz);
@@ -645,6 +686,210 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setShaderPi
 // Resource Resize
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_resize
     (JNIEnv* env, jclass clazz, jint width, jint height);
+
+// ==================== GLSTATEMANAGER COMPATIBILITY METHODS ====================
+
+// Texture operations (int ID versions)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindTexture__I
+    (JNIEnv* env, jclass clazz, jint textureId);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_deleteTexture__I
+    (JNIEnv* env, jclass clazz, jint textureId);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_releaseTexture
+    (JNIEnv* env, jclass clazz, jlong textureHandle);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_texImage2D
+    (JNIEnv* env, jclass clazz, jint target, jint level, jint internalFormat,
+     jint width, jint height, jint border, jint format, jint type, jobject pixels);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_texSubImage2D
+    (JNIEnv* env, jclass clazz, jint target, jint level, jint offsetX, jint offsetY,
+     jint width, jint height, jint format, jint type, jlong pixels);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_texSubImage2DWithPitch
+    (JNIEnv* env, jclass clazz, jint target, jint level, jint offsetX, jint offsetY,
+     jint width, jint height, jint format, jint type, jlong pixels, jint rowPitch);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_activeTexture
+    (JNIEnv* env, jclass clazz, jint texture);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_texParameteri
+    (JNIEnv* env, jclass clazz, jint target, jint pname, jint param);
+
+JNIEXPORT jint JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getTexLevelParameter
+    (JNIEnv* env, jclass clazz, jint target, jint level, jint pname);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_pixelStore
+    (JNIEnv* env, jclass clazz, jint pname, jint param);
+
+// Blend state
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_enableBlend
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_disableBlend
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_blendFunc
+    (JNIEnv* env, jclass clazz, jint srcFactor, jint dstFactor);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_blendFuncSeparate
+    (JNIEnv* env, jclass clazz, jint srcRGB, jint dstRGB, jint srcAlpha, jint dstAlpha);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_blendEquation
+    (JNIEnv* env, jclass clazz, jint mode);
+
+// Depth state
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_enableDepthTest
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_disableDepthTest
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_depthFunc
+    (JNIEnv* env, jclass clazz, jint func);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_depthMask
+    (JNIEnv* env, jclass clazz, jboolean flag);
+
+// Cull state
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_enableCull
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_disableCull
+    (JNIEnv* env, jclass clazz);
+
+// Scissor/viewport
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_resetScissor
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setScissor
+    (JNIEnv* env, jclass clazz, jint x, jint y, jint width, jint height);
+
+// Clear operations
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_clear
+    (JNIEnv* env, jclass clazz, jint mask);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_colorMask
+    (JNIEnv* env, jclass clazz, jboolean red, jboolean green, jboolean blue, jboolean alpha);
+
+// Polygon operations
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_setPolygonMode
+    (JNIEnv* env, jclass clazz, jint face, jint mode);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_enablePolygonOffset
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_disablePolygonOffset
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_polygonOffset
+    (JNIEnv* env, jclass clazz, jfloat factor, jfloat units);
+
+// Color logic operations
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_enableColorLogicOp
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_disableColorLogicOp
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_logicOp
+    (JNIEnv* env, jclass clazz, jint opcode);
+
+// Buffer operations (int ID versions)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindBuffer__II
+    (JNIEnv* env, jclass clazz, jint target, jint buffer);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bufferData__ILjava_nio_ByteBuffer_2I
+    (JNIEnv* env, jclass clazz, jint target, jobject data, jint usage);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bufferData__ILjava_nio_ByteBuffer_2II
+    (JNIEnv* env, jclass clazz, jint target, jobject data, jint usage, jint stride);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bufferData__IJI
+    (JNIEnv* env, jclass clazz, jint target, jlong size, jint usage);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_deleteBuffer__I
+    (JNIEnv* env, jclass clazz, jint buffer);
+
+JNIEXPORT jobject JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_mapBuffer__II
+    (JNIEnv* env, jclass clazz, jint target, jint access);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_unmapBuffer__I
+    (JNIEnv* env, jclass clazz, jint target);
+
+// Framebuffer operations (int ID versions)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_framebufferTexture2D__IIIII
+    (JNIEnv* env, jclass clazz, jint target, jint attachment, jint textarget, jint texture, jint level);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_framebufferRenderbuffer__IIII
+    (JNIEnv* env, jclass clazz, jint target, jint attachment, jint renderbuffertarget, jint renderbuffer);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_renderbufferStorage__IIII
+    (JNIEnv* env, jclass clazz, jint target, jint internalformat, jint width, jint height);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindFramebuffer__II
+    (JNIEnv* env, jclass clazz, jint target, jint framebuffer);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindRenderbuffer__II
+    (JNIEnv* env, jclass clazz, jint target, jint renderbuffer);
+
+// ==================== MAINTARGET COMPATIBILITY METHODS ====================
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindMainRenderTarget
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindMainRenderTargetTexture
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT jint JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getMainColorTextureId
+    (JNIEnv* env, jclass clazz);
+
+// ==================== HLSL SHADER COMPILATION (PHASE 2 - SHADER SYSTEM) ====================
+
+// Runtime HLSL shader compilation
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_compileShader__Ljava_nio_ByteBuffer_2ILjava_lang_String_2Ljava_lang_String_2
+    (JNIEnv* env, jclass clazz, jobject sourceBuffer, jint sourceLength, jstring target, jstring debugName);
+
+// HLSL shader compilation from file
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_compileShaderFromFile
+    (JNIEnv* env, jclass clazz, jstring filePath, jstring target, jstring debugName);
+
+// Create shader from precompiled bytecode
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createShaderFromBytecode
+    (JNIEnv* env, jclass clazz, jbyteArray bytecode, jint bytecodeLength, jstring shaderType);
+
+// Pipeline creation from vertex + pixel shaders (overload for new shader system)
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createShaderPipeline__JJ
+    (JNIEnv* env, jclass clazz, jlong vertexShaderHandle, jlong pixelShaderHandle);
+
+// Bind shader pipeline
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindShaderPipeline
+    (JNIEnv* env, jclass clazz, jlong pipelineHandle);
+
+// Destroy shader pipeline
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_destroyShaderPipeline
+    (JNIEnv* env, jclass clazz, jlong pipelineHandle);
+
+// Constant buffer creation
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_createConstantBuffer
+    (JNIEnv* env, jclass clazz, jint size);
+
+// Update constant buffer data
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_updateConstantBuffer
+    (JNIEnv* env, jclass clazz, jlong bufferHandle, jbyteArray data);
+
+// Bind constant buffer to vertex shader stage
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindConstantBufferVS
+    (JNIEnv* env, jclass clazz, jint slot, jlong bufferHandle);
+
+// Bind constant buffer to pixel shader stage
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_bindConstantBufferPS
+    (JNIEnv* env, jclass clazz, jint slot, jlong bufferHandle);
+
+// Retrieve last shader compilation error
+JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraNativeRenderer_getLastShaderError
+    (JNIEnv* env, jclass clazz);
 
 #ifdef __cplusplus
 }

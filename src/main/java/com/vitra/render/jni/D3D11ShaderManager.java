@@ -44,6 +44,12 @@ public class D3D11ShaderManager extends AbstractShaderManager {
             InputStream is = getClass().getResourceAsStream(resourcePath);
 
             if (is == null) {
+                // FALLBACK: Try to use position_tex_color as default shader (VulkanMod pattern)
+                if (!name.equals("position_tex_color")) {
+                    logger.warn("Shader not found: {}, falling back to position_tex_color shader", resourcePath);
+                    return loadShader("position_tex_color", type);
+                }
+
                 logger.error("Compiled shader not found: {}", resourcePath);
                 return 0;
             }
