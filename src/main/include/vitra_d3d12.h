@@ -16,18 +16,88 @@
 #include <memory>
 #include <array>
 #include <mutex>
+#include <string>
+#include <chrono>
+#include <fstream>
+#include <any>
+#include <optional>
 
-// DirectX 12 Ultimate Headers
-#include <d3d12raytracing.h>
-#include <d3d12meshshader.h>
-#include <d3d12video.h>
+// DirectX 12 Ultimate Headers (optional - require Windows SDK 10.0.19041.0 or later)
+// These headers provide advanced features like raytracing, mesh shaders, DirectStorage
+// If not available, the corresponding features will be disabled at compile time
 
-// DirectStorage Headers
-#include <dstorage.h>
-#include <dstorageerr.h>
+// Raytracing support (DXR 1.1)
+#ifdef __has_include
+#  if __has_include(<d3d12raytracing.h>)
+#    include <d3d12raytracing.h>
+#    define VITRA_D3D12_RAYTRACING_AVAILABLE 1
+#  else
+#    define VITRA_D3D12_RAYTRACING_AVAILABLE 0
+#  endif
+#else
+#  define VITRA_D3D12_RAYTRACING_AVAILABLE 0
+#endif
 
-// D3D12 Memory Allocator (D3D12MA) Headers
-#include <D3D12MemAlloc.h>
+// Mesh shader support
+#ifdef __has_include
+#  if __has_include(<d3d12meshshader.h>)
+#    include <d3d12meshshader.h>
+#    define VITRA_D3D12_MESH_SHADER_AVAILABLE 1
+#  else
+#    define VITRA_D3D12_MESH_SHADER_AVAILABLE 0
+#  endif
+#else
+#  define VITRA_D3D12_MESH_SHADER_AVAILABLE 0
+#endif
+
+// DirectStorage support (Windows 11+ feature)
+#ifdef __has_include
+#  if __has_include(<dstorage.h>)
+#    include <dstorage.h>
+#    include <dstorageerr.h>
+#    define VITRA_DIRECT_STORAGE_AVAILABLE 1
+#  else
+#    define VITRA_DIRECT_STORAGE_AVAILABLE 0
+#  endif
+#else
+#  define VITRA_DIRECT_STORAGE_AVAILABLE 0
+#endif
+
+// D3D12 Memory Allocator (D3D12MA) - third-party library from GPUOpen
+// GitHub: https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator
+// Provides efficient memory allocation and management for Direct3D 12
+#if defined(VITRA_D3D12MA_AVAILABLE) && VITRA_D3D12MA_AVAILABLE
+#  include "D3D12MemAlloc.h"
+#elif defined(__has_include)
+#  if __has_include("D3D12MemAlloc.h")
+#    include "D3D12MemAlloc.h"
+#    define VITRA_D3D12MA_AVAILABLE 1
+#  elif __has_include(<D3D12MemAlloc.h>)
+#    include <D3D12MemAlloc.h>
+#    define VITRA_D3D12MA_AVAILABLE 1
+#  else
+#    define VITRA_D3D12MA_AVAILABLE 0
+#  endif
+#else
+#  define VITRA_D3D12MA_AVAILABLE 0
+#endif
+
+// Compatibility note: If D3D12MA is not available, we'll use standard DirectX 12 memory management
+// Features like memory budgeting and advanced pool management will be disabled
+
+// Forward declarations
+struct D3D12TimingSample;
+struct D3D12DebugMessage;
+struct D3D12ResourceInfo;
+
+// Debug message severity levels (matching D3D12_MESSAGE_SEVERITY)
+enum D3D12DebugSeverity {
+    D3D12_D3D12_SEVERITY_CORRUPTION = 0,
+    D3D12_D3D12_SEVERITY_ERROR = 1,
+    D3D12_D3D12_SEVERITY_WARNING = 2,
+    D3D12_D3D12_SEVERITY_INFO = 3,
+    D3D12_D3D12_SEVERITY_MESSAGE = 4
+};
 
 // Enhanced resource tracking for leak detection and debugging
 struct D3D12ResourceInfo {
@@ -62,8 +132,8 @@ struct D3D12TextureInfo {
 // Pipeline state caching
 struct D3D12PipelineStateInfo {
     std::string name;
-    ComPtr<ID3D12RootSignature> rootSignature;
-    ComPtr<ID3D12PipelineState> pipelineState;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState;
     D3D12_PRIMITIVE_TOPOLOGY topology;
     std::vector<D3D12_INPUT_ELEMENT_DESC> inputElements;
     bool isComputable;
@@ -151,10 +221,10 @@ struct D3D12DebugManager {
     std::atomic<uint64_t> leakDetectedCount = 0;
 
     D3D12DebugManager() : messageCounts{} {
-        messageCounts[static_cast<size_t>(SEVERITY_INFO)] = 0;
-        messageCounts[static_cast<size_t>(SEVERITY_WARNING)] = 0;
-        messageCounts[static_cast<size_t>(SEVERITY_ERROR)] = 0;
-        messageCounts[static_cast<size_t>(SEVERITY_CORRUPTION)] = 0;
+        messageCounts[static_cast<size_t>(D3D12_MESSAGE_SEVERITY_INFO)] = 0;
+        messageCounts[static_cast<size_t>(D3D12_MESSAGE_SEVERITY_WARNING)] = 0;
+        messageCounts[static_cast<size_t>(D3D12_MESSAGE_SEVERITY_ERROR)] = 0;
+        messageCounts[static_cast<size_t>(D3D12_MESSAGE_SEVERITY_CORRUPTION)] = 0;
     }
 
     void initialize(bool enableDebugLayer, bool enableGpuValidation, bool enableResourceLeakDetection, bool enableObjectNaming);
@@ -279,7 +349,7 @@ struct D3D12Configuration {
 #include <d3d12.h>
 #endif
 
-using Microsoft::WRL::ComPtr;
+// ComPtr is already defined as template alias at top of file
 using namespace DirectX;
 
 #ifdef __cplusplus
@@ -289,84 +359,113 @@ extern "C" {
 // Modern D3D12 resource structure with DirectX 12 Ultimate support
 struct D3D12Resources {
     // Core device and queue
-    ComPtr<ID3D12Device5> device5;                    // D3D12.5 device for Ultimate features
-    ComPtr<ID3D12Device12> device12;                  // D3D12.2 device for latest features
-    ComPtr<ID3D12CommandQueue> commandQueue;
-    ComPtr<ID3D12CommandQueue> computeQueue;          // Separate compute queue
-    ComPtr<ID3D12CommandQueue> copyQueue;             // Dedicated copy queue
-    ComPtr<IDXGISwapChain4> swapChain4;               // DXGI 1.6 swap chain
+    Microsoft::WRL::ComPtr<ID3D12Device5> device5;                    // D3D12.5 device for Ultimate features
+    Microsoft::WRL::ComPtr<ID3D12Device12> device12;                  // D3D12.2 device for latest features
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue;
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue> computeQueue;          // Separate compute queue
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue> copyQueue;             // Dedicated copy queue
+    Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain4;               // DXGI 1.6 swap chain
+    Microsoft::WRL::ComPtr<IDXGIAdapter4> adapter;                    // DXGI adapter for hardware device
+
+    // Compatibility aliases for legacy code
+    Microsoft::WRL::ComPtr<ID3D12Device>& device = (Microsoft::WRL::ComPtr<ID3D12Device>&)device5;  // Alias to device5
+    Microsoft::WRL::ComPtr<IDXGISwapChain3>& swapChain = (Microsoft::WRL::ComPtr<IDXGISwapChain3>&)swapChain4;  // Alias to swapChain4
+    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>& commandList = (Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>&)commandList4;  // Alias to commandList4
+    Microsoft::WRL::ComPtr<ID3D12PipelineState>& pipelineState = currentPipelineState;  // Alias to currentPipelineState
+    Microsoft::WRL::ComPtr<ID3D12Debug>& debugController = (Microsoft::WRL::ComPtr<ID3D12Debug>&)debugController1;  // Alias to debugController1
+    Microsoft::WRL::ComPtr<ID3D12InfoQueue>& infoQueue = (Microsoft::WRL::ComPtr<ID3D12InfoQueue>&)infoQueue1;  // Alias to infoQueue1
 
     // Enhanced descriptor heaps
-    ComPtr<ID3D12DescriptorHeap> rtvHeap;
-    ComPtr<ID3D12DescriptorHeap> dsvHeap;
-    ComPtr<ID3D12DescriptorHeap> cbvSrvUavHeap;
-    ComPtr<ID3D12DescriptorHeap> samplerHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> cbvSrvUavHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> samplerHeap;
 
     // GPU upload heap for modern resource management
-    ComPtr<ID3D12Resource> gpuUploadHeap;
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuUploadHeap;
 
     // Frame resources with triple buffering
     static const UINT FRAME_COUNT = 3;
-    ComPtr<ID3D12Resource> renderTargets[FRAME_COUNT];
-    ComPtr<ID3D12Resource> depthStencilBuffer;
-    ComPtr<ID3D12CommandAllocator> commandAllocators[FRAME_COUNT];
-    ComPtr<ID3D12CommandAllocator> computeAllocators[FRAME_COUNT];
-    ComPtr<ID3D12GraphicsCommandList4> commandList4;   // D3D12.4 command list
-    ComPtr<ID3D12GraphicsCommandList4> computeCommandList;
+    Microsoft::WRL::ComPtr<ID3D12Resource> renderTargets[FRAME_COUNT];
+    Microsoft::WRL::ComPtr<ID3D12Resource> depthStencilBuffer;
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocators[FRAME_COUNT];
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> computeAllocators[FRAME_COUNT];
+    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> commandList4;   // D3D12.4 command list
+    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> computeCommandList;
 
     // Root signature and pipeline state objects
-    ComPtr<ID3D12RootSignature> rootSignature;
-    ComPtr<ID3D12RootSignature> computeRootSignature;
-    std::unordered_map<uint64_t, ComPtr<ID3D12PipelineState>> pipelineStates;
-    ComPtr<ID3D12PipelineState> currentPipelineState;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> computeRootSignature;
+    std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12PipelineState>> pipelineStates;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> currentPipelineState;
 
     // DirectX 12 Ultimate Resources
-    ComPtr<ID3D12Device5> raytracingDevice;           // DXR 1.1 support
-    ComPtr<ID3D12StateObject> raytracingStateObject;
-    ComPtr<ID3D12Resource> raytracingAccelerationStructure;
-    ComPtr<ID3D12Resource> shaderTable;
+    Microsoft::WRL::ComPtr<ID3D12Device5> raytracingDevice;           // DXR 1.1 support
+    Microsoft::WRL::ComPtr<ID3D12StateObject> raytracingStateObject;
+    Microsoft::WRL::ComPtr<ID3D12Resource> raytracingAccelerationStructure;
+    Microsoft::WRL::ComPtr<ID3D12Resource> shaderTable;
 
     // Mesh Shader Resources
-    ComPtr<ID3D12PipelineState> meshShaderPipeline;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> meshShaderPipeline;
 
     // Variable Rate Shading
-    ComPtr<ID3D12Resource> vrsShadingRateImage;
+    Microsoft::WRL::ComPtr<ID3D12Resource> vrsShadingRateImage;
     D3D12_SHADING_RATE Combiners[D3D12_RS_SET_SHADING_RATE_COMBINER_COUNT];
 
     // Sampler Feedback
-    ComPtr<ID3D12Resource> samplerFeedbackResource;
-    ComPtr<ID3D12Resource> samplerFeedbackMinMipResource;
+    Microsoft::WRL::ComPtr<ID3D12Resource> samplerFeedbackResource;
+    Microsoft::WRL::ComPtr<ID3D12Resource> samplerFeedbackMinMipResource;
 
-    // DirectStorage components
-    ComPtr<IDStorageFactoryX> storageFactory;              // DirectStorage factory
-    ComPtr<IDStorageQueueX> storageQueue;                  // High-speed storage queue
-    ComPtr<IDStorageFileX> storageFiles[1024];              // File handles for assets
+    // DirectStorage components (only available if DirectStorage SDK is present)
+#if VITRA_DIRECT_STORAGE_AVAILABLE
+    Microsoft::WRL::ComPtr<IDStorageFactory> storageFactory;              // DirectStorage factory
+    Microsoft::WRL::ComPtr<IDStorageQueue> storageQueue;                  // High-speed storage queue
+    Microsoft::WRL::ComPtr<IDStorageFile> storageFiles[1024];              // File handles for assets
+    HANDLE storageCompletion;                               // Win32 event for completion notification
+    DSTORAGE_REQUEST_STATUS storageStatus[1024];            // Request status tracking
     UINT32 storageFileCount;                                // Number of open files
-    ComPtr<IDStorageCompletionEvent> storageCompletion;     // Completion event
-    DSTORAGE_REQUEST_STATUS storageStatus[1024];            // Request status array
     bool storageInitialized;                                 // DirectStorage initialization status
+#else
+    void* storageFactory;                                   // Placeholder when DirectStorage not available
+    void* storageQueue;
+    void* storageFiles;
+    void* storageCompletion;
+    void* storageStatus;
+    UINT32 storageFileCount;
+    bool storageInitialized;
+#endif
 
-    // D3D12 Memory Allocator (D3D12MA) components
+    // D3D12 Memory Allocator (D3D12MA) components (only available if D3D12MA is included)
+#if VITRA_D3D12MA_AVAILABLE
     D3D12MA::Allocator* allocator;                         // Main memory allocator
     D3D12MA::Pool* defaultPool;                            // Default memory pool for buffers
     D3D12MA::Pool* texturePool;                            // Dedicated pool for textures
     D3D12MA::Pool* uploadPool;                             // Upload heap pool
     D3D12MA::Pool* readbackPool;                           // Readback heap pool
     bool allocatorInitialized;                              // D3D12MA initialization status
+#else
+    void* allocator;                                        // Placeholder when D3D12MA not available
+    void* defaultPool;
+    void* texturePool;
+    void* uploadPool;
+    void* readbackPool;
+    bool allocatorInitialized;
+#endif
 
     // Enhanced Debug Layer components
-    ComPtr<ID3D12Debug1> debugController1;               // D3D12 Debug Controller with GPU validation
-    ComPtr<ID3D12InfoQueue1> infoQueue1;                   // Info Queue for message callbacks
+    Microsoft::WRL::ComPtr<ID3D12Debug1> debugController1;               // D3D12 Debug Controller with GPU validation
+    Microsoft::WRL::ComPtr<ID3D12InfoQueue1> infoQueue1;                   // Info Queue for message callbacks
     D3D12_MESSAGE_SEVERITY debugSeverityFilter;          // Debug message severity filter
     bool debugCallbackRegistered;                         // Flag indicating callback registration status
+    DWORD debugCallbackCookie;                            // Cookie for registered debug callback
     std::ofstream debugLogFile;                            // Debug log file stream
     std::string debugLogPath;                             // Debug log file path
     bool debugLoggingToFileEnabled;                        // Flag for file logging
 
     // Synchronization objects with enhanced features
-    ComPtr<ID3D12Fence> fence;
-    ComPtr<ID3D12Fence> computeFence;
-    ComPtr<ID3D12Fence> copyFence;
+    Microsoft::WRL::ComPtr<ID3D12Fence> fence;
+    Microsoft::WRL::ComPtr<ID3D12Fence> computeFence;
+    Microsoft::WRL::ComPtr<ID3D12Fence> copyFence;
     UINT64 fenceValues[FRAME_COUNT];
     UINT64 computeFenceValues[FRAME_COUNT];
     UINT64 copyFenceValues[FRAME_COUNT];
@@ -392,7 +491,7 @@ struct D3D12Resources {
 
     // Render Pass support
     bool supportsRenderPasses;
-    ComPtr<ID3D12Resource> renderPassTarget;
+    Microsoft::WRL::ComPtr<ID3D12Resource> renderPassTarget;
 
     // GPU Upload Heap support
     bool supportsGPUUploadHeaps;
@@ -426,43 +525,58 @@ struct D3D12Resources {
         bool directStorageSupported;                          // DirectStorage NVMe support
         bool hardwareDecompressionSupported;                    // BCPACK/DEFLATE decompression
     } features;
+
+    // Performance counters for monitoring and profiling
+    struct {
+        int drawCalls;                                        // Number of draw calls per frame
+        long frameTime;                                       // Frame time in microseconds
+        float gpuUtilization;                                 // GPU utilization percentage (0.0-1.0)
+        long storageThroughput;                               // DirectStorage throughput in bytes/sec
+        float storageUtilization;                             // DirectStorage utilization (0.0-1.0)
+    } performanceCounters;
 };
 
 // Global D3D12 resources
 extern D3D12Resources g_d3d12;
 
 // Enhanced resource tracking with modern D3D12 resource management
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_vertexBuffers;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_indexBuffers;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_constantBuffers;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_structuredBuffers;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_rwBuffers;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_textures;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_rwTextures;
-extern std::unordered_map<uint64_t, ComPtr<ID3DBlob>> g_vertexShaderBlobs;
-extern std::unordered_map<uint64_t, ComPtr<ID3DBlob>> g_pixelShaderBlobs;
-extern std::unordered_map<uint64_t, ComPtr<ID3DBlob>> g_computeShaderBlobs;
-extern std::unordered_map<uint64_t, ComPtr<ID3DBlob>> g_meshShaderBlobs;
-extern std::unordered_map<uint64_t, ComPtr<ID3DBlob>> g_amplificationShaderBlobs;
-extern std::unordered_map<uint64_t, ComPtr<ID3DBlob>> g_raytracingShaderBlobs;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_vertexBuffers;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_indexBuffers;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_constantBuffers;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_structuredBuffers;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_rwBuffers;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_textures;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_rwTextures;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3DBlob>> g_vertexShaderBlobs;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3DBlob>> g_pixelShaderBlobs;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3DBlob>> g_computeShaderBlobs;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3DBlob>> g_meshShaderBlobs;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3DBlob>> g_amplificationShaderBlobs;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3DBlob>> g_raytracingShaderBlobs;
 extern std::unordered_map<uint64_t, D3D12_CPU_DESCRIPTOR_HANDLE> g_srvDescriptors;
 extern std::unordered_map<uint64_t, D3D12_CPU_DESCRIPTOR_HANDLE> g_uavDescriptors;
 extern std::unordered_map<uint64_t, D3D12_CPU_DESCRIPTOR_HANDLE> g_cbvDescriptors;
 extern std::unordered_map<uint64_t, D3D12_GPU_DESCRIPTOR_HANDLE> g_gpuDescriptorHandles;
 
 // DirectX 12 Ultimate resource tracking
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_raytracingBLAS;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_raytracingTLAS;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_vrsResources;
-extern std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_samplerFeedbackResources;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_raytracingBLAS;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_raytracingTLAS;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_vrsResources;
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>> g_samplerFeedbackResources;
 
-// DirectStorage resource tracking
-extern std::unordered_map<uint64_t, ComPtr<IDStorageFileX>> g_storageFiles;
-extern std::unordered_map<uint64_t, DSTORAGE_REQUEST> g_pendingRequests;
+// DirectStorage resource tracking (only if available)
+#if VITRA_DIRECT_STORAGE_AVAILABLE
+extern std::unordered_map<uint64_t, Microsoft::WRL::ComPtr<IDStorageFile>> g_storageFiles;
+extern std::unordered_map<uint64_t, int> g_pendingRequests; // Placeholder type
+#endif
 
-// D3D12MA resource tracking
+// D3D12MA resource tracking (only if available)
+#if VITRA_D3D12MA_AVAILABLE
+// Forward declaration of D3D12ManagedResource
+struct D3D12ManagedResource;
 extern std::unordered_map<uint64_t, std::unique_ptr<D3D12ManagedResource>> g_managedResources;
 extern std::unordered_map<D3D12MA::Allocation*, uint64_t> g_allocationToResource;
+#endif
 
 // Modern resource management structures
 struct D3D12BufferDesc {
@@ -473,10 +587,12 @@ struct D3D12BufferDesc {
     UINT64 size;
     UINT stride;
     D3D12_RESOURCE_FLAGS flags;
-    // D3D12MA allocation parameters
+    const char* debugName;
+#if VITRA_D3D12MA_AVAILABLE
+    // D3D12MA allocation parameters (only if available)
     D3D12MA::ALLOCATION_FLAGS allocationFlags;
     D3D12MA::Pool* customPool;
-    const char* debugName;
+#endif
 };
 
 struct D3D12TextureDesc {
@@ -488,17 +604,19 @@ struct D3D12TextureDesc {
     UINT width, height, depth;
     UINT mipLevels;
     D3D12_RESOURCE_FLAGS flags;
-    // D3D12MA allocation parameters
+    const char* debugName;
+#if VITRA_D3D12MA_AVAILABLE
+    // D3D12MA allocation parameters (only if available)
     D3D12MA::ALLOCATION_FLAGS allocationFlags;
     D3D12MA::Pool* customPool;
-    const char* debugName;
+#endif
 };
 
-// D3D12MA-enabled resource wrapper
+// D3D12MA-enabled resource wrapper (only if D3D12MA is available)
+#if VITRA_D3D12MA_AVAILABLE
 struct D3D12ManagedResource {
-    ComPtr<ID3D12Resource> resource;
+    Microsoft::WRL::ComPtr<ID3D12Resource> resource;
     D3D12MA::Allocation* allocation;
-    D3D12MA::ALLOCATION_INFO allocationInfo;
     uint64_t handle;
     std::string debugName;
     D3D12_RESOURCE_STATES currentState;
@@ -517,10 +635,17 @@ struct D3D12ManagedResource {
     D3D12MA::Allocation* GetAllocation() const { return allocation; }
     uint64_t GetHandle() const { return handle; }
     void SetDebugName(const char* name) { debugName = name ? name : "Unnamed"; }
+
+    // Helper methods to get allocation info (using D3D12MA::Allocation methods)
+    UINT64 GetOffset() const { return allocation ? allocation->GetOffset() : 0; }
+    UINT64 GetSize() const { return allocation ? allocation->GetSize() : 0; }
+    UINT64 GetAlignment() const { return allocation ? allocation->GetAlignment() : 0; }
+    ID3D12Heap* GetHeap() const { return allocation ? allocation->GetHeap() : nullptr; }
 };
+#endif
 
 struct D3D12PipelineStateDesc {
-    ComPtr<ID3D12RootSignature> rootSignature;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
     D3D12_RASTERIZER_DESC rasterizerDesc;
     D3D12_BLEND_DESC blendDesc;
     D3D12_DEPTH_STENCIL_DESC depthStencilDesc;
@@ -585,26 +710,31 @@ HRESULT createShadingRateImage(UINT width, UINT height, ID3D12Resource** shading
 // Mesh Shader functions
 void dispatchMesh(UINT threadGroupCountX, UINT threadGroupCountY, UINT threadGroupCountZ);
 
-// Render Pass functions
-void beginRenderPass(const D3D12_RENDER_PASS_BEGIN_DESC& renderPassBegin);
+// Render Pass functions (ID3D12GraphicsCommandList4)
+void beginRenderPass(UINT numRenderTargets,
+                    const D3D12_RENDER_PASS_RENDER_TARGET_DESC* pRenderTargets,
+                    const D3D12_RENDER_PASS_DEPTH_STENCIL_DESC* pDepthStencil,
+                    D3D12_RENDER_PASS_FLAGS flags);
 void endRenderPass();
 
 // DirectStorage functions
 bool initializeDirectStorage();
 bool checkDirectStorageSupport();
 HRESULT createStorageQueue();
-HRESULT openStorageFile(const wchar_t* filename, IDStorageFileX** file);
-HRESULT enqueueReadRequest(IDStorageFileX* file, UINT64 offset, UINT64 size, void* destination, UINT64 requestTag);
-HRESULT enqueueDecompressionRead(IDStorageFileX* file, UINT64 compressedOffset, UINT64 compressedSize,
+#if VITRA_DIRECT_STORAGE_AVAILABLE
+HRESULT openStorageFile(const wchar_t* filename, IDStorageFile** file);
+HRESULT enqueueReadRequest(IDStorageFile* file, UINT64 offset, UINT64 size, void* destination, UINT64 requestTag);
+HRESULT enqueueDecompressionRead(IDStorageFile* file, UINT64 compressedOffset, UINT64 compressedSize,
                                 void* compressedDestination, UINT64 decompressedSize,
                                 void* decompressedDestination, UINT64 requestTag);
 void processStorageQueue();
 void waitForStorageRequests(UINT64 timeoutMs);
 void shutdownDirectStorage();
+#endif // VITRA_DIRECT_STORAGE_AVAILABLE
 
 // Enhanced Debug Layer functions
 bool initializeDebugLayer();
-bool setupDebugMessageCallback();
+void setupDebugMessageCallback(bool enable);
 void shutdownDebugLayer();
 void setDebugSeverityFilter(D3D12_MESSAGE_SEVERITY minSeverity);
 bool initializeDebugLogFile(const std::string& logPath);
@@ -614,12 +744,18 @@ void processDebugMessages();
 void enableGPUValidation(bool enable);
 void enableSynchronizedCommandQueueValidation(bool enable);
 
+// Debug utility functions
+std::string getCurrentTimestamp();
+void logDebugMessage(D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID id, const char* message);
+void flushDebugMessages();
+
 // DirectStorage performance functions
 float getStorageThroughput();
 UINT getPendingRequestCount();
 bool isStorageQueueIdle();
 
-// D3D12 Memory Allocator (D3D12MA) functions
+// D3D12 Memory Allocator (D3D12MA) functions (only if available)
+#if VITRA_D3D12MA_AVAILABLE
 bool initializeD3D12MA();
 bool createMemoryPools();
 void shutdownD3D12MA();
@@ -629,12 +765,13 @@ HRESULT createUploadBufferWithD3D12MA(UINT64 size, ID3D12Resource** resource, D3
 HRESULT createReadbackBufferWithD3D12MA(UINT64 size, ID3D12Resource** resource, D3D12MA::Allocation** allocation);
 void releaseResource(D3D12MA::Allocation* allocation);
 bool checkMemoryBudget(UINT64 requiredSize, D3D12_HEAP_TYPE heapType);
-void getMemoryStatistics(D3D12MA::Statistics* stats);
-void getPoolStatistics(D3D12MA::Pool* pool, D3D12MA::PoolStatistics* poolStats);
+void getMemoryStatistics(D3D12MA::TotalStatistics* stats);
+void getPoolStatistics(D3D12MA::Pool* pool, D3D12MA::DetailedStatistics* poolStats);
 bool beginDefragmentation();
 void enableBudgeting(bool enable);
 void dumpMemoryStatisticsToJson();
 bool validateAllocation(D3D12MA::Allocation* allocation);
+#endif // VITRA_D3D12MA_AVAILABLE
 
 // Feature detection functions
 bool checkRaytracingSupport();

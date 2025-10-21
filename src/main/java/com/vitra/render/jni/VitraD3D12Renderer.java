@@ -53,47 +53,60 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
         return com.vitra.config.RendererType.DIRECTX12;
     }
 
+    // Instance methods implementing IVitraRenderer interface
     @Override
     public void beginFrame() {
-        if (initialized) {
-            VitraD3D12Native.beginFrame();
-        }
+        VitraD3D12Native.beginFrame();
     }
 
     @Override
     public void endFrame() {
-        if (initialized) {
-            VitraD3D12Native.endFrame();
-            VitraD3D12Native.present();
-        }
+        VitraD3D12Native.endFrame();
+        VitraD3D12Native.present();
     }
 
     @Override
     public void resize(int width, int height) {
-        if (initialized) {
-            VitraD3D12Native.resize(width, height);
-        }
+        VitraD3D12Native.resize(width, height);
     }
 
     @Override
     public void clear(float r, float g, float b, float a) {
-        if (initialized) {
-            VitraD3D12Native.clear(r, g, b, a);
-        }
+        VitraD3D12Native.clear(r, g, b, a);
     }
 
     @Override
     public void shutdown() {
-        if (initialized) {
-            VitraD3D12Native.shutdown();
-            initialized = false;
-            LOGGER.info("DirectX 12 renderer shutdown");
-        }
+        VitraD3D12Native.shutdown();
     }
 
     @Override
-    public long getWindowHandle() {
-        return this.windowHandle;
+    public void present() {
+        VitraD3D12Native.present();
+    }
+
+    @Override
+    public boolean isRayTracingSupported() {
+        return initialized && VitraD3D12Native.isRaytracingSupported();
+    }
+
+    public boolean isRaytracingSupported() {
+        return initialized && VitraD3D12Native.isRaytracingSupported();
+    }
+
+    @Override
+    public boolean isGpuDrivenRenderingSupported() {
+        return initialized && VitraD3D12Native.isGpuDrivenRenderingSupported();
+    }
+
+    @Override
+    public String getRendererStats() {
+        return getDebugStats();
+    }
+
+    @Override
+    public com.vitra.render.VitraRenderer getDirectX11Renderer() {
+        return null; // This is a DirectX 12 renderer
     }
 
     @Override
@@ -102,9 +115,39 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
     }
 
     @Override
-    public void drawMesh(Object vertexBuffer, Object indexBuffer, Object texture, Object shader, int indexCount) {
+    public Object getShaderManager() {
+        return null; // TODO: Implement DirectX 12 shader manager
+    }
+
+    @Override
+    public Object getBufferManager() {
+        return null; // TODO: Implement DirectX 12 buffer manager
+    }
+
+    @Override
+    public void drawMesh(Object vertexBuffer, Object indexBuffer, Object mode, Object format, int vertexCount) {
         // TODO: Implement DirectX 12 mesh drawing
         LOGGER.debug("drawMesh called - DirectX 12 implementation needed");
+    }
+
+    @Override
+    public void clearDepthBuffer() {
+        VitraD3D12Native.clearDepthBuffer();
+    }
+
+    @Override
+    public void waitForGpuCommands() {
+        VitraD3D12Native.waitForGpuCommands();
+    }
+
+    @Override
+    public boolean isVariableRateShadingSupported() {
+        return VitraD3D12Native.isVariableRateShadingSupported();
+    }
+
+    @Override
+    public boolean isMeshShadersSupported() {
+        return VitraD3D12Native.isMeshShadersSupported();
     }
 
     @Override
@@ -137,12 +180,6 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
         }
     }
 
-    public void clearDepthBuffer() {
-        if (initialized) {
-            VitraD3D12Native.clearDepthBuffer();
-        }
-    }
-
     public void waitForIdle() {
         if (initialized) {
             VitraD3D12Native.waitForIdle();
@@ -154,29 +191,11 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
     }
 
     public void setDebugMode(boolean enabled) {
-        if (initialized) {
-            VitraD3D12Native.setDebugMode(enabled);
-        }
+        VitraD3D12Native.setDebugMode(enabled);
     }
 
     public String getDebugStats() {
-        return initialized ? VitraD3D12Native.getDebugStats() : "DirectX 12 not initialized";
-    }
-
-    public boolean isRaytracingSupported() {
-        return initialized && VitraD3D12Native.isRaytracingSupported();
-    }
-
-    public boolean isVariableRateShadingSupported() {
-        return initialized && VitraD3D12Native.isVariableRateShadingSupported();
-    }
-
-    public boolean isMeshShadersSupported() {
-        return initialized && VitraD3D12Native.isMeshShadersSupported();
-    }
-
-    public boolean isGpuDrivenRenderingSupported() {
-        return initialized && VitraD3D12Native.isGpuDrivenRenderingSupported();
+        return VitraD3D12Native.getDebugStats();
     }
 
     public void enableRaytracing(boolean enabled) {
@@ -205,33 +224,23 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
 
     // Performance monitoring methods
     public float getGpuUtilization() {
-        return initialized ? VitraD3D12Native.getGpuUtilization() : 0.0f;
+        return VitraD3D12Native.getGpuUtilization();
     }
 
     public long getFrameTime() {
-        return initialized ? VitraD3D12Native.getFrameTime() : 0;
+        return VitraD3D12Native.getFrameTime();
     }
 
     public int getDrawCallsPerFrame() {
-        return initialized ? VitraD3D12Native.getDrawCallsPerFrame() : 0;
+        return VitraD3D12Native.getDrawCallsPerFrame();
     }
 
     public void resetPerformanceCounters() {
-        if (initialized) {
-            VitraD3D12Native.resetPerformanceCounters();
-        }
+        VitraD3D12Native.resetPerformanceCounters();
     }
 
     public void captureFrame(String filename) {
-        if (initialized) {
-            VitraD3D12Native.captureFrame(filename);
-        }
-    }
-
-    public void waitForGpuCommands() {
-        if (initialized) {
-            VitraD3D12Native.waitForGpuCommands();
-        }
+        VitraD3D12Native.captureFrame(filename);
     }
 
     // ========== STATIC METHODS FOR DIRECTX12RENDERER COMPATIBILITY ==========
@@ -240,36 +249,20 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
         return VitraD3D12Native.initializeWithConfig(windowHandle, configJson);
     }
 
-    public static void shutdownStatic() {
-        VitraD3D12Native.shutdown();
-    }
-
     public static boolean isInitializedStatic() {
         return VitraD3D12Native.isInitialized();
-    }
-
-    public static void beginFrameStatic() {
-        VitraD3D12Native.beginFrame();
-    }
-
-    public static void endFrameStatic() {
-        VitraD3D12Native.endFrame();
     }
 
     public static void presentStatic() {
         VitraD3D12Native.present();
     }
 
-    public static void resizeStatic(int width, int height) {
-        VitraD3D12Native.resize(width, height);
+    public static boolean isVariableRateShadingSupportedStatic() {
+        return VitraD3D12Native.isVariableRateShadingSupported();
     }
 
-    public static void clearStatic(float r, float g, float b, float a) {
-        VitraD3D12Native.clear(r, g, b, a);
-    }
-
-    public static void clearDepthBufferStatic() {
-        VitraD3D12Native.clearDepthBuffer();
+    public static boolean isMeshShadersSupportedStatic() {
+        return VitraD3D12Native.isMeshShadersSupported();
     }
 
     public static float getGpuUtilizationStatic() {
@@ -288,8 +281,24 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
         VitraD3D12Native.resetPerformanceCounters();
     }
 
+    public static void setDebugModeStatic(boolean enabled) {
+        VitraD3D12Native.setDebugMode(enabled);
+    }
+
     public static void captureFrameStatic(String filename) {
         VitraD3D12Native.captureFrame(filename);
+    }
+
+    public static String getDebugStatsStatic() {
+        return VitraD3D12Native.getDebugStats();
+    }
+
+    public static void clearDepthBufferStatic() {
+        VitraD3D12Native.clearDepthBuffer();
+    }
+
+    public static void waitForGpuCommandsStatic() {
+        VitraD3D12Native.waitForGpuCommands();
     }
 
     public static boolean isDirectStorageSupported() {
@@ -422,12 +431,4 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
     public static void processDebugMessages() {
         VitraD3D12Native.processDebugMessages();
     }
-
-    public static void waitForGpuCommandsStatic() {
-        VitraD3D12Native.waitForGpuCommands();
-    }
-
-    // Static methods already defined above - no duplicates needed
-
-    // Static methods already defined above - no duplicates needed
 }

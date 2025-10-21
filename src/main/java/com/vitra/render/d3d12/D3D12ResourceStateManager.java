@@ -14,24 +14,24 @@ import java.util.concurrent.ConcurrentHashMap;
 public class D3D12ResourceStateManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/D3D12ResourceStateManager");
 
-    // Resource states
+    // Resource states (from d3d12.h)
     public static final int RESOURCE_STATE_COMMON = D3D12TextureBuilder.D3D12_RESOURCE_STATE_COMMON;
     public static final int RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER = D3D12TextureBuilder.D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
     public static final int RESOURCE_STATE_INDEX_BUFFER = D3D12TextureBuilder.D3D12_RESOURCE_STATE_INDEX_BUFFER;
-    public static final int RESOURCE_STATE_CONSTANT_BUFFER = D3D12TextureBuilder.D3D12_RESOURCE_STATE_CONSTANT_BUFFER;
-    public static final int RESOURCE_STATE_SHADER_RESOURCE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_SHADER_RESOURCE;
-    public static final int RESOURCE_STATE_STREAM_OUT = D3D12TextureBuilder.D3D12_RESOURCE_STATE_STREAM_OUT;
-    public static final int RESOURCE_STATE_INDIRECT_ARGUMENT = D3D12TextureBuilder.D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
-    public static final int RESOURCE_STATE_COPY_DEST = D3D12TextureBuilder.D3D12_RESOURCE_STATE_COPY_DEST;
-    public static final int RESOURCE_STATE_COPY_SOURCE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_COPY_SOURCE;
-    public static final int RESOURCE_STATE_RESOLVE_DEST = D3D12TextureBuilder.D3D12_RESOURCE_STATE_RESOLVE_DEST;
+    public static final int RESOURCE_STATE_RENDER_TARGET = D3D12TextureBuilder.D3D12_RESOURCE_STATE_RENDER_TARGET;
     public static final int RESOURCE_STATE_UNORDERED_ACCESS = D3D12TextureBuilder.D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     public static final int RESOURCE_STATE_DEPTH_WRITE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_DEPTH_WRITE;
     public static final int RESOURCE_STATE_DEPTH_READ = D3D12TextureBuilder.D3D12_RESOURCE_STATE_DEPTH_READ;
     public static final int RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
     public static final int RESOURCE_STATE_PIXEL_SHADER_RESOURCE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     public static final int RESOURCE_STATE_STREAM_OUT = D3D12TextureBuilder.D3D12_RESOURCE_STATE_STREAM_OUT;
-    public static final int RESOURCE_STATE_RENDER_TARGET = D3D12TextureBuilder.D3D12_RESOURCE_STATE_RENDER_TARGET;
+    public static final int RESOURCE_STATE_INDIRECT_ARGUMENT = D3D12TextureBuilder.D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
+    public static final int RESOURCE_STATE_COPY_DEST = D3D12TextureBuilder.D3D12_RESOURCE_STATE_COPY_DEST;
+    public static final int RESOURCE_STATE_COPY_SOURCE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_COPY_SOURCE;
+    public static final int RESOURCE_STATE_RESOLVE_DEST = D3D12TextureBuilder.D3D12_RESOURCE_STATE_RESOLVE_DEST;
+    public static final int RESOURCE_STATE_RESOLVE_SOURCE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+    public static final int RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
+    public static final int RESOURCE_STATE_SHADING_RATE_SOURCE = D3D12TextureBuilder.D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE;
     public static final int RESOURCE_STATE_PRESENT = D3D12TextureBuilder.D3D12_RESOURCE_STATE_PRESENT;
     public static final int RESOURCE_STATE_PREDICATION = D3D12TextureBuilder.D3D12_RESOURCE_STATE_PREDICATION;
 
@@ -329,24 +329,23 @@ public class D3D12ResourceStateManager {
      */
     public static String stateName(int state) {
         switch (state) {
-            case RESOURCE_STATE_COMMON: return "COMMON";
+            case RESOURCE_STATE_COMMON: return "COMMON"; // Note: PRESENT (0x0) is synonymous with COMMON
             case RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER: return "VERTEX_AND_CONSTANT_BUFFER";
             case RESOURCE_STATE_INDEX_BUFFER: return "INDEX_BUFFER";
-            case RESOURCE_STATE_CONSTANT_BUFFER: return "CONSTANT_BUFFER";
-            case RESOURCE_STATE_SHADER_RESOURCE: return "SHADER_RESOURCE";
-            case RESOURCE_STATE_STREAM_OUT: return "STREAM_OUT";
-            case RESOURCE_STATE_INDIRECT_ARGUMENT: return "INDIRECT_ARGUMENT";
-            case RESOURCE_STATE_COPY_DEST: return "COPY_DEST";
-            case RESOURCE_STATE_COPY_SOURCE: return "COPY_SOURCE";
-            case RESOURCE_STATE_RESOLVE_DEST: return "RESOLVE_DEST";
+            case RESOURCE_STATE_RENDER_TARGET: return "RENDER_TARGET";
             case RESOURCE_STATE_UNORDERED_ACCESS: return "UNORDERED_ACCESS";
             case RESOURCE_STATE_DEPTH_WRITE: return "DEPTH_WRITE";
             case RESOURCE_STATE_DEPTH_READ: return "DEPTH_READ";
             case RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE: return "NON_PIXEL_SHADER_RESOURCE";
             case RESOURCE_STATE_PIXEL_SHADER_RESOURCE: return "PIXEL_SHADER_RESOURCE";
-            case RESOURCE_STATE_RENDER_TARGET: return "RENDER_TARGET";
-            case RESOURCE_STATE_PRESENT: return "PRESENT";
-            case RESOURCE_STATE_PREDICATION: return "PREDICATION";
+            case RESOURCE_STATE_STREAM_OUT: return "STREAM_OUT";
+            case RESOURCE_STATE_INDIRECT_ARGUMENT: return "INDIRECT_ARGUMENT"; // Note: PREDICATION (0x200) has same value
+            case RESOURCE_STATE_COPY_DEST: return "COPY_DEST";
+            case RESOURCE_STATE_COPY_SOURCE: return "COPY_SOURCE";
+            case RESOURCE_STATE_RESOLVE_DEST: return "RESOLVE_DEST";
+            case RESOURCE_STATE_RESOLVE_SOURCE: return "RESOLVE_SOURCE";
+            case RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE: return "RAYTRACING_ACCELERATION_STRUCTURE";
+            case RESOURCE_STATE_SHADING_RATE_SOURCE: return "SHADING_RATE_SOURCE";
             default: return "UNKNOWN(" + state + ")";
         }
     }

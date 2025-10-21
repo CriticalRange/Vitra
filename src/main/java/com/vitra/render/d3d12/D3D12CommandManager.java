@@ -79,7 +79,7 @@ public class D3D12CommandManager {
     public static class CommandList {
         private final long handle;
         private final int commandListType;
-        private final CommandAllocator allocator;
+        private CommandAllocator allocator; // Not final - allocator can be reassigned when command list is reset/reused
         private volatile int state;
         private final long creationTime;
         private final String debugName;

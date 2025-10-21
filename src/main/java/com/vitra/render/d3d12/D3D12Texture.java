@@ -170,9 +170,9 @@ public class D3D12Texture {
             return;
         }
 
-        // Ensure texture is in shader resource state
-        if (currentResourceState != D3D12TextureBuilder.D3D12_RESOURCE_STATE_SHADER_RESOURCE) {
-            transitionTo(D3D12TextureBuilder.D3D12_RESOURCE_STATE_SHADER_RESOURCE);
+        // Ensure texture is in shader resource state (pixel shader resource for textures)
+        if (currentResourceState != D3D12TextureBuilder.D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) {
+            transitionTo(D3D12TextureBuilder.D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         }
 
         VitraD3D12Native.bindTexture(handle, unit);
@@ -355,21 +355,21 @@ public class D3D12Texture {
             case D3D12TextureBuilder.D3D12_RESOURCE_STATE_COMMON: return "COMMON";
             case D3D12TextureBuilder.D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER: return "VERTEX_AND_CONSTANT_BUFFER";
             case D3D12TextureBuilder.D3D12_RESOURCE_STATE_INDEX_BUFFER: return "INDEX_BUFFER";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_CONSTANT_BUFFER: return "CONSTANT_BUFFER";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_SHADER_RESOURCE: return "SHADER_RESOURCE";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_STREAM_OUT: return "STREAM_OUT";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT: return "INDIRECT_ARGUMENT";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_COPY_DEST: return "COPY_DEST";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_COPY_SOURCE: return "COPY_SOURCE";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_RESOLVE_DEST: return "RESOLVE_DEST";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_RENDER_TARGET: return "RENDER_TARGET";
             case D3D12TextureBuilder.D3D12_RESOURCE_STATE_UNORDERED_ACCESS: return "UNORDERED_ACCESS";
             case D3D12TextureBuilder.D3D12_RESOURCE_STATE_DEPTH_WRITE: return "DEPTH_WRITE";
             case D3D12TextureBuilder.D3D12_RESOURCE_STATE_DEPTH_READ: return "DEPTH_READ";
             case D3D12TextureBuilder.D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE: return "NON_PIXEL_SHADER_RESOURCE";
             case D3D12TextureBuilder.D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE: return "PIXEL_SHADER_RESOURCE";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_RENDER_TARGET: return "RENDER_TARGET";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_PRESENT: return "PRESENT";
-            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_PREDICATION: return "PREDICATION";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_STREAM_OUT: return "STREAM_OUT";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT: return "INDIRECT_ARGUMENT";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_COPY_DEST: return "COPY_DEST";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_COPY_SOURCE: return "COPY_SOURCE";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_RESOLVE_DEST: return "RESOLVE_DEST";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_RESOLVE_SOURCE: return "RESOLVE_SOURCE";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE: return "RAYTRACING_ACCELERATION_STRUCTURE";
+            case D3D12TextureBuilder.D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE: return "SHADING_RATE_SOURCE";
+            // Note: PRESENT and PREDICATION are aliases (same values as COMMON and INDIRECT_ARGUMENT respectively)
             default: return "UNKNOWN(" + state + ")";
         }
     }

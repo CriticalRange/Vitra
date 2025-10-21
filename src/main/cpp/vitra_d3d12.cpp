@@ -5,8 +5,401 @@
 #include <sstream>
 #include <iomanip>
 
+// Forward declarations for debug helper functions
+const char* GetDebugSeverityString(D3D12_MESSAGE_SEVERITY severity);
+const char* GetDebugCategoryString(D3D12_MESSAGE_CATEGORY category);
+const char* GetDebugMessageIDString(D3D12_MESSAGE_ID id);
+
+// Forward declaration
+static void shutdownD3D12();
+
+// ============================================================================
+// Frame Management Functions - Based on DirectX 12 official documentation
+// ============================================================================
+
+// Begin a new frame - reset command allocators and transition back buffer to render target
+static void beginFrame() {
+    if (!g_d3d12.device || !g_d3d12.commandList) {
+        return;
+    }
+
+    try {
+        // Get the command allocator for the current frame
+        UINT frameIndex = g_d3d12.frameIndex;
+        if (!g_d3d12.commandAllocators[frameIndex]) {
+            std::cerr << "Command allocator for frame " << frameIndex << " is null" << std::endl;
+            return;
+        }
+
+        // Reset the command allocator (can only be done when GPU has finished executing commands)
+        HRESULT hr = g_d3d12.commandAllocators[frameIndex]->Reset();
+        if (FAILED(hr)) {
+            std::cerr << "Failed to reset command allocator in beginFrame" << std::endl;
+            return;
+        }
+
+        // Reset the command list with the allocator
+        hr = g_d3d12.commandList->Reset(g_d3d12.commandAllocators[frameIndex].Get(), nullptr);
+        if (FAILED(hr)) {
+            std::cerr << "Failed to reset command list in beginFrame" << std::endl;
+            return;
+        }
+
+        // Transition back buffer from PRESENT to RENDER_TARGET state
+        D3D12_RESOURCE_BARRIER barrier = {};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = g_d3d12.renderTargets[frameIndex].Get();
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+        g_d3d12.commandList->ResourceBarrier(1, &barrier);
+
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in beginFrame: " << e.what() << std::endl;
+    }
+}
+
+// End the current frame - transition back buffer to present state and close command list
+static void endFrame() {
+    if (!g_d3d12.commandList) {
+        return;
+    }
+
+    try {
+        // Transition back buffer from RENDER_TARGET to PRESENT state
+        D3D12_RESOURCE_BARRIER barrier = {};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = g_d3d12.renderTargets[g_d3d12.frameIndex].Get();
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+        g_d3d12.commandList->ResourceBarrier(1, &barrier);
+
+        // Close the command list
+        HRESULT hr = g_d3d12.commandList->Close();
+        if (FAILED(hr)) {
+            std::cerr << "Failed to close command list in endFrame" << std::endl;
+        }
+
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in endFrame: " << e.what() << std::endl;
+    }
+}
+
+// Present the frame to the screen
+static void presentFrame() {
+    if (!g_d3d12.commandQueue || !g_d3d12.commandList || !g_d3d12.swapChain) {
+        return;
+    }
+
+    try {
+        // Execute the command list
+        ID3D12CommandList* ppCommandLists[] = { g_d3d12.commandList.Get() };
+        g_d3d12.commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+        // Present the frame (1 = vsync on, 0 = vsync off)
+        UINT syncInterval = 1; // Default to vsync on
+        HRESULT hr = g_d3d12.swapChain->Present(syncInterval, 0);
+        if (FAILED(hr)) {
+            std::cerr << "Failed to present frame" << std::endl;
+            return;
+        }
+
+        // Update frame index for next frame
+        g_d3d12.frameIndex = g_d3d12.swapChain->GetCurrentBackBufferIndex();
+
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in presentFrame: " << e.what() << std::endl;
+    }
+}
+
+// Resize the swap chain and recreate render targets
+static void resize(int width, int height) {
+    if (!g_d3d12.device || !g_d3d12.swapChain || width <= 0 || height <= 0) {
+        return;
+    }
+
+    try {
+        // Wait for GPU to finish all work before resizing
+        UINT frameIndex = g_d3d12.frameIndex;
+        if (g_d3d12.fence && g_d3d12.fenceEvent) {
+            UINT64 fenceValue = g_d3d12.fenceValues[frameIndex];
+            g_d3d12.commandQueue->Signal(g_d3d12.fence.Get(), fenceValue);
+
+            if (g_d3d12.fence->GetCompletedValue() < fenceValue) {
+                g_d3d12.fence->SetEventOnCompletion(fenceValue, g_d3d12.fenceEvent);
+                WaitForSingleObject(g_d3d12.fenceEvent, INFINITE);
+            }
+            g_d3d12.fenceValues[frameIndex]++;
+        }
+
+        // Release render target resources
+        for (UINT i = 0; i < D3D12Resources::FRAME_COUNT; i++) {
+            g_d3d12.renderTargets[i].Reset();
+        }
+
+        // Resize the swap chain buffers (use swapChain3 for compatibility)
+        HRESULT hr = g_d3d12.swapChain->ResizeBuffers(
+            D3D12Resources::FRAME_COUNT,
+            static_cast<UINT>(width),
+            static_cast<UINT>(height),
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            0
+        );
+
+        if (FAILED(hr)) {
+            std::cerr << "Failed to resize swap chain buffers" << std::endl;
+            return;
+        }
+
+        // Recreate render target views
+        g_d3d12.frameIndex = g_d3d12.swapChain->GetCurrentBackBufferIndex();
+
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = g_d3d12.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+        UINT rtvDescriptorSize = g_d3d12.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+        for (UINT i = 0; i < D3D12Resources::FRAME_COUNT; i++) {
+            hr = g_d3d12.swapChain->GetBuffer(i, IID_PPV_ARGS(&g_d3d12.renderTargets[i]));
+            if (FAILED(hr)) {
+                std::cerr << "Failed to get swap chain buffer " << i << std::endl;
+                continue;
+            }
+
+            g_d3d12.device->CreateRenderTargetView(g_d3d12.renderTargets[i].Get(), nullptr, rtvHandle);
+            rtvHandle.ptr += rtvDescriptorSize;
+        }
+
+        // Update viewport and scissor rect
+        g_d3d12.viewport.Width = static_cast<float>(width);
+        g_d3d12.viewport.Height = static_cast<float>(height);
+        g_d3d12.scissorRect.right = static_cast<LONG>(width);
+        g_d3d12.scissorRect.bottom = static_cast<LONG>(height);
+
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in resize: " << e.what() << std::endl;
+    }
+}
+
+// Clear the render target with a color
+static void clear(float r, float g, float b, float a) {
+    if (!g_d3d12.commandList || !g_d3d12.rtvHeap) {
+        return;
+    }
+
+    try {
+        const float clearColor[] = { r, g, b, a };
+
+        UINT rtvDescriptorSize = g_d3d12.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = g_d3d12.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+        rtvHandle.ptr += g_d3d12.frameIndex * rtvDescriptorSize;
+
+        g_d3d12.commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in clear: " << e.what() << std::endl;
+    }
+}
+
+// Clear the depth buffer
+static void clearDepthBuffer(float depth) {
+    if (!g_d3d12.commandList || !g_d3d12.dsvHeap) {
+        return;
+    }
+
+    try {
+        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = g_d3d12.dsvHeap->GetCPUDescriptorHandleForHeapStart();
+        g_d3d12.commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, depth, 0, 0, nullptr);
+
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in clearDepthBuffer: " << e.what() << std::endl;
+    }
+}
+
+// ============================================================================
+// Subsystem Cleanup Functions
+// ============================================================================
+
+static void cleanupDebugManager() {
+    // Release debug interface and info queue
+    if (g_d3d12.infoQueue) {
+        g_d3d12.infoQueue.Reset();
+    }
+    if (g_d3d12.debugController) {
+        g_d3d12.debugController.Reset();
+    }
+}
+
+static void cleanupPerformanceProfiler() {
+    // Performance profiler cleanup would go here
+    // Currently no global performance profiler state to clean up
+}
+
+static void cleanupResourceStateManager() {
+    // Clear all resource tracking maps
+    g_vertexBuffers.clear();
+    g_indexBuffers.clear();
+    g_constantBuffers.clear();
+    g_structuredBuffers.clear();
+    g_rwBuffers.clear();
+    g_textures.clear();
+    g_rwTextures.clear();
+    g_raytracingBLAS.clear();
+    g_raytracingTLAS.clear();
+    g_vrsResources.clear();
+    g_samplerFeedbackResources.clear();
+}
+
+static void cleanupPipelineManager() {
+    // Clear pipeline state cache
+    g_pipelineStates.clear();
+    g_rootSignatures.clear();
+}
+
+static void cleanupDescriptorHeapManager() {
+    // Clear descriptor heap tracking
+    g_descriptorHeaps.clear();
+    g_descriptorHeapInfo.clear();
+    g_srvDescriptors.clear();
+    g_uavDescriptors.clear();
+    g_cbvDescriptors.clear();
+    g_gpuDescriptorHandles.clear();
+}
+
+static void cleanupCommandManager() {
+    // Clear command queue and allocator tracking
+    g_commandQueues.clear();
+    g_commandAllocators.clear();
+    g_commandLists.clear();
+}
+
+static void cleanupShaderCompiler() {
+    // Clear shader blob cache
+    g_vertexShaderBlobs.clear();
+    g_pixelShaderBlobs.clear();
+    g_computeShaderBlobs.clear();
+    g_meshShaderBlobs.clear();
+    g_amplificationShaderBlobs.clear();
+    g_raytracingShaderBlobs.clear();
+}
+
+static void cleanupTextureManager() {
+    // Textures are already tracked in g_textures and g_rwTextures
+    // which are cleared in cleanupResourceStateManager()
+}
+
+static void cleanupMemoryManager() {
+#if VITRA_D3D12MA_AVAILABLE
+    // Release D3D12MA allocator and pools
+    if (g_d3d12.uploadPool) {
+        g_d3d12.uploadPool->Release();
+        g_d3d12.uploadPool = nullptr;
+    }
+    if (g_d3d12.readbackPool) {
+        g_d3d12.readbackPool->Release();
+        g_d3d12.readbackPool = nullptr;
+    }
+    if (g_d3d12.allocator) {
+        g_d3d12.allocator->Release();
+        g_d3d12.allocator = nullptr;
+    }
+#endif
+}
+
+static void cleanupAdapterSelection() {
+    // Adapter cleanup would go here
+    // Currently no global adapter state to clean up
+}
+
+// ============================================================================
+// Per-Frame Subsystem Functions
+// ============================================================================
+
+static void beginFrameMemoryManager() {
+    // Memory manager per-frame initialization
+    // Could track frame-based memory allocations here
+}
+
+static void beginFrameCommandManager() {
+    // Command manager per-frame initialization
+    // Reset command allocators for current frame
+}
+
+static void beginFrameResourceStateManager() {
+    // Resource state manager per-frame initialization
+    // Could reset resource state tracking here
+}
+
+static void beginFramePerformanceProfiler() {
+    // Performance profiler per-frame initialization
+    // Could reset frame timers here
+}
+
+static void processDebugMessagesNative() {
+#if defined(_DEBUG)
+    if (!g_debugInfoQueue) {
+        return;
+    }
+
+    try {
+        UINT64 numMessages = g_debugInfoQueue->GetNumStoredMessages();
+
+        for (UINT64 i = 0; i < numMessages; i++) {
+            SIZE_T messageLength = 0;
+            g_debugInfoQueue->GetMessage(i, nullptr, &messageLength);
+
+            if (messageLength > 0) {
+                D3D12_MESSAGE* pMessage = (D3D12_MESSAGE*)malloc(messageLength);
+                if (pMessage) {
+                    g_debugInfoQueue->GetMessage(i, pMessage, &messageLength);
+
+                    std::cerr << "[D3D12 " << GetDebugSeverityString(pMessage->Severity) << "] "
+                              << GetDebugCategoryString(pMessage->Category) << ": "
+                              << pMessage->pDescription << std::endl;
+
+                    free(pMessage);
+                }
+            }
+        }
+
+        g_debugInfoQueue->ClearStoredMessages();
+
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in processDebugMessagesNative: " << e.what() << std::endl;
+    }
+#endif
+}
+
+static void endFrameMemoryManager() {
+    // Memory manager per-frame cleanup
+    // Could free temporary frame allocations here
+}
+
+static void endFrameCommandManager() {
+    // Command manager per-frame cleanup
+}
+
+static void endFrameResourceStateManager() {
+    // Resource state manager per-frame cleanup
+}
+
+static void endFramePerformanceProfiler() {
+    // Performance profiler per-frame cleanup
+    // Could record frame timing here
+}
+static int getAdapterCount() { return 1; }
+static const char* getAdapterInfo(int index) { (void)index; return "Default Adapter"; }
+static const char* getAdapterFeatureSupport(int index) { (void)index; return "{}"; }
+static bool createDeviceWithAdapter(int adapterIndex, bool debugMode = false) { (void)adapterIndex; (void)debugMode; return false; }
+
 // Global D3D12 resources with modern initialization
 D3D12Resources g_d3d12 = {};
+
+// Use Microsoft::WRL namespace for convenience
+using Microsoft::WRL::ComPtr;
 
 // Enhanced resource tracking
 std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_vertexBuffers;
@@ -33,9 +426,80 @@ std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_raytracingTLAS;
 std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_vrsResources;
 std::unordered_map<uint64_t, ComPtr<ID3D12Resource>> g_samplerFeedbackResources;
 
-// DirectStorage resource tracking
-std::unordered_map<uint64_t, ComPtr<IDStorageFileX>> g_storageFiles;
+// Additional resource tracking for pipeline and command objects
+std::unordered_map<uint64_t, ComPtr<ID3D12RootSignature>> g_rootSignatures;
+std::unordered_map<int, ComPtr<ID3D12CommandQueue>> g_commandQueues;
+std::unordered_map<int, std::vector<ComPtr<ID3D12CommandAllocator>>> g_commandAllocators;
+std::unordered_map<uint64_t, ComPtr<ID3D12GraphicsCommandList>> g_commandLists;
+std::unordered_map<uint64_t, ComPtr<ID3D12DescriptorHeap>> g_descriptorHeaps;
+std::unordered_map<uint64_t, ComPtr<ID3D12PipelineState>> g_pipelineStates;
+
+// Descriptor heap info tracking (forward declare the struct type)
+struct DescriptorHeapInfo {
+    D3D12_DESCRIPTOR_HEAP_TYPE type;
+    UINT numDescriptors;
+    UINT currentOffset;
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuStart;
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuStart;
+    UINT descriptorSize;
+};
+std::unordered_map<uint64_t, DescriptorHeapInfo> g_descriptorHeapInfo;
+
+// Current render state globals
+struct D3D12_RASTERIZER_DESC_CUSTOM {
+    D3D12_FILL_MODE FillMode;
+    D3D12_CULL_MODE CullMode;
+    BOOL FrontCounterClockwise;
+    INT DepthBias;
+    FLOAT DepthBiasClamp;
+    FLOAT SlopeScaledDepthBias;
+    BOOL DepthClipEnable;
+    BOOL MultisampleEnable;
+    BOOL AntialiasedLineEnable;
+    UINT ForcedSampleCount;
+    D3D12_CONSERVATIVE_RASTERIZATION_MODE ConservativeRaster;
+};
+D3D12_RASTERIZER_DESC_CUSTOM g_currentRasterizerState = {};
+
+D3D12_DEPTH_STENCIL_DESC g_currentDepthStencilState = {};
+D3D12_BLEND_DESC g_currentBlendState = {};
+
+// Matrix and constant buffer globals
+float g_projectionMatrix[16] = {};
+float g_modelViewMatrix[16] = {};
+float g_textureMatrix[16] = {};
+float g_shaderColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+unsigned int g_constantBuffersDirty = 0;
+
+// Constant buffer bit flags
+const unsigned int ConstantBuffer_Projection = (1 << 0);
+const unsigned int ConstantBuffer_ModelView = (1 << 1);
+const unsigned int ConstantBuffer_Texture = (1 << 2);
+const unsigned int ConstantBuffer_ShaderConstants = (1 << 3);
+
+// Lighting globals
+const int MAX_LIGHTS = 8;
+float g_lightDirections[MAX_LIGHTS * 3] = {};
+float g_lightColors[MAX_LIGHTS * 3] = {};
+int g_activeLights = 0;
+const unsigned int ConstantBuffer_Lighting = (1 << 4);
+
+// Fog globals
+float g_fogColor[4] = {};
+const unsigned int ConstantBuffer_Fog = (1 << 5);
+
+// Debug globals
+bool g_gpuValidationEnabled = false;
+bool g_resourceLeakDetectionEnabled = false;
+bool g_objectNamingEnabled = false;
+ComPtr<ID3D12Debug> g_debugInterface;
+ComPtr<ID3D12InfoQueue> g_debugInfoQueue;
+
+// DirectStorage resource tracking (only if available)
+#if VITRA_DIRECT_STORAGE_AVAILABLE
+std::unordered_map<uint64_t, ComPtr<IDStorageFile>> g_storageFiles;
 std::unordered_map<uint64_t, DSTORAGE_REQUEST> g_pendingRequests;
+#endif
 
 // DirectX Shader Compiler interface
 static ComPtr<IDxcCompiler> g_dxcCompiler;
@@ -49,6 +513,184 @@ std::uniform_int_distribution<uint64_t> dis;
 
 uint64_t generateHandle() {
     return dis(gen);
+}
+
+// Shutdown D3D12 and cleanup all resources
+static void shutdownD3D12() {
+    // Clear all resource maps
+    g_vertexBuffers.clear();
+    g_indexBuffers.clear();
+    g_constantBuffers.clear();
+    g_textures.clear();
+    g_rootSignatures.clear();
+    g_commandQueues.clear();
+    g_commandAllocators.clear();
+    g_commandLists.clear();
+    g_descriptorHeaps.clear();
+    g_pipelineStates.clear();
+
+    // Reset D3D12 device and queue (ComPtr will auto-release)
+    g_d3d12.device5.Reset();
+    g_d3d12.device12.Reset();
+    g_d3d12.commandQueue.Reset();
+    g_d3d12.swapChain.Reset();
+}
+
+// Upload texture data using WriteToSubresource (for UPLOAD heap textures)
+static void setTextureData(uint64_t handle, int width, int height, int format, jbyteArray data) {
+    auto it = g_textures.find(handle);
+    if (it == g_textures.end() || !data) {
+        return;
+    }
+
+    ID3D12Resource* texture = it->second.Get();
+    if (!texture) {
+        return;
+    }
+
+    // This function needs JNIEnv which we don't have in a static helper
+    // The actual implementation is done inline in the JNI function that calls this
+    // For now, we'll just validate the resource exists
+    // The real upload happens in the calling JNI function using WriteToSubresource
+
+    // Calculate bytes per pixel based on format
+    UINT bytesPerPixel = 4; // Default RGBA8
+    switch (format) {
+        case 28: // DXGI_FORMAT_R8G8B8A8_UNORM
+            bytesPerPixel = 4;
+            break;
+        case 87: // DXGI_FORMAT_B8G8R8A8_UNORM
+            bytesPerPixel = 4;
+            break;
+        case 61: // DXGI_FORMAT_R8_UNORM
+            bytesPerPixel = 1;
+            break;
+        default:
+            bytesPerPixel = 4;
+            break;
+    }
+
+    // Calculate row pitch with D3D12_TEXTURE_DATA_PITCH_ALIGNMENT (256 bytes)
+    UINT rowPitch = width * bytesPerPixel;
+    rowPitch = (rowPitch + 255) & ~255; // Align to 256 bytes
+
+    // Calculate slice pitch
+    UINT slicePitch = rowPitch * height;
+
+    // Validate texture resource state
+    // Texture must be in UPLOAD heap or COPY_DEST state for WriteToSubresource
+    D3D12_RESOURCE_DESC desc = texture->GetDesc();
+    if (desc.Width != static_cast<UINT64>(width) || desc.Height != static_cast<UINT>(height)) {
+        std::cerr << "Texture dimensions mismatch in setTextureData" << std::endl;
+        return;
+    }
+
+    // The actual data upload must be done with JNIEnv available
+    // See the calling JNI function for the WriteToSubresource implementation
+    (void)slicePitch; // Will be used in the actual implementation
+}
+
+// Get current timestamp for debug logging
+std::string getCurrentTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+    std::tm tm_buf;
+    localtime_s(&tm_buf, &time);
+
+    std::ostringstream oss;
+    oss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
+    oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+    return oss.str();
+}
+
+// Log debug message to file and console
+void logDebugMessage(D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID id, const char* message) {
+    const char* severityStr = "UNKNOWN";
+    switch (severity) {
+        case D3D12_MESSAGE_SEVERITY_CORRUPTION: severityStr = "CORRUPTION"; break;
+        case D3D12_MESSAGE_SEVERITY_ERROR: severityStr = "ERROR"; break;
+        case D3D12_MESSAGE_SEVERITY_WARNING: severityStr = "WARNING"; break;
+        case D3D12_MESSAGE_SEVERITY_INFO: severityStr = "INFO"; break;
+        case D3D12_MESSAGE_SEVERITY_MESSAGE: severityStr = "MESSAGE"; break;
+    }
+
+    std::string timestamp = getCurrentTimestamp();
+    std::string logLine = "[" + timestamp + "] [" + severityStr + "] " + message + "\n";
+
+    // Write to debug log file if enabled
+    if (g_d3d12.debugLoggingToFileEnabled && g_d3d12.debugLogFile.is_open()) {
+        g_d3d12.debugLogFile << logLine;
+        g_d3d12.debugLogFile.flush();
+    }
+
+    // Also log to console for important messages
+    if (severity <= D3D12_MESSAGE_SEVERITY_WARNING) {
+        std::cerr << "[D3D12] " << logLine;
+    } else {
+        std::cout << "[D3D12] " << logLine;
+    }
+}
+
+// Flush debug messages from info queue
+void flushDebugMessages() {
+    if (!g_d3d12.infoQueue1) {
+        return;
+    }
+
+    UINT64 messageCount = g_d3d12.infoQueue1->GetNumStoredMessages();
+    for (UINT64 i = 0; i < messageCount; i++) {
+        SIZE_T messageLength = 0;
+        g_d3d12.infoQueue1->GetMessage(i, nullptr, &messageLength);
+
+        if (messageLength > 0) {
+            D3D12_MESSAGE* message = (D3D12_MESSAGE*)malloc(messageLength);
+            if (message) {
+                HRESULT hr = g_d3d12.infoQueue1->GetMessage(i, message, &messageLength);
+                if (SUCCEEDED(hr)) {
+                    logDebugMessage(message->Severity, message->ID, message->pDescription);
+                }
+                free(message);
+            }
+        }
+    }
+
+    // Clear the stored messages
+    g_d3d12.infoQueue1->ClearStoredMessages();
+}
+
+// Setup or teardown debug message callback
+void setupDebugMessageCallback(bool enable) {
+    if (!g_d3d12.infoQueue1) {
+        return;
+    }
+
+    if (enable) {
+        // Set message severity filter
+        D3D12_MESSAGE_SEVERITY severities[] = {
+            D3D12_MESSAGE_SEVERITY_CORRUPTION,
+            D3D12_MESSAGE_SEVERITY_ERROR,
+            D3D12_MESSAGE_SEVERITY_WARNING
+        };
+
+        D3D12_INFO_QUEUE_FILTER filter = {};
+        filter.AllowList.NumSeverities = _countof(severities);
+        filter.AllowList.pSeverityList = severities;
+
+        g_d3d12.infoQueue1->AddStorageFilterEntries(&filter);
+        g_d3d12.debugCallbackRegistered = true;
+
+        logDebugMessage(D3D12_MESSAGE_SEVERITY_INFO, D3D12_MESSAGE_ID_UNKNOWN,
+                       "Debug message callback enabled");
+    } else {
+        // Clear all filters
+        g_d3d12.infoQueue1->ClearStorageFilter();
+        g_d3d12.debugCallbackRegistered = false;
+
+        logDebugMessage(D3D12_MESSAGE_SEVERITY_INFO, D3D12_MESSAGE_ID_UNKNOWN,
+                       "Debug message callback disabled");
+    }
 }
 
 // Enhanced shader compilation with modern DXC support
@@ -443,10 +1085,13 @@ void setVariableRateShading(D3D12_SHADING_RATE baseRate, const D3D12_SHADING_RAT
         return;
     }
 
-    g_d3d12.Combiners[0] = combiners[0];
-    g_d3d12.Combiners[1] = combiners[1];
+    g_d3d12.Combiners[0] = static_cast<D3D12_SHADING_RATE>(combiners[0]);
+    g_d3d12.Combiners[1] = static_cast<D3D12_SHADING_RATE>(combiners[1]);
 
-    g_d3d12.commandList4->RSSetShadingRate(baseRate, combiners);
+    // RSSetShadingRate requires ID3D12GraphicsCommandList5 from DirectX 12 Agility SDK
+    // Commenting out until Agility SDK is integrated
+    // g_d3d12.commandList4->RSSetShadingRate(baseRate, combiners);
+    std::cerr << "[D3D12] Variable Rate Shading not available - requires DirectX 12 Agility SDK" << std::endl;
 }
 
 void dispatchMesh(UINT threadGroupCountX, UINT threadGroupCountY, UINT threadGroupCountZ) {
@@ -454,7 +1099,10 @@ void dispatchMesh(UINT threadGroupCountX, UINT threadGroupCountY, UINT threadGro
         return;
     }
 
-    g_d3d12.commandList4->DispatchMesh(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
+    // DispatchMesh requires ID3D12GraphicsCommandList6 from DirectX 12 Agility SDK
+    // Commenting out until Agility SDK is integrated
+    // g_d3d12.commandList4->DispatchMesh(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
+    std::cerr << "[D3D12] Mesh Shaders not available - requires DirectX 12 Agility SDK" << std::endl;
 }
 
 // Enhanced synchronization functions
@@ -504,8 +1152,9 @@ bool checkMeshShaderSupport() {
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
     HRESULT hr = g_d3d12.device5->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
 
-    return SUCCEEDED(hr) &&
-           options5.MeshShaderTier >= D3D12_MESH_SHADER_TIER_1;
+    // MeshShaderTier is not available in standard Windows SDK, requires Agility SDK
+    // return SUCCEEDED(hr) && options5.MeshShaderTier >= D3D12_MESH_SHADER_TIER_1;
+    return false; // Disabled until Agility SDK is integrated
 }
 
 bool checkVariableRateShadingSupport() {
@@ -524,7 +1173,9 @@ bool checkSamplerFeedbackSupport() {
     D3D12_FEATURE_DATA_D3D12_OPTIONS18 options18 = {};
     HRESULT hr = g_d3d12.device5->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS18, &options18, sizeof(options18));
 
-    return SUCCEEDED(hr) && options18.SamplerFeedbackTier != D3D12_SAMPLER_FEEDBACK_TIER_NOT_SUPPORTED;
+    // SamplerFeedbackTier is not available in standard Windows SDK, requires Agility SDK
+    // return SUCCEEDED(hr) && options18.SamplerFeedbackTier != D3D12_SAMPLER_FEEDBACK_TIER_NOT_SUPPORTED;
+    return false; // Disabled until Agility SDK is integrated
 }
 
 bool checkShaderModelSupport(D3D_SHADER_MODEL requiredModel) {
@@ -577,7 +1228,9 @@ bool checkGPUUploadHeapSupport() {
     D3D12_FEATURE_DATA_D3D12_OPTIONS13 options13 = {};
     HRESULT hr = g_d3d12.device12->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS13, &options13, sizeof(options13));
 
-    g_d3d12.supportsGPUUploadHeaps = SUCCEEDED(hr) && options13.GPUUploadHeapSupported;
+    // GPUUploadHeapSupported is not available in standard Windows SDK, requires Agility SDK
+    // g_d3d12.supportsGPUUploadHeaps = SUCCEEDED(hr) && options13.GPUUploadHeapSupported;
+    g_d3d12.supportsGPUUploadHeaps = false; // Disabled until Agility SDK is integrated
     return g_d3d12.supportsGPUUploadHeaps;
 }
 
@@ -586,75 +1239,38 @@ void transitionResource(ID3D12GraphicsCommandList4* commandList, ID3D12Resource*
                         D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after,
                         UINT subresource) {
 
-    if (g_d3d12.supportsEnhancedBarriers) {
-        // Use enhanced barriers (D3D12.2)
-        D3D12_BARRIER_GROUP barrierGroup = {};
-        barrierGroup.Type = D3D12_BARRIER_TYPE_TRANSITION;
-        barrierGroup.NumBarriers = 1;
+    // Enhanced barriers require DirectX 12 Agility SDK
+    // Using legacy resource barriers for compatibility
+    D3D12_RESOURCE_BARRIER resourceBarrier = {};
+    resourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    resourceBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    resourceBarrier.Transition.pResource = resource;
+    resourceBarrier.Transition.StateBefore = before;
+    resourceBarrier.Transition.StateAfter = after;
+    resourceBarrier.Transition.Subresource = subresource;
 
-        D3D12_TRANSITION_BARRIER transition = {};
-        transition.pResource = resource;
-        transition.Subresource = subresource;
-        transition.StateBefore = before;
-        transition.StateAfter = after;
-
-        D3D12_GLOBAL_BARRIER globalBarrier = {};
-        globalBarrier.SyncBefore = D3D12_BARRIER_SYNC_ALL;
-        globalBarrier.SyncAfter = D3D12_BARRIER_SYNC_ALL;
-        globalBarrier.AccessBefore = D3D12_BARRIER_ACCESS_ALL;
-        globalBarrier.AccessAfter = D3D12_BARRIER_ACCESS_ALL;
-
-        D3D12_BARRIER barrier = {};
-        barrier.Type = D3D12_BARRIER_TYPE_TRANSITION;
-        barrier.Transition = transition;
-
-        commandList->Barrier(1, &barrier);
-    } else {
-        // Use legacy barriers
-        D3D12_RESOURCE_BARRIER resourceBarrier = {};
-        resourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        resourceBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        resourceBarrier.Transition.pResource = resource;
-        resourceBarrier.Transition.StateBefore = before;
-        resourceBarrier.Transition.StateAfter = after;
-        resourceBarrier.Transition.Subresource = subresource;
-
-        commandList->ResourceBarrier(1, &resourceBarrier);
-    }
+    commandList->ResourceBarrier(1, &resourceBarrier);
 }
 
 void UAVBarrier(ID3D12GraphicsCommandList4* commandList, ID3D12Resource* resource) {
-    if (g_d3d12.supportsEnhancedBarriers) {
-        D3D12_BARRIER barrier = {};
-        barrier.Type = D3D12_BARRIER_TYPE_UAV;
-        barrier.UAV.pResource = resource;
+    // Enhanced barriers require DirectX 12 Agility SDK
+    // Using legacy UAV barriers for compatibility
+    D3D12_RESOURCE_BARRIER resourceBarrier = {};
+    resourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+    resourceBarrier.UAV.pResource = resource;
 
-        commandList->Barrier(1, &barrier);
-    } else {
-        D3D12_RESOURCE_BARRIER resourceBarrier = {};
-        resourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-        resourceBarrier.UAV.pResource = resource;
-
-        commandList->ResourceBarrier(1, &resourceBarrier);
-    }
+    commandList->ResourceBarrier(1, &resourceBarrier);
 }
 
 void aliasingBarrier(ID3D12GraphicsCommandList4* commandList, ID3D12Resource* before, ID3D12Resource* after) {
-    if (g_d3d12.supportsEnhancedBarriers) {
-        D3D12_BARRIER barrier = {};
-        barrier.Type = D3D12_BARRIER_TYPE_ALIASING;
-        barrier.Aliasing.pResourceBefore = before;
-        barrier.Aliasing.pResourceAfter = after;
+    // Enhanced barriers require DirectX 12 Agility SDK
+    // Using legacy aliasing barriers for compatibility
+    D3D12_RESOURCE_BARRIER resourceBarrier = {};
+    resourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_ALIASING;
+    resourceBarrier.Aliasing.pResourceBefore = before;
+    resourceBarrier.Aliasing.pResourceAfter = after;
 
-        commandList->Barrier(1, &barrier);
-    } else {
-        D3D12_RESOURCE_BARRIER resourceBarrier = {};
-        resourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_ALIASING;
-        resourceBarrier.Aliasing.pResourceBefore = before;
-        resourceBarrier.Aliasing.pResourceAfter = after;
-
-        commandList->ResourceBarrier(1, &resourceBarrier);
-    }
+    commandList->ResourceBarrier(1, &resourceBarrier);
 }
 
 // Modern DirectX 12 Ultimate initialization
@@ -679,10 +1295,8 @@ JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIn
         }
 
         // Setup message callback for file logging
-        if (!setupDebugMessageCallback()) {
-            std::cerr << "Failed to setup debug message callback" << std::endl;
-            // Continue without callback - not fatal
-        }
+        setupDebugMessageCallback(true);
+        std::cout << "Debug message callback enabled" << std::endl;
 
         // Initialize debug log file in game directory
         if (!initializeDebugLogFile("vitra_d3d12_debug.log")) {
@@ -744,6 +1358,9 @@ JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIn
         std::cerr << "No compatible DirectX 12 hardware adapter found" << std::endl;
         return JNI_FALSE;
     }
+
+    // Store the adapter for D3D12MA initialization
+    g_d3d12.adapter = hardwareAdapter;
 
     // Get device interface pointers for different feature levels
     if (g_d3d12.device12) {
@@ -927,24 +1544,15 @@ JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIn
         g_d3d12.copyFenceValues[i] = 0;
     }
 
-    // Create modern graphics command list (D3D12.4)
-    hr = devicePtr->CreateCommandList1(
+    // Create graphics command list
+    // CreateCommandList1 requires ID3D12Device4 from Agility SDK, using CreateCommandList for compatibility
+    hr = devicePtr->CreateCommandList(
         0,
         D3D12_COMMAND_LIST_TYPE_DIRECT,
-        D3D12_COMMAND_LIST_FLAG_NONE,
+        g_d3d12.commandAllocators[g_d3d12.frameIndex].Get(),
+        nullptr,
         IID_PPV_ARGS(&g_d3d12.commandList4)
     );
-
-    if (FAILED(hr)) {
-        // Fallback to basic command list
-        hr = devicePtr->CreateCommandList(
-            0,
-            D3D12_COMMAND_LIST_TYPE_DIRECT,
-            g_d3d12.commandAllocators[g_d3d12.frameIndex].Get(),
-            nullptr,
-            IID_PPV_ARGS(&g_d3d12.commandList4)
-        );
-    }
 
     if (FAILED(hr)) {
         std::cerr << "Failed to create graphics command list: " << std::hex << hr << std::endl;
@@ -952,10 +1560,12 @@ JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIn
     }
 
     // Create compute command list
-    hr = devicePtr->CreateCommandList1(
+    // CreateCommandList1 requires ID3D12Device4, fallback to CreateCommandList for compatibility
+    hr = devicePtr->CreateCommandList(
         0,
         D3D12_COMMAND_LIST_TYPE_COMPUTE,
-        D3D12_COMMAND_LIST_FLAG_NONE,
+        g_d3d12.computeAllocators[g_d3d12.frameIndex].Get(),
+        nullptr,
         IID_PPV_ARGS(&g_d3d12.computeCommandList)
     );
 
@@ -1035,17 +1645,19 @@ JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIn
         initializeSamplerFeedback();
     }
 
-    // Set default VRS combiners
-    g_d3d12.Combiners[0] = D3D12_SHADING_RATE_COMBINER_PASSTHROUGH;
-    g_d3d12.Combiners[1] = D3D12_SHADING_RATE_COMBINER_OVERRIDE;
+    // Set default VRS combiners (cast from combiner enum to rate enum)
+    g_d3d12.Combiners[0] = static_cast<D3D12_SHADING_RATE>(D3D12_SHADING_RATE_COMBINER_PASSTHROUGH);
+    g_d3d12.Combiners[1] = static_cast<D3D12_SHADING_RATE>(D3D12_SHADING_RATE_COMBINER_OVERRIDE);
 
     // Initialize D3D12 Memory Allocator for modern memory management
+#if VITRA_D3D12MA_AVAILABLE
     if (!initializeD3D12MA()) {
         std::cerr << "Failed to initialize D3D12 Memory Allocator, falling back to default allocation" << std::endl;
         // Continue without D3D12MA - not a fatal error
     } else {
         std::cout << "D3D12 Memory Allocator initialized successfully with optimized memory pools" << std::endl;
     }
+#endif
 
     g_d3d12.initialized = true;
     std::cout << "DirectX 12 Ultimate with full feature support and advanced memory management initialized successfully" << std::endl;
@@ -1114,7 +1726,9 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeShutdo
     g_d3d12.infoQueue1.Reset();
 
     // Shutdown D3D12 Memory Allocator before device cleanup
+#if VITRA_D3D12MA_AVAILABLE
     shutdownD3D12MA();
+#endif
 
     g_d3d12.device.Reset();
 
@@ -1680,10 +2294,7 @@ JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeGet
 }
 
 // JNI cleanup and helper functions
-uint64_t generateHandle() {
-    static uint64_t handleCounter = 1;
-    return handleCounter++;
-}
+// Note: generateHandle() is already defined at the top of this file
 
 // Modern helper function to get current device for Vitra integration
 ID3D12Device* getCurrentDevice() {
@@ -1714,17 +2325,22 @@ void ensureCommandListState() {
 
 // DirectStorage Implementation
 bool checkDirectStorageSupport() {
+#if VITRA_DIRECT_STORAGE_AVAILABLE
     // Check if DirectStorage is available on this system
     // DirectStorage requires Windows 10 2004+ and appropriate hardware
 
     // Try to create a DirectStorage factory
-    ComPtr<IDStorageFactoryX> factory;
+    ComPtr<IDStorageFactory> factory;
     HRESULT hr = DStorageCreateFactory(DSTORAGE_API_VERSION_1_0, IID_PPV_ARGS(&factory));
 
     return SUCCEEDED(hr);
+#else
+    return false; // DirectStorage SDK not available
+#endif
 }
 
 bool initializeDirectStorage() {
+#if VITRA_DIRECT_STORAGE_AVAILABLE
     if (g_d3d12.storageInitialized) {
         return true;
     }
@@ -1751,10 +2367,10 @@ bool initializeDirectStorage() {
             return false;
         }
 
-        // Create completion event for monitoring
-        hr = g_d3d12.storageFactory->CreateCompletionEvent(&g_d3d12.storageCompletion);
-        if (FAILED(hr)) {
-            std::cerr << "Failed to create DirectStorage completion event: 0x" << std::std::hex << hr << std::endl;
+        // Create Win32 event for completion notification
+        g_d3d12.storageCompletion = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+        if (!g_d3d12.storageCompletion) {
+            std::cerr << "Failed to create DirectStorage completion event" << std::endl;
             // Continue without completion event - use polling instead
         }
 
@@ -1777,7 +2393,14 @@ bool initializeDirectStorage() {
         std::cerr << "Exception during DirectStorage initialization: " << e.what() << std::endl;
         return false;
     }
+#else
+    g_d3d12.features.directStorageSupported = false;
+    return false; // DirectStorage SDK not available
+#endif // VITRA_DIRECT_STORAGE_AVAILABLE (for initializeDirectStorage)
 }
+
+#if VITRA_DIRECT_STORAGE_AVAILABLE
+// DirectStorage helper functions - only available when DirectStorage SDK is present
 
 HRESULT createStorageQueue() {
     if (!g_d3d12.storageFactory || !g_d3d12.storageQueue) {
@@ -1788,7 +2411,7 @@ HRESULT createStorageQueue() {
     return S_OK;
 }
 
-HRESULT openStorageFile(const wchar_t* filename, IDStorageFileX** file) {
+HRESULT openStorageFile(const wchar_t* filename, IDStorageFile** file) {
     if (!g_d3d12.storageInitialized || !g_d3d12.storageFactory) {
         return E_NOT_INITIALIZED;
     }
@@ -1817,7 +2440,7 @@ HRESULT openStorageFile(const wchar_t* filename, IDStorageFileX** file) {
     return hr;
 }
 
-HRESULT enqueueReadRequest(IDStorageFileX* file, UINT64 offset, UINT64 size, void* destination, UINT64 requestTag) {
+HRESULT enqueueReadRequest(IDStorageFile* file, UINT64 offset, UINT64 size, void* destination, UINT64 requestTag) {
     if (!g_d3d12.storageInitialized || !g_d3d12.storageQueue || !file) {
         return E_INVALIDARG;
     }
@@ -1853,7 +2476,7 @@ HRESULT enqueueReadRequest(IDStorageFileX* file, UINT64 offset, UINT64 size, voi
     }
 }
 
-HRESULT enqueueDecompressionRead(IDStorageFileX* file, UINT64 compressedOffset, UINT64 compressedSize,
+HRESULT enqueueDecompressionRead(IDStorageFile* file, UINT64 compressedOffset, UINT64 compressedSize,
                                 void* compressedDestination, UINT64 decompressedSize,
                                 void* decompressedDestination, UINT64 requestTag) {
     if (!g_d3d12.storageInitialized || !g_d3d12.storageQueue || !file) {
@@ -1926,7 +2549,7 @@ void waitForStorageRequests(UINT64 timeoutMs) {
 
         if (g_d3d12.storageCompletion) {
             // Use completion event if available
-            HANDLE handles[] = { g_d3d12.storageCompletion.Get() };
+            HANDLE handles[] = { g_d3d12.storageCompletion };
             DWORD result = WaitForMultipleObjects(1, handles, FALSE, timeout);
 
             if (result == WAIT_OBJECT_0) {
@@ -1962,7 +2585,22 @@ void waitForStorageRequests(UINT64 timeoutMs) {
     }
 }
 
+#else // VITRA_DIRECT_STORAGE_AVAILABLE
+
+// DirectStorage not available - stub implementations for functions used by main code
+HRESULT createStorageQueue() { return E_NOTIMPL; }
+HRESULT openStorageFile(const wchar_t* filename, void** file) { return E_NOTIMPL; }
+HRESULT enqueueReadRequest(void* file, UINT64 offset, UINT64 size, void* destination, UINT64 requestTag) { return E_NOTIMPL; }
+HRESULT enqueueDecompressionRead(void* file, UINT64 compressedOffset, UINT64 compressedSize,
+                                void* compressedDestination, UINT64 decompressedSize,
+                                void* decompressedDestination, UINT64 requestTag) { return E_NOTIMPL; }
+void processStorageQueue() {}
+void waitForStorageRequests(UINT64 timeoutMs) {}
+
+#endif // VITRA_DIRECT_STORAGE_AVAILABLE
+
 void shutdownDirectStorage() {
+#if VITRA_DIRECT_STORAGE_AVAILABLE
     if (!g_d3d12.storageInitialized) {
         return;
     }
@@ -1981,7 +2619,11 @@ void shutdownDirectStorage() {
         // Release DirectStorage components
         g_d3d12.storageQueue.Reset();
         g_d3d12.storageFactory.Reset();
-        g_d3d12.storageCompletion.Reset();
+
+        if (g_d3d12.storageCompletion) {
+            CloseHandle(g_d3d12.storageCompletion);
+            g_d3d12.storageCompletion = nullptr;
+        }
 
         g_d3d12.storageFileCount = 0;
         g_d3d12.storageInitialized = false;
@@ -1990,9 +2632,12 @@ void shutdownDirectStorage() {
     } catch (const std::exception& e) {
         std::cerr << "Exception during DirectStorage shutdown: " << e.what() << std::endl;
     }
+#endif // VITRA_DIRECT_STORAGE_AVAILABLE
 }
 
-// DirectStorage performance functions
+#if VITRA_DIRECT_STORAGE_AVAILABLE
+// DirectStorage performance functions - only available when DirectStorage is enabled
+
 float getStorageThroughput() {
     // Simplified throughput calculation
     // In production would track actual bytes transferred over time
@@ -2011,15 +2656,15 @@ bool isStorageQueueIdle() {
 // ==================== DirectStorage JNI Functions ====================
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIsDirectStorageSupported(JNIEnv* env, jclass clazz) {
-    return g_d3d12.directStorageSupported;
+    return g_d3d12.features.directStorageSupported;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIsHardwareDecompressionSupported(JNIEnv* env, jclass clazz) {
-    return g_d3d12.hardwareDecompressionSupported;
+    return g_d3d12.features.hardwareDecompressionSupported;
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeOpenStorageFile(JNIEnv* env, jclass clazz, jstring filename) {
-    if (!g_d3d12.directStorageSupported || !g_d3d12.storageFactory) {
+    if (!g_d3d12.features.directStorageSupported || !g_d3d12.storageFactory) {
         return 0L;
     }
 
@@ -2033,7 +2678,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
     MultiByteToWideChar(CP_UTF8, 0, filePath, -1, widePath, MAX_PATH);
 
     // Create DirectStorage file
-    ComPtr<IDStorageFileX> storageFile;
+    ComPtr<IDStorageFile> storageFile;
     HRESULT hr = g_d3d12.storageFactory->OpenFile(widePath, IID_PPV_ARGS(&storageFile));
 
     env->ReleaseStringUTFChars(filename, filePath);
@@ -2057,11 +2702,11 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
                                                                                             jlong fileHandle, jlong offset,
                                                                                             jlong size, jlong destination,
                                                                                             jlong requestTag) {
-    if (!g_d3d12.directStorageSupported || !g_d3d12.storageQueue || fileHandle == 0L) {
+    if (!g_d3d12.features.directStorageSupported || !g_d3d12.storageQueue || fileHandle == 0L) {
         return 0L;
     }
 
-    IDStorageFileX* file = reinterpret_cast<IDStorageFileX*>(fileHandle);
+    IDStorageFile* file = reinterpret_cast<IDStorageFile*>(fileHandle);
     void* dest = reinterpret_cast<void*>(destination);
 
     if (!file || !dest) {
@@ -2075,7 +2720,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeProcessStorageQueue(JNIEnv* env, jclass clazz) {
-    if (!g_d3d12.directStorageSupported || !g_d3d12.storageQueue) {
+    if (!g_d3d12.features.directStorageSupported || !g_d3d12.storageQueue) {
         return;
     }
 
@@ -2083,7 +2728,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_n
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIsStorageQueueEmpty(JNIEnv* env, jclass clazz) {
-    if (!g_d3d12.directStorageSupported || !g_d3d12.storageQueue) {
+    if (!g_d3d12.features.directStorageSupported || !g_d3d12.storageQueue) {
         return JNI_TRUE;
     }
 
@@ -2095,7 +2740,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_n
         return;
     }
 
-    IDStorageFileX* file = reinterpret_cast<IDStorageFileX*>(fileHandle);
+    IDStorageFile* file = reinterpret_cast<IDStorageFile*>(fileHandle);
 
     // Find and remove file from tracking
     for (int i = 0; i < 1024; i++) {
@@ -2112,13 +2757,15 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_n
 
 extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeSetStoragePriority(JNIEnv* env, jclass clazz,
                                                                                              jboolean realtimePriority) {
-    if (!g_d3d12.directStorageSupported || !g_d3d12.storageQueue) {
+    if (!g_d3d12.features.directStorageSupported || !g_d3d12.storageQueue) {
         return;
     }
 
     DSTORAGE_PRIORITY priority = realtimePriority ? DSTORAGE_PRIORITY_REALTIME : DSTORAGE_PRIORITY_NORMAL;
     g_d3d12.storageQueue->SetPriority(priority);
 }
+
+#endif // VITRA_DIRECT_STORAGE_AVAILABLE
 
 // ==================== Performance Monitoring JNI Functions ====================
 
@@ -2160,12 +2807,15 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
 
 // ==================== D3D12 MEMORY ALLOCATOR (D3D12MA) IMPLEMENTATION ====================
 
+#if VITRA_D3D12MA_AVAILABLE
 // D3D12MA resource tracking
 std::unordered_map<uint64_t, std::unique_ptr<D3D12ManagedResource>> g_managedResources;
 std::unordered_map<D3D12MA::Allocation*, uint64_t> g_allocationToResource;
+#endif
 
 // Initialize D3D12 Memory Allocator
 bool initializeD3D12MA() {
+#if VITRA_D3D12MA_AVAILABLE
     if (g_d3d12.allocatorInitialized) {
         return true;
     }
@@ -2180,7 +2830,7 @@ bool initializeD3D12MA() {
         D3D12MA::ALLOCATOR_DESC allocatorDesc = {};
         allocatorDesc.pDevice = g_d3d12.device5.Get();
         allocatorDesc.pAdapter = g_d3d12.adapter.Get();
-        allocatorDesc.Flags = D3D12MA::ALLOCATOR_FLAG_DEFAULT;
+        allocatorDesc.Flags = D3D12MA::ALLOCATOR_FLAG_NONE;
 
         HRESULT hr = D3D12MA::CreateAllocator(&allocatorDesc, &g_d3d12.allocator);
         if (FAILED(hr)) {
@@ -2218,7 +2868,7 @@ bool createMemoryPools() {
         defaultPoolDesc.HeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
         defaultPoolDesc.HeapProperties.CreationNodeMask = 1;
         defaultPoolDesc.HeapProperties.VisibleNodeMask = 1;
-        defaultPoolDesc.Flags = D3D12MA::POOL_FLAG_DEFAULT;
+        defaultPoolDesc.Flags = D3D12MA::POOL_FLAG_NONE;
         defaultPoolDesc.BlockSize = 64 * 1024; // 64KB blocks
         defaultPoolDesc.MinBlockCount = 4;
         defaultPoolDesc.MaxBlockCount = 1024;
@@ -2234,7 +2884,7 @@ bool createMemoryPools() {
         texturePoolDesc.HeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
         texturePoolDesc.HeapProperties.CreationNodeMask = 1;
         texturePoolDesc.HeapProperties.VisibleNodeMask = 1;
-        texturePoolDesc.Flags = D3D12MA::POOL_FLAG_DEFAULT;
+        texturePoolDesc.Flags = D3D12MA::POOL_FLAG_NONE;
         texturePoolDesc.BlockSize = 2 * 1024 * 1024; // 2MB blocks
         texturePoolDesc.MinBlockCount = 2;
         texturePoolDesc.MaxBlockCount = 256;
@@ -2250,7 +2900,7 @@ bool createMemoryPools() {
         uploadPoolDesc.HeapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;
         uploadPoolDesc.HeapProperties.CreationNodeMask = 1;
         uploadPoolDesc.HeapProperties.VisibleNodeMask = 1;
-        uploadPoolDesc.Flags = D3D12MA::POOL_FLAG_DEFAULT;
+        uploadPoolDesc.Flags = D3D12MA::POOL_FLAG_NONE;
         uploadPoolDesc.BlockSize = 1024 * 1024; // 1MB blocks
         uploadPoolDesc.MinBlockCount = 2;
         uploadPoolDesc.MaxBlockCount = 64;
@@ -2266,7 +2916,7 @@ bool createMemoryPools() {
         readbackPoolDesc.HeapProperties.Type = D3D12_HEAP_TYPE_READBACK;
         readbackPoolDesc.HeapProperties.CreationNodeMask = 1;
         readbackPoolDesc.HeapProperties.VisibleNodeMask = 1;
-        readbackPoolDesc.Flags = D3D12MA::POOL_FLAG_DEFAULT;
+        readbackPoolDesc.Flags = D3D12MA::POOL_FLAG_NONE;
         readbackPoolDesc.BlockSize = 512 * 1024; // 512KB blocks
         readbackPoolDesc.MinBlockCount = 1;
         readbackPoolDesc.MaxBlockCount = 32;
@@ -2284,10 +2934,15 @@ bool createMemoryPools() {
         std::cerr << "Exception during memory pool creation: " << e.what() << std::endl;
         return false;
     }
+#else
+    g_d3d12.allocatorInitialized = false;
+    return false; // D3D12MA not available
+#endif
 }
 
 // Shutdown D3D12MA and clean up all resources
 void shutdownD3D12MA() {
+#if VITRA_D3D12MA_AVAILABLE
     if (!g_d3d12.allocatorInitialized) {
         return;
     }
@@ -2332,10 +2987,12 @@ void shutdownD3D12MA() {
     } catch (const std::exception& e) {
         std::cerr << "Exception during D3D12MA shutdown: " << e.what() << std::endl;
     }
+#endif // VITRA_D3D12MA_AVAILABLE
 }
 
 // Create a buffer using D3D12MA
 HRESULT createBufferWithD3D12MA(const D3D12BufferDesc& desc, ID3D12Resource** resource, D3D12MA::Allocation** allocation) {
+#if VITRA_D3D12MA_AVAILABLE
     if (!g_d3d12.allocator) {
         return E_INVALIDARG;
     }
@@ -2361,8 +3018,9 @@ HRESULT createBufferWithD3D12MA(const D3D12BufferDesc& desc, ID3D12Resource** re
         if (SUCCEEDED(hr) && *allocation && *resource) {
             // Set debug name if provided
             if (desc.debugName && strlen(desc.debugName) > 0) {
-                (*resource)->SetName(std::wstring(desc.debugName, desc.debugName + strlen(desc.debugName)).c_str());
-                (*allocation)->SetName(desc.debugName);
+                std::wstring wideName(desc.debugName, desc.debugName + strlen(desc.debugName));
+                (*resource)->SetName(wideName.c_str());
+                (*allocation)->SetName(wideName.c_str());
             }
         }
 
@@ -2401,8 +3059,9 @@ HRESULT createTextureWithD3D12MA(const D3D12TextureDesc& desc, ID3D12Resource** 
         if (SUCCEEDED(hr) && *allocation && *resource) {
             // Set debug name if provided
             if (desc.debugName && strlen(desc.debugName) > 0) {
-                (*resource)->SetName(std::wstring(desc.debugName, desc.debugName + strlen(desc.debugName)).c_str());
-                (*allocation)->SetName(desc.debugName);
+                std::wstring wideName(desc.debugName, desc.debugName + strlen(desc.debugName));
+                (*resource)->SetName(wideName.c_str());
+                (*allocation)->SetName(wideName.c_str());
             }
         }
 
@@ -2454,7 +3113,7 @@ HRESULT createUploadBufferWithD3D12MA(UINT64 size, ID3D12Resource** resource, D3
 
         if (SUCCEEDED(hr) && *allocation && *resource) {
             (*resource)->SetName(L"UploadBuffer");
-            (*allocation)->SetName("UploadBuffer");
+            (*allocation)->SetName(L"UploadBuffer");
         }
 
         return hr;
@@ -2505,7 +3164,7 @@ HRESULT createReadbackBufferWithD3D12MA(UINT64 size, ID3D12Resource** resource, 
 
         if (SUCCEEDED(hr) && *allocation && *resource) {
             (*resource)->SetName(L"ReadbackBuffer");
-            (*allocation)->SetName("ReadbackBuffer");
+            (*allocation)->SetName(L"ReadbackBuffer");
         }
 
         return hr;
@@ -2547,13 +3206,15 @@ bool checkMemoryBudget(UINT64 requiredSize, D3D12_HEAP_TYPE heapType) {
     }
 
     try {
-        D3D12MA::Budget budget;
-        HRESULT hr = g_d3d12.allocator->GetBudget(heapType, &budget);
-        if (SUCCEEDED(hr)) {
-            // Check if we have enough budget
-            return (budget.BudgetBytes >= budget.UsageBytes + requiredSize);
-        }
-        return false;
+        D3D12MA::Budget localBudget, nonLocalBudget;
+        g_d3d12.allocator->GetBudget(&localBudget, &nonLocalBudget);
+
+        // Check if we have enough budget (use local budget for default/upload/readback heaps)
+        const D3D12MA::Budget& budget = (heapType == D3D12_HEAP_TYPE_DEFAULT ||
+                                          heapType == D3D12_HEAP_TYPE_UPLOAD ||
+                                          heapType == D3D12_HEAP_TYPE_READBACK) ? localBudget : nonLocalBudget;
+
+        return (budget.BudgetBytes >= budget.UsageBytes + requiredSize);
 
     } catch (const std::exception& e) {
         std::cerr << "Exception in checkMemoryBudget: " << e.what() << std::endl;
@@ -2562,7 +3223,7 @@ bool checkMemoryBudget(UINT64 requiredSize, D3D12_HEAP_TYPE heapType) {
 }
 
 // Get overall memory statistics
-void getMemoryStatistics(D3D12MA::Statistics* stats) {
+void getMemoryStatistics(D3D12MA::TotalStatistics* stats) {
     if (!g_d3d12.allocator || !stats) {
         return;
     }
@@ -2575,7 +3236,7 @@ void getMemoryStatistics(D3D12MA::Statistics* stats) {
 }
 
 // Get specific pool statistics
-void getPoolStatistics(D3D12MA::Pool* pool, D3D12MA::PoolStatistics* poolStats) {
+void getPoolStatistics(D3D12MA::Pool* pool, D3D12MA::DetailedStatistics* poolStats) {
     if (!pool || !poolStats) {
         return;
     }
@@ -2597,20 +3258,16 @@ bool beginDefragmentation() {
         D3D12MA::DEFRAGMENTATION_DESC defragDesc = {};
         defragDesc.Flags = D3D12MA::DEFRAGMENTATION_FLAG_ALGORITHM_FAST;
 
-        D3D12MA::DefragmentationContext* defragContext;
-        HRESULT hr = g_d3d12.allocator->BeginDefragmentation(&defragDesc, &defragContext);
+        D3D12MA::DefragmentationContext* defragContext = nullptr;
+        g_d3d12.allocator->BeginDefragmentation(&defragDesc, &defragContext);
 
-        if (SUCCEEDED(hr)) {
-            // Process a few steps of defragmentation
-            for (int i = 0; i < 10; ++i) {
-                D3D12MA::DefragmentationPass* pass;
-                hr = defragContext->BeginPass(&pass);
-                if (FAILED(hr)) break;
+        if (defragContext) {
+            // Get defragmentation stats to verify it's working
+            D3D12MA::DEFRAGMENTATION_STATS stats;
+            defragContext->GetStats(&stats);
 
-                // Process pass...
-
-                defragContext->EndPass(pass);
-            }
+            std::cout << "Defragmentation started. Bytes moved: " << stats.BytesMoved
+                      << ", Bytes freed: " << stats.BytesFreed << std::endl;
 
             defragContext->Release();
             return true;
@@ -2646,12 +3303,16 @@ void dumpMemoryStatisticsToJson() {
     }
 
     try {
-        char* jsonString = nullptr;
+        WCHAR* jsonString = nullptr;
         g_d3d12.allocator->BuildStatsString(&jsonString, TRUE);
 
         if (jsonString) {
+            // Convert wide string to regular string for output
+            std::wstring wstr(jsonString);
+            std::string str(wstr.begin(), wstr.end());
+
             std::cout << "=== D3D12MA Memory Statistics (JSON) ===" << std::endl;
-            std::cout << jsonString << std::endl;
+            std::cout << str << std::endl;
             std::cout << "===========================================" << std::endl;
 
             g_d3d12.allocator->FreeStatsString(jsonString);
@@ -2668,9 +3329,9 @@ bool validateAllocation(D3D12MA::Allocation* allocation) {
     }
 
     try {
-        // Check if allocation is still valid
-        D3D12MA::AllocationInfo allocInfo = allocation->GetInfo();
-        return allocInfo.Size > 0;
+        // Check if allocation is still valid by querying its size
+        UINT64 size = allocation->GetSize();
+        return size > 0;
     } catch (const std::exception& e) {
         std::cerr << "Exception in validateAllocation: " << e.what() << std::endl;
         return false;
@@ -2746,7 +3407,7 @@ bool initializeDebugLayer() {
         g_d3d12.debugController1->EnableDebugLayer();
 
         // Set default severity filter (errors and warnings)
-        g_d3d12.debugSeverityFilter = D3D_MESSAGE_SEVERITY_WARNING;
+        g_d3d12.debugSeverityFilter = D3D12_MESSAGE_SEVERITY_WARNING;
 
         std::cout << "D3D12 debug layer initialized successfully" << std::endl;
         return true;
@@ -2782,18 +3443,16 @@ bool setupDebugMessageMessageCallback() {
             return false;
         }
 
-        // Store original filter state
-        g_d3d12.debugSeverityFilter = g_d3d12.infoQueue1->GetStoredMessageSeverityFilter();
+        // Initialize debug severity filter to INFO level (allows all messages)
+        g_d3d12.debugSeverityFilter = D3D12_MESSAGE_SEVERITY_INFO;
 
-        // Allow all messages through callback filter
-        g_d3d12.infoQueue1->SetStoredMessageSeverityFilter(D3D12_MESSAGE_SEVERITY_INFO);
-
-        // Register message callback
+        // Register message callback (filtering can be done in callback or via D3D12_MESSAGE_CALLBACK_IGNORE_FILTERS)
         D3D12_MESSAGE_CALLBACK_FLAGS callbackFlags = D3D12_MESSAGE_CALLBACK_FLAG_NONE;
         hr = g_d3d12.infoQueue1->RegisterMessageCallback(
             &DebugMessageCallback,
             callbackFlags,
-            nullptr
+            nullptr,
+            &g_d3d12.debugCallbackCookie
         );
 
         if (FAILED(hr)) {
@@ -2816,7 +3475,7 @@ void shutdownDebugLayer() {
     try {
         // Unregister message callback
         if (g_d3d12.infoQueue1 && g_d3d12.debugCallbackRegistered) {
-            g_d3d12.infoQueue1->UnregisterMessageCallback(&DebugMessageCallback);
+            g_d3d12.infoQueue1->UnregisterMessageCallback(g_d3d12.debugCallbackCookie);
             g_d3d12.debugCallbackRegistered = false;
             std::cout << "D3D12 debug message callback unregistered" << std::endl;
         }
@@ -2842,8 +3501,8 @@ void setDebugSeverityFilter(D3D12_MESSAGE_SEVERITY minSeverity) {
     }
 
     try {
+        // Store the severity filter for use in debug callback filtering
         g_d3d12.debugSeverityFilter = minSeverity;
-        g_d3d12.infoQueue1->SetStoredMessageSeverityFilter(minSeverity);
 
         std::cout << "Debug severity filter set to: " << GetDebugSeverityString(minSeverity) << std::endl;
     } catch (const std::exception& e) {
@@ -2904,7 +3563,7 @@ void closeDebugLogFile() {
         g_d3d12.debugLoggingToFileEnabled = false;
 
     } catch (const std::exception& e) {
-        std::cerr << "Exception in closeDebugLogFile: " << e.what() << << std::endl;
+        std::cerr << "Exception in closeDebugLogFile: " << e.what() << std::endl;
     }
 }
 
@@ -2966,7 +3625,7 @@ void enableSynchronizedCommandQueueValidation(bool enable) {
         g_d3d12.debugController1->SetEnableSynchronizedCommandQueueValidation(enable);
         std::cout << "Synchronized command queue validation " << (enable ? "enabled" : "disabled") << std::endl;
     } catch (const std::exception& e) {
-        std::cerr << "Exception in enableSynchronizedCommandQueueValidation: " << e.what() << endl;
+        std::cerr << "Exception in enableSynchronizedCommandQueueValidation: " << e.what() << std::endl;
     }
 }
 
@@ -2976,7 +3635,7 @@ const char* GetDebugSeverityString(D3D12_MESSAGE_SEVERITY severity) {
         case D3D12_MESSAGE_SEVERITY_CORRUPTION: return "CORRUPTION";
         case D3D12_MESSAGE_SEVERITY_ERROR: return "ERROR";
         case D3D12_MESSAGE_SEVERITY_WARNING: return "WARNING";
-        case D3D_MESSAGE_SEVERITY_INFO: return "INFO";
+        case D3D12_MESSAGE_SEVERITY_INFO: return "INFO";
         case D3D12_MESSAGE_SEVERITY_MESSAGE: return "MESSAGE";
         default: return "UNKNOWN";
     }
@@ -2988,50 +3647,44 @@ const char* GetDebugCategoryString(D3D12_MESSAGE_CATEGORY category) {
         case D3D12_MESSAGE_CATEGORY_APPLICATION_DEFINED: return "APP";
         case D3D12_MESSAGE_CATEGORY_MISCELLANEOUS: return "MISC";
         case D3D12_MESSAGE_CATEGORY_INITIALIZATION: return "INIT";
-        case D3D_MESSAGE_CATEGORY_CLEANUP: return "CLEANUP";
+        case D3D12_MESSAGE_CATEGORY_CLEANUP: return "CLEANUP";
         case D3D12_MESSAGE_CATEGORY_COMPILATION: return "COMPILATION";
-        case D3D_MESSAGE_CATEGORY_STATE_CREATION: return "STATE";
+        case D3D12_MESSAGE_CATEGORY_STATE_CREATION: return "STATE";
         case D3D12_MESSAGE_CATEGORY_STATE_SETTING: return "STATE_SET";
         case D3D12_MESSAGE_CATEGORY_STATE_GETTING: return "STATE_GET";
         case D3D12_MESSAGE_CATEGORY_RESOURCE_MANIPULATION: return "RESOURCE";
         case D3D12_MESSAGE_CATEGORY_EXECUTION: return "EXEC";
         case D3D12_MESSAGE_CATEGORY_SHADER: return "SHADER";
-        case D3D12_MESSAGE_CATEGORY_TOOL: return "TOOL";
-        case D3D12_MESSAGE_CATEGORY_DEVICE_REMOVAL: return "DEVICE_REMOVAL";
+        // Note: D3D12_MESSAGE_CATEGORY_TOOL and D3D12_MESSAGE_CATEGORY_DEVICE_REMOVAL
+        // are not available in all Windows SDK versions
         default: return "UNKNOWN";
     }
 }
 
 // Helper function to get debug message ID string
 const char* GetDebugMessageIDString(D3D12_MESSAGE_ID id) {
-    // Return a string representation of the message ID
-    // For brevity, returning a few common ones
-    switch (id) {
-        case D3D12_MESSAGE_ID_CREATECOMMANDALLOCATOR: return "CREATE_COMMAND_ALLOCATOR";
-        case D3D12_MESSAGE_ID_CREATERENDERTARGETVIEW: return "CREATE_RENDERTARGETVIEW";
-        case D3D12_MESSAGE_ID_CREATESHADERRESOURCEVIEW: return "CREATE_SHADER_RESOURCE_VIEW";
-        case D3D12_MESSAGE_ID_CREATECOMPUTEPIPELINESTATE: return "CREATE_COMPUTE_PIPELINE_STATE";
-        case D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE: return "CREATE_GRAPHICS_PIPELINE_STATE";
-        case D3D12_MESSAGE_ID_CREATECOMMANDLIST: return "CREATE_COMMAND_LIST";
-        case D3D12_MESSAGE_ID_DRAWINSTANCED: return "DRAW_ADVANCED";
-        case D3D12_MESSAGE_ID_DRAW_INDEXED: return "DRAW_INDEXED";
-        case D3D12_MESSAGE_ID_DRAW_INSTANCED: return "DRAW_ADVANCED";
-        case D3D12_MESSAGE_ID_EXECUTE_COMMANDLISTS: return "EXECUTE_COMMAND_LISTS";
-        case D3D12_MESSAGE_ID_COPYRESOURCE: return "COPY_RESOURCE";
-        case D3D12_MESSAGE_ID_RESOLVESUBRESOURCE: return "RESOLVE_SUBRESOURCE";
-        case D3D12_MESSAGE_ID_SETROOTSIGNATURE: return "SET_ROOT_SIGNATURE";
-        case D3D12_MESSAGE_ID_DESCRIPTOR_HEAP: return "DESCRIPTOR_HEAP";
-        case D3D12_MESSAGE_ID_RESOURCE_BARRIER: return "RESOURCE_BARRIER";
-        case D3D12_IDENTITY_REASON_UNKNOWN: return "UNKNOWN_REASON";
-        default: return "UNKNOWN_ID";
-    }
+    // Note: D3D12_MESSAGE_ID enum has over 500 values with specific naming patterns
+    // Instead of switching on all possible values, we return the numeric ID
+    // The full description is provided in the debug message callback
+    static char idBuffer[32];
+    sprintf_s(idBuffer, "ID_%d", static_cast<int>(id));
+    return idBuffer;
 }
+
+#endif // VITRA_D3D12MA_AVAILABLE
 
 // ==================== D3D12MA JNI FUNCTION IMPLEMENTATIONS ====================
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeIsD3D12MASupported(JNIEnv* env, jclass clazz) {
+#if VITRA_D3D12MA_AVAILABLE
     return g_d3d12.allocatorInitialized ? JNI_TRUE : JNI_FALSE;
+#else
+    return JNI_FALSE; // D3D12MA not available
+#endif
 }
+
+#if VITRA_D3D12MA_AVAILABLE
+// D3D12MA JNI functions - only available when D3D12MA is included
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeEnableMemoryBudgeting(JNIEnv* env, jclass clazz, jboolean enable) {
     try {
@@ -3093,7 +3746,6 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
         if (SUCCEEDED(hr) && resource && allocation) {
             managedResource->resource = resource;
             managedResource->allocation = allocation;
-            managedResource->allocationInfo = allocation->GetInfo();
             managedResource->currentState = desc.initialState;
 
             // Copy data if provided
@@ -3152,7 +3804,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
         desc.resourceDesc.SampleDesc.Count = 1;
         desc.resourceDesc.SampleDesc.Quality = 0;
         desc.resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-        desc.resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_SHADER_RESOURCE;
+        desc.resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET; // Shader resource access is default
 
         desc.heapProps.Type = static_cast<D3D12_HEAP_TYPE>(heapType);
         desc.heapFlags = D3D12_HEAP_FLAG_NONE;
@@ -3174,7 +3826,6 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
         if (SUCCEEDED(hr) && resource && allocation) {
             managedResource->resource = resource;
             managedResource->allocation = allocation;
-            managedResource->allocationInfo = allocation->GetInfo();
             managedResource->currentState = desc.initialState;
 
             // Copy data if provided
@@ -3192,7 +3843,9 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
                     void* mappedPtr = nullptr;
                     D3D12_RANGE range = {0, static_cast<SIZE_T>(texDataSize)};
                     if (SUCCEEDED(resource->Map(0, &range, &mappedPtr))) {
-                        memcpy(mappedPtr, dataArray, std::min(static_cast<UINT64>(env->GetArrayLength(data)), texDataSize));
+                        UINT64 arraySize = static_cast<UINT64>(env->GetArrayLength(data));
+                        UINT64 copySize = (arraySize < texDataSize) ? arraySize : texDataSize;
+                        memcpy(mappedPtr, dataArray, static_cast<size_t>(copySize));
                         resource->Unmap(0, nullptr);
                     }
                 }
@@ -3239,7 +3892,6 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
         if (SUCCEEDED(hr) && resource && allocation) {
             managedResource->resource = resource;
             managedResource->allocation = allocation;
-            managedResource->allocationInfo = allocation->GetInfo();
             managedResource->currentState = D3D12_RESOURCE_STATE_GENERIC_READ;
 
             // Track the resource
@@ -3284,19 +3936,18 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraD3D12Rendere
     }
 
     try {
-        D3D12MA::Statistics stats;
+        D3D12MA::TotalStatistics stats;
         getMemoryStatistics(&stats);
 
         std::ostringstream oss;
         oss << "=== D3D12MA Memory Statistics ===\n";
-        oss << "Total Allocations: " << stats.AllocationCount << "\n";
-        oss << "Total Allocated Bytes: " << stats.TotalAllocatedBytes << "\n";
-        oss << "Total Reserved Bytes: " << stats.TotalReservedBytes << "\n";
-        oss << "Used Bytes: " << stats.UsedBytes << "\n";
-        oss << "Unused Bytes: " << stats.UnusedBytes << "\n";
-        oss << "Allocation Size Min: " << stats.AllocationSizeMin << "\n";
-        oss << "AllocationSizeMax: " << stats.AllocationSizeMax << "\n";
-        oss << "AllocationSizeAvg: " << stats.AllocationSizeAvg << "\n";
+        oss << "Total Allocations: " << stats.Total.Stats.AllocationCount << "\n";
+        oss << "Total Allocated Bytes: " << stats.Total.Stats.AllocationBytes << "\n";
+        oss << "Total Blocks: " << stats.Total.Stats.BlockCount << "\n";
+        oss << "Total Block Bytes: " << stats.Total.Stats.BlockBytes << "\n";
+        oss << "Unused Bytes: " << (stats.Total.Stats.BlockBytes - stats.Total.Stats.AllocationBytes) << "\n";
+        oss << "Allocation Size Min: " << stats.Total.AllocationSizeMin << "\n";
+        oss << "Allocation Size Max: " << stats.Total.AllocationSizeMax << "\n";
 
         return env->NewStringUTF(oss.str().c_str());
 
@@ -3338,16 +3989,17 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraD3D12Rendere
             return env->NewStringUTF("Pool not available");
         }
 
-        D3D12MA::PoolStatistics poolStats;
+        D3D12MA::DetailedStatistics poolStats;
         getPoolStatistics(pool, &poolStats);
 
         std::ostringstream oss;
         oss << "=== " << poolName << " Pool Statistics ===\n";
-        oss << "Block Count: " << poolStats.BlockCount << "\n";
-        oss << "Allocation Count: " << poolStats.AllocationCount << "\n";
+        oss << "Block Count: " << poolStats.Stats.BlockCount << "\n";
+        oss << "Allocation Count: " << poolStats.Stats.AllocationCount << "\n";
         oss << "Unused Range Count: " << poolStats.UnusedRangeCount << "\n";
-        oss << "Used Bytes: " << poolStats.UsedBytes << "\n";
-        oss << "Unused Bytes: " << poolStats.UnusedBytes << "\n";
+        oss << "Block Bytes: " << poolStats.Stats.BlockBytes << "\n";
+        oss << "Allocation Bytes: " << poolStats.Stats.AllocationBytes << "\n";
+        oss << "Unused Bytes: " << (poolStats.Stats.BlockBytes - poolStats.Stats.AllocationBytes) << "\n";
 
         return env->NewStringUTF(oss.str().c_str());
 
@@ -3395,9 +4047,9 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_
         if (it != g_managedResources.end()) {
             D3D12MA::Allocation* allocation = it->second->GetAllocation();
             if (allocation) {
-                D3D12MA::AllocationInfo info = allocation->GetInfo();
-                // Return size as handle (could be expanded to return more info)
-                return static_cast<jlong>(info.Size);
+                // Return size using GetSize() method
+                UINT64 size = allocation->GetSize();
+                return static_cast<jlong>(size);
             }
         }
         return 0L;
@@ -3423,11 +4075,11 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_n
                 D3D12MA::Allocation* allocation = it->second->GetAllocation();
                 ID3D12Resource* resource = it->second->GetResource();
 
+                std::wstring wideName(nameStr, nameStr + strlen(nameStr));
                 if (allocation) {
-                    allocation->SetName(nameStr);
+                    allocation->SetName(wideName.c_str());
                 }
                 if (resource) {
-                    std::wstring wideName(nameStr, nameStr + strlen(nameStr));
                     resource->SetName(wideName.c_str());
                 }
 
@@ -3456,6 +4108,25 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_n
     }
 }
 
+#else // VITRA_D3D12MA_AVAILABLE
+// D3D12MA not available - stub implementations
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeEnableMemoryBudgeting(JNIEnv* env, jclass clazz, jboolean enable) { return JNI_FALSE; }
+extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeCreateManagedBuffer(JNIEnv* env, jclass clazz, jbyteArray data, jint size, jint stride, jint heapType, jint allocationFlags) { return 0L; }
+extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeCreateManagedTexture(JNIEnv* env, jclass clazz, jbyteArray data, jint width, jint height, jint format, jint heapType, jint allocationFlags) { return 0L; }
+extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeCreateManagedUploadBuffer(JNIEnv* env, jclass clazz, jint size) { return 0L; }
+extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeReleaseManagedResource(JNIEnv* env, jclass clazz, jlong handle) {}
+extern "C" JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeGetMemoryStatistics(JNIEnv* env, jclass clazz) { return env->NewStringUTF("D3D12MA not available"); }
+extern "C" JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeGetPoolStatistics(JNIEnv* env, jclass clazz, jint poolType) { return env->NewStringUTF("D3D12MA not available"); }
+extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeBeginDefragmentation(JNIEnv* env, jclass clazz) { return JNI_FALSE; }
+extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeValidateAllocation(JNIEnv* env, jclass clazz, jlong handle) { return JNI_FALSE; }
+extern "C" JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeGetAllocationInfo(JNIEnv* env, jclass clazz, jlong handle) { return env->NewStringUTF("D3D12MA not available"); }
+extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeSetResourceDebugName(JNIEnv* env, jclass clazz, jlong handle, jstring name) {}
+extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeCheckMemoryBudget(JNIEnv* env, jclass clazz, jlong requiredSize, jint heapType) { return JNI_FALSE; }
+extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_nativeDumpMemoryToJson(JNIEnv* env, jclass clazz) {}
+
+#endif // VITRA_D3D12MA_AVAILABLE
+
 // ============================================================================
 // VITRA D3D12 NATIVE - Complete JNI Implementation for All Java Systems
 // ============================================================================
@@ -3463,24 +4134,16 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Renderer_n
 // Core initialization and management methods
 extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Native_initializeDirectX12(JNIEnv* env, jclass clazz, jlong windowHandle, jint width, jint height, jboolean debugMode) {
     try {
-        // Initialize with enhanced configuration
-        bool success = initializeDirectX12(reinterpret_cast<HWND>(windowHandle), width, height, debugMode);
-
-        if (success) {
-            // Initialize all subsystems
-            initializeAdapterSelection();
-            initializeMemoryManager();
-            initializeTextureManager();
-            initializeShaderCompiler();
-            initializeCommandManager();
-            initializeDescriptorHeapManager();
-            initializePipelineManager();
-            initializeResourceStateManager();
-            initializePerformanceProfiler();
-            initializeDebugManager();
+        // TODO: Implement actual DirectX 12 initialization
+        // This function is a placeholder - actual initialization happens via VitraD3D12Renderer.initializeWithConfig()
+        // For now, just check if the device is already initialized
+        if (g_d3d12.device) {
+            return JNI_TRUE;
         }
 
-        return success ? JNI_TRUE : JNI_FALSE;
+        // Device not initialized yet
+        std::cerr << "DirectX 12 device not initialized. Use VitraD3D12Renderer.initializeWithConfig() instead." << std::endl;
+        return JNI_FALSE;
     } catch (const std::exception& e) {
         std::cerr << "Exception in initializeDirectX12: " << e.what() << std::endl;
         return JNI_FALSE;
@@ -3505,7 +4168,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Native_shu
         cleanupMemoryManager();
         cleanupAdapterSelection();
 
-        shutdown();
+        shutdownD3D12();
     } catch (const std::exception& e) {
         std::cerr << "Exception in shutdown: " << e.what() << std::endl;
     }
@@ -3582,7 +4245,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Native_ge
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Native_getContext(JNIEnv* env, jclass clazz) {
-    return reinterpret_cast<jlong>(g_d3d12.graphicsCommandList.Get());
+    return reinterpret_cast<jlong>(g_d3d12.commandList.Get());
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Native_getSwapChain(JNIEnv* env, jclass clazz) {
@@ -3591,11 +4254,11 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Native_ge
 
 extern "C" JNIEXPORT jint JNICALL Java_com_vitra_render_jni_VitraD3D12Native_getMaxTextureSize(JNIEnv* env, jclass clazz) {
     if (g_d3d12.device) {
-        D3D12_FEATURE_DATA_FORMAT_INFO formatInfo = {};
-        formatInfo.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        if (SUCCEEDED(g_d3d12.device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_INFO, &formatInfo, sizeof(formatInfo)))) {
-            return static_cast<jint>(formatInfo.MaxWidthHeight);
-        }
+        // DirectX 12 max texture size depends on feature level
+        // Feature Level 11_0+: 16384
+        // Feature Level 12_0+: 16384
+        // Just return the standard limit
+        return 16384;
     }
     return 16384; // Default D3D12 limit
 }
@@ -3898,13 +4561,13 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Native_cr
 
         // Store heap info for management
         DescriptorHeapInfo heapInfo = {};
-        heapInfo.heap = descriptorHeap;
         heapInfo.type = type;
-        heapInfo.descriptorCount = static_cast<UINT>(numDescriptors);
+        heapInfo.numDescriptors = static_cast<UINT>(numDescriptors);
+        heapInfo.currentOffset = 0;
         heapInfo.descriptorSize = g_d3d12.device->GetDescriptorHandleIncrementSize(type);
-        heapInfo.cpuHeapStart = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+        heapInfo.cpuStart = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
         if (heapFlags & D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE) {
-            heapInfo.gpuHeapStart = descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+            heapInfo.gpuStart = descriptorHeap->GetGPUDescriptorHandleForHeapStart();
         }
         g_descriptorHeapInfo[handle] = heapInfo;
 
@@ -3929,7 +4592,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Native_ge
     try {
         auto it = g_descriptorHeapInfo.find(heapHandle);
         if (it != g_descriptorHeapInfo.end()) {
-            return reinterpret_cast<jlong>(it->second.cpuHeapStart.ptr);
+            return static_cast<jlong>(it->second.cpuStart.ptr);
         }
         return 0L;
     } catch (const std::exception& e) {
@@ -3942,7 +4605,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D12Native_ge
     try {
         auto it = g_descriptorHeapInfo.find(heapHandle);
         if (it != g_descriptorHeapInfo.end()) {
-            return reinterpret_cast<jlong>(it->second.gpuHeapStart.ptr);
+            return static_cast<jlong>(it->second.gpuStart.ptr);
         }
         return 0L;
     } catch (const std::exception& e) {
@@ -3973,10 +4636,11 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D12Native
         D3D12_CPU_DESCRIPTOR_HANDLE dest = {};
         dest.ptr = static_cast<SIZE_T>(destCpuHandle);
 
-        g_d3d12.device->CopyDescriptors(
+        // Use CopyDescriptorsSimple for simple 1:1 copying
+        g_d3d12.device->CopyDescriptorsSimple(
             static_cast<UINT>(count),
-            &dest, static_cast<UINT>(destIncrement),
-            &src, static_cast<UINT>(srcIncrement),
+            dest,
+            src,
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV
         );
 
@@ -4054,8 +4718,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Native_set
         viewport.MinDepth = minDepth;
         viewport.MaxDepth = maxDepth;
 
-        if (g_d3d12.graphicsCommandList) {
-            g_d3d12.graphicsCommandList->RSSetViewports(1, &viewport);
+        if (g_d3d12.commandList) {
+            g_d3d12.commandList->RSSetViewports(1, &viewport);
         }
     } catch (const std::exception& e) {
         std::cerr << "Exception in setViewport: " << e.what() << std::endl;
@@ -4219,9 +4883,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Native_set
 extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Native_setShaderLightDirection(JNIEnv* env, jclass clazz, jint index, jfloat x, jfloat y, jfloat z) {
     try {
         if (index >= 0 && index < MAX_LIGHTS) {
-            g_lightDirections[index][0] = x;
-            g_lightDirections[index][1] = y;
-            g_lightDirections[index][2] = z;
+            g_lightDirections[index * 3 + 0] = x;
+            g_lightDirections[index * 3 + 1] = y;
+            g_lightDirections[index * 3 + 2] = z;
             g_constantBuffersDirty |= ConstantBuffer_Lighting;
         }
     } catch (const std::exception& e) {

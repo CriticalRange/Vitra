@@ -11,10 +11,10 @@ import org.slf4j.LoggerFactory;
 public class D3D12TextureBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/D3D12TextureBuilder");
 
-    // DXGI Texture Formats
-    public static final int DXGI_FORMAT_R8G8B8A8_UNORM = 87;
-    public static final int DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 90;
-    public static final int DXGI_FORMAT_B8G8R8A8_UNORM = 87; // Actually 87, corrected below
+    // DXGI Texture Formats (values from dxgiformat.h)
+    public static final int DXGI_FORMAT_R8G8B8A8_UNORM = 28;
+    public static final int DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29;
+    public static final int DXGI_FORMAT_B8G8R8A8_UNORM = 87;
     public static final int DXGI_FORMAT_B8G8R8A8_UNORM_SRGB = 91;
     public static final int DXGI_FORMAT_R32_FLOAT = 41;
     public static final int DXGI_FORMAT_D32_FLOAT = 126;
@@ -33,26 +33,26 @@ public class D3D12TextureBuilder {
     public static final int DXGI_FORMAT_BC7_UNORM = 98;
     public static final int DXGI_FORMAT_BC7_UNORM_SRGB = 99;
 
-    // D3D12 Resource States
-    public static final int D3D12_RESOURCE_STATE_COMMON = 0;
+    // D3D12 Resource States (values from d3d12.h)
+    public static final int D3D12_RESOURCE_STATE_COMMON = 0x0;
     public static final int D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER = 0x1;
     public static final int D3D12_RESOURCE_STATE_INDEX_BUFFER = 0x2;
-    public static final int D3D12_RESOURCE_STATE_CONSTANT_BUFFER = 0x4;
-    public static final int D3D12_RESOURCE_STATE_SHADER_RESOURCE = 0x2;
-    public static final int D3D12_RESOURCE_STATE_STREAM_OUT = 0x4;
-    public static final int D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT = 0x4;
-    public static final int D3D12_RESOURCE_STATE_COPY_DEST = 0x4;
-    public static final int D3D12_RESOURCE_STATE_COPY_SOURCE = 0x1;
-    public static final int D3D12_RESOURCE_STATE_RESOLVE_DEST = 0x4;
-    public static final int D3D12_RESOURCE_STATE_UNORDERED_ACCESS = 0x8;
-    public static final int D3D12_RESOURCE_STATE_DEPTH_WRITE = 0x20;
-    public static final int D3D12_RESOURCE_STATE_DEPTH_READ = 0x20 | 0x2;
-    public static final int D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE = 0x2;
-    public static final int D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE = 0x2;
-    public static final int D3D12_RESOURCE_STATE_STREAM_OUT = 0x4;
     public static final int D3D12_RESOURCE_STATE_RENDER_TARGET = 0x4;
-    public static final int D3D12_RESOURCE_STATE_PRESENT = 0;
-    public static final int D3D12_RESOURCE_STATE_PREDICATION = 0x1;
+    public static final int D3D12_RESOURCE_STATE_UNORDERED_ACCESS = 0x8;
+    public static final int D3D12_RESOURCE_STATE_DEPTH_WRITE = 0x10;
+    public static final int D3D12_RESOURCE_STATE_DEPTH_READ = 0x20;
+    public static final int D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE = 0x40;
+    public static final int D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE = 0x80;
+    public static final int D3D12_RESOURCE_STATE_STREAM_OUT = 0x100;
+    public static final int D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT = 0x200;
+    public static final int D3D12_RESOURCE_STATE_COPY_DEST = 0x400;
+    public static final int D3D12_RESOURCE_STATE_COPY_SOURCE = 0x800;
+    public static final int D3D12_RESOURCE_STATE_RESOLVE_DEST = 0x1000;
+    public static final int D3D12_RESOURCE_STATE_RESOLVE_SOURCE = 0x2000;
+    public static final int D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE = 0x400000;
+    public static final int D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE = 0x1000000;
+    public static final int D3D12_RESOURCE_STATE_PRESENT = 0x0;
+    public static final int D3D12_RESOURCE_STATE_PREDICATION = 0x200;
 
     // D3D12 Resource Flags
     public static final int D3D12_RESOURCE_FLAG_NONE = 0x0;
@@ -95,7 +95,7 @@ public class D3D12TextureBuilder {
 
     // Debug and naming
     private String debugName;
-    private long memoryManager;
+    private D3D12MemoryManager memoryManager;
 
     public D3D12TextureBuilder() {
         // Default configuration for Minecraft textures
@@ -248,7 +248,7 @@ public class D3D12TextureBuilder {
     /**
      * Set memory manager for the texture
      */
-    public D3D12TextureBuilder setMemoryManager(long memoryManager) {
+    public D3D12TextureBuilder setMemoryManager(D3D12MemoryManager memoryManager) {
         this.memoryManager = memoryManager;
         return this;
     }
@@ -299,7 +299,7 @@ public class D3D12TextureBuilder {
         validateConfiguration();
 
         long handle;
-        if (memoryManager != 0) {
+        if (memoryManager != null) {
             // Use memory manager
             handle = VitraD3D12Native.createManagedTexture(
                 initialData, width, height, format, heapType, allocationFlags);
@@ -312,7 +312,7 @@ public class D3D12TextureBuilder {
             D3D12Texture texture = new D3D12Texture(handle, width, height, format, this);
 
             // Set debug name if provided
-            if (debugName != null && memoryManager != 0) {
+            if (debugName != null && memoryManager != null) {
                 VitraD3D12Native.setResourceDebugName(handle, debugName);
             }
 
@@ -379,7 +379,6 @@ public class D3D12TextureBuilder {
         switch (format) {
             case DXGI_FORMAT_R8G8B8A8_UNORM: return "R8G8B8A8_UNORM";
             case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return "R8G8B8A8_UNORM_SRGB";
-            case DXGI_FORMAT_B8G8R8A8_UNORM: return "B8G8R8A8_UNORM";
             case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return "B8G8R8A8_UNORM_SRGB";
             case DXGI_FORMAT_R32_FLOAT: return "R32_FLOAT";
             case DXGI_FORMAT_D32_FLOAT: return "D32_FLOAT";
@@ -398,7 +397,6 @@ public class D3D12TextureBuilder {
         switch (format) {
             case DXGI_FORMAT_R8G8B8A8_UNORM:
             case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
-            case DXGI_FORMAT_B8G8R8A8_UNORM:
             case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
             case DXGI_FORMAT_BC1_UNORM:
             case DXGI_FORMAT_BC1_UNORM_SRGB:

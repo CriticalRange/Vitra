@@ -51,6 +51,7 @@ public class VitraD3D12Native {
     public static native void setBufferData(long bufferHandle, byte[] data);
 
     // Performance and debug methods
+    public static native boolean enableDebugLayer(boolean enabled);
     public static native void setDebugMode(boolean enabled);
     public static native boolean isDebugEnabled();
     public static native void processDebugMessages();
@@ -185,9 +186,6 @@ public class VitraD3D12Native {
     public static native void setShaderColor(float r, float g, float b, float a);
     public static native void setShaderLightDirection(int index, float x, float y, float z);
     public static native void setShaderFogColor(float r, float g, float b);
-
-    // Frame methods
-    public static native void presentFrame();
 
     // Buffer methods
     public static native long mapBuffer(long bufferHandle);

@@ -201,7 +201,7 @@ public abstract class D3D12RenderSystemMixin {
             D3D12PipelineManager.BLEND_OP_ADD,
             D3D12PipelineManager.BLEND_SRC_ALPHA, D3D12PipelineManager.BLEND_INV_SRC_ALPHA,
             D3D12PipelineManager.BLEND_OP_ADD,
-            0, 0xFFFFFFFF
+            0xFFFFFFFF
         );
 
         LOGGER.debug("D3D12 initial state setup completed");

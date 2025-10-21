@@ -289,15 +289,16 @@ task compileNativeDX12(type: Exec) {
 		println "RenderDoc integration: Enabled (runtime dynamic loading)"
 	}
 
-	// Set up Visual Studio environment and compile DirectX 12 Ultimate
+	// Set up Visual Studio environment and compile DirectX 12 Ultimate with D3D12MA
 	commandLine 'cmd', '/c', "call \"${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt && " +
 		"set /p VS_PATH=<vs_path.txt && " +
 		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
-		"cl /LD /EHsc /std:c++20 /I\"src/main/include\" " +
+		"cl /LD /EHsc /std:c++20 /I\"src/main/include\" /I\"src/main/external/D3D12MA\" " +
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
-		"\"src/main/cpp/vitra_d3d12.cpp\" " +
+		"/DVITRA_D3D12MA_AVAILABLE=1 " +
+		"\"src/main/cpp/vitra_d3d12.cpp\" \"src/main/external/D3D12MA/D3D12MemAlloc.cpp\" " +
 		"/Fe:\"$buildDir/native/vitra-d3d12.dll\" " +
-		"/link /LIBPATH:\"libs/x64\" d3d12.lib dxgi.lib d3dcompiler.lib user32.lib Ole32.lib Shell32.lib"
+		"/link /LIBPATH:\"libs/x64\" d3d12.lib dxgi.lib d3dcompiler.lib dxcompiler.lib user32.lib Ole32.lib Shell32.lib"
 
 	workingDir projectDir
 

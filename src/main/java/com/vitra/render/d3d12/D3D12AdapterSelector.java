@@ -39,7 +39,7 @@ public class D3D12AdapterSelector {
             this.sharedSystemMemory = sharedSystemMemory;
             this.supportsRayTracing = supportsRayTracing;
             this.supportsVariableRateShading = supportsVariableRateShading;
-            this.supportsMeshShaders = supportsMeshShades;
+            this.supportsMeshShaders = supportsMeshShaders;
             this.isDiscrete = adapterType == 1; // DXGI_ADAPTER_FLAG_DISCRETE
             this.isIntegrated = adapterType == 2; // DXGI_ADAPTER_FLAG_INTEGRATED
             this.isSoftware = adapterType == 4; // DXGI_ADAPTER_FLAG_SOFTWARE
@@ -53,7 +53,7 @@ public class D3D12AdapterSelector {
         public String toString() {
             return String.format("Adapter[%d] %s (%s) - VRAM: %dMB, RT: %s, VRS: %s, MS: %s",
                 index, name, isDiscrete ? "Discrete" : isIntegrated ? "Integrated" : "Software",
-                dedicatedVideoMemory / (1024 * 1024), supportsRayTracing, supportsVariableRateShading, supportsMeshShades);
+                dedicatedVideoMemory / (1024 * 1024), supportsRayTracing, supportsVariableRateShading, supportsMeshShaders);
         }
     }
 
@@ -111,7 +111,7 @@ public class D3D12AdapterSelector {
 
                 return new D3D12Adapter(index, name, dedicatedVideoMemory, dedicatedSystemMemory,
                                        sharedSystemMemory, supportsRayTracing, supportsVariableRateShading,
-                                       supportsMeshShades, adapterType);
+                                       supportsMeshShaders, adapterType);
             }
         } catch (Exception e) {
             LOGGER.warn("Failed to parse adapter info for index {}: {}", index, adapterInfo, e);
@@ -219,7 +219,7 @@ public class D3D12AdapterSelector {
                 .max(Comparator
                         .comparing((D3D12Adapter a) -> a.supportsRayTracing ? 1000 : 0)
                         .thenComparing((D3D12Adapter a) -> a.supportsVariableRateShading ? 500 : 0)
-                        .thenComparing((D3D12Adapter a) -> a.supportsMeshShades ? 250 : 0)
+                        .thenComparing((D3D12Adapter a) -> a.supportsMeshShaders ? 250 : 0)
                         .thenComparing(D3D12Adapter::getTotalMemory))
                 .orElse(null);
     }
@@ -256,7 +256,7 @@ public class D3D12AdapterSelector {
      * Check if mesh shaders are supported on any adapter
      */
     public boolean isMeshShadersSupported() {
-        return availableAdapters.stream().anyMatch(a -> a.supportsMeshShades);
+        return availableAdapters.stream().anyMatch(a -> a.supportsMeshShaders);
     }
 
     /**
@@ -277,8 +277,8 @@ public class D3D12AdapterSelector {
         stats.append("Adapters with VRS: ").append(availableAdapters.stream().filter(a -> a.supportsVariableRateShading).count()).append("\n");
 
         stats.append("\n--- Mesh Shader Support ---\n");
-        stats.append("Available: ").append(isMeshShadesSupported()).append("\n");
-        stats.append("Adapters with MS: ").append(availableAdapters.stream().filter(a -> a.supportsMeshShades).count()).append("\n");
+        stats.append("Available: ").append(isMeshShadersSupported()).append("\n");
+        stats.append("Adapters with MS: ").append(availableAdapters.stream().filter(a -> a.supportsMeshShaders).count()).append("\n");
 
         stats.append("\n--- Memory Summary ---\n");
         long totalVRAM = availableAdapters.stream().mapToLong(a -> a.dedicatedVideoMemory).sum();
@@ -291,7 +291,7 @@ public class D3D12AdapterSelector {
             stats.append("Type: ").append(selectedAdapter.isDiscrete ? "Discrete" : selectedAdapter.isIntegrated ? "Integrated" : "Software").append("\n");
             stats.append("Ray Tracing: ").append(selectedAdapter.supportsRayTracing).append("\n");
             stats.append("Variable Rate Shading: ").append(selectedAdapter.supportsVariableRateShading).append("\n");
-            stats.append("Mesh Shaders: ").append(selectedAdapter.supportsMeshShades).append("\n");
+            stats.append("Mesh Shaders: ").append(selectedAdapter.supportsMeshShaders).append("\n");
         }
 
         return stats.toString();

@@ -484,4 +484,33 @@ public class D3D12MemoryManager {
     public int getActiveAllocationCount() {
         return activeAllocations.size();
     }
+
+    /**
+     * Get the memory manager instance (for builder pattern)
+     */
+    public D3D12MemoryManager getMemoryManager() {
+        return this;
+    }
+
+    /**
+     * Release all resources and shutdown
+     */
+    public void release() {
+        LOGGER.info("Releasing D3D12 Memory Manager...");
+
+        // Clean up all frame resources
+        for (FrameResources frame : frameResources) {
+            frame.cleanup();
+        }
+
+        // Clean up all active allocations
+        for (Long handle : new ArrayList<>(activeAllocations.keySet())) {
+            releaseResource(handle);
+        }
+
+        activeAllocations.clear();
+        heapMemoryUsage.clear();
+
+        LOGGER.info("D3D12 Memory Manager released");
+    }
 }

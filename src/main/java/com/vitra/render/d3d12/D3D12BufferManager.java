@@ -23,16 +23,16 @@ public class D3D12BufferManager {
     public static final int USAGE_DYNAMIC = 2;
     public static final int USAGE_STAGING = 3;
 
-    // Buffer bind flags
-    public static final int BIND_VERTEX_BUFFER = 0x1L;
-    public static final int BIND_INDEX_BUFFER = 0x2L;
-    public static final int BIND_CONSTANT_BUFFER = 0x4L;
-    public static final int BIND_SHADER_RESOURCE = 0x8L;
-    public static final int BIND_STREAM_OUTPUT = 0x10L;
-    public static final int BIND_UNORDERED_ACCESS = 0x20L;
-    public static final int BIND_RENDER_TARGET = 0x40L;
-    public static final int BIND_DEPTH_STENCIL = 0x80L;
-    public static final int BIND_ARGUMENTS = 0x100L;
+    // Buffer bind flags (DirectX 12 uses resource flags, these are for compatibility)
+    public static final int BIND_VERTEX_BUFFER = 0x1;
+    public static final int BIND_INDEX_BUFFER = 0x2;
+    public static final int BIND_CONSTANT_BUFFER = 0x4;
+    public static final int BIND_SHADER_RESOURCE = 0x8;
+    public static final int BIND_STREAM_OUTPUT = 0x10;
+    public static final int BIND_UNORDERED_ACCESS = 0x20;
+    public static final int BIND_RENDER_TARGET = 0x40;
+    public static final int BIND_DEPTH_STENCIL = 0x80;
+    public static final int BIND_ARGUMENTS = 0x100;
 
     // CPU access flags
     public static final int CPU_ACCESS_NONE = 0x0;

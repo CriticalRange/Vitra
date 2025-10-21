@@ -3,6 +3,7 @@ package com.vitra.render;
 import com.vitra.config.RendererType;
 import com.vitra.config.VitraConfig;
 import com.vitra.render.jni.VitraD3D12Renderer;
+import com.vitra.render.jni.VitraD3D12Native;
 import com.vitra.render.jni.D3D12ShaderManager;
 import com.vitra.render.jni.D3D12BufferManager;
 import org.slf4j.Logger;
@@ -68,7 +69,8 @@ public class DirectX12Renderer extends AbstractRenderer {
                 logger.info("Initializing native DirectX 12 Ultimate with debug={}, verbose={}", debugMode, verboseMode);
 
                 // Initialize DirectX 12 with configuration
-                boolean success = VitraD3D12Renderer.initializeWithConfig(windowHandle, config);
+                String configJson = String.format("{\"debug\":%b,\"vsync\":%b}", debugMode, config.isVsyncEnabled());
+                boolean success = VitraD3D12Renderer.initializeWithConfig(windowHandle, configJson);
                 if (success) {
                     logger.info("Native DirectX 12 Ultimate initialized successfully (debug={})", debugMode);
 
@@ -124,7 +126,7 @@ public class DirectX12Renderer extends AbstractRenderer {
             }
 
             // Shutdown native renderer
-            VitraD3D12Renderer.shutdown();
+            VitraD3D12Native.shutdown();
             logger.info("Native DirectX 12 Ultimate shutdown completed");
 
         } catch (Exception e) {
@@ -158,28 +160,28 @@ public class DirectX12Renderer extends AbstractRenderer {
     @Override
     public void beginFrame() {
         if (isInitialized()) {
-            VitraD3D12Renderer.beginFrame();
+            VitraD3D12Native.beginFrame();
         }
     }
 
     @Override
     public void endFrame() {
         if (isInitialized()) {
-            VitraD3D12Renderer.endFrame();
+            VitraD3D12Native.endFrame();
         }
     }
 
     @Override
     public void present() {
         if (isInitialized()) {
-            VitraD3D12Renderer.presentStatic();
+            VitraD3D12Native.present();
         }
     }
 
     @Override
     public void resize(int width, int height) {
         if (isInitialized()) {
-            VitraD3D12Renderer.resize(width, height);
+            VitraD3D12Native.resize(width, height);
             logger.info("DirectX 12 view resized to {}x{}", width, height);
         }
     }
@@ -187,14 +189,14 @@ public class DirectX12Renderer extends AbstractRenderer {
     @Override
     public void clear(float r, float g, float b, float a) {
         if (isInitialized()) {
-            VitraD3D12Renderer.clear(r, g, b, a);
+            VitraD3D12Native.clear(r, g, b, a);
         }
     }
 
     // DirectX 12 Ultimate features
     @Override
     public boolean isRayTracingSupported() {
-        return VitraD3D12Renderer.isRayTracingSupported();
+        return VitraD3D12Native.isRaytracingSupported();
     }
 
     @Override
@@ -254,7 +256,7 @@ public class DirectX12Renderer extends AbstractRenderer {
 
         // Include DirectX 12 Ultimate features
         stats.append("\n--- DirectX 12 Ultimate Features ---\n");
-        stats.append("Ray Tracing: ").append(VitraD3D12Renderer.isRayTracingSupported()).append("\n");
+        stats.append("Ray Tracing: ").append(VitraD3D12Native.isRaytracingSupported()).append("\n");
         stats.append("Variable Rate Shading: ").append(VitraD3D12Renderer.isVariableRateShadingSupportedStatic()).append("\n");
         stats.append("Mesh Shaders: ").append(VitraD3D12Renderer.isMeshShadersSupportedStatic()).append("\n");
 
@@ -356,7 +358,7 @@ public class DirectX12Renderer extends AbstractRenderer {
         return VitraD3D12Renderer.openStorageFile(filename);
     }
 
-    public boolean enqueueReadRequest(long fileHandle, long offset, long size, long destination, long requestTag) {
+    public long enqueueReadRequest(long fileHandle, long offset, long size, long destination, long requestTag) {
         return VitraD3D12Renderer.enqueueReadRequest(fileHandle, offset, size, destination, requestTag);
     }
 
@@ -429,7 +431,7 @@ public class DirectX12Renderer extends AbstractRenderer {
         return VitraD3D12Renderer.validateAllocation(handle);
     }
 
-    public long getAllocationInfo(long handle) {
+    public String getAllocationInfo(long handle) {
         return VitraD3D12Renderer.getAllocationInfo(handle);
     }
 

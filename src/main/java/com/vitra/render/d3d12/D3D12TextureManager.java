@@ -95,7 +95,7 @@ public class D3D12TextureManager {
      * Create texture using builder pattern
      */
     public D3D12Texture createTexture(D3D12TextureBuilder builder) {
-        D3D12Texture texture = builder.setMemoryManager(memoryManager.getMemoryManager())
+        D3D12Texture texture = builder.setMemoryManager(memoryManager)
                                       .build();
 
         if (texture != null) {
@@ -126,7 +126,7 @@ public class D3D12TextureManager {
                 .setData(data)
                 .forMinecraftTexture()
                 .setDebugName(name)
-                .setMemoryManager(memoryManager.getMemoryManager())
+                .setMemoryManager(memoryManager)
                 .build();
 
         if (texture != null) {
@@ -154,7 +154,7 @@ public class D3D12TextureManager {
                 .setFormat(format)
                 .forRenderTarget()
                 .setDebugName(name)
-                .setMemoryManager(memoryManager.getMemoryManager())
+                .setMemoryManager(memoryManager)
                 .build();
 
         if (texture != null) {
@@ -181,7 +181,7 @@ public class D3D12TextureManager {
                 .setDimensions(width, height)
                 .forDepthBuffer()
                 .setDebugName(name)
-                .setMemoryManager(memoryManager.getMemoryManager())
+                .setMemoryManager(memoryManager)
                 .build();
 
         if (texture != null) {

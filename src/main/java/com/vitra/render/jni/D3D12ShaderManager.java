@@ -168,12 +168,12 @@ public class D3D12ShaderManager extends AbstractShaderManager {
         loadStandardShaders();
 
         // Ray tracing shaders if supported
-        if (VitraD3D12Renderer.isRayTracingSupported()) {
+        if (VitraD3D12Native.isRaytracingSupported()) {
             loadRayTracingShaders();
         }
 
         // Mesh shaders if supported
-        if (VitraD3D12Renderer.isMeshShadersSupported()) {
+        if (VitraD3D12Native.isMeshShadersSupported()) {
             loadMeshShaders();
         }
 
