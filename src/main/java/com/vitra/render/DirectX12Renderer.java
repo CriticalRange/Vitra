@@ -72,16 +72,16 @@ public class DirectX12Renderer extends AbstractRenderer {
                 if (success) {
                     logger.info("Native DirectX 12 Ultimate initialized successfully (debug={})", debugMode);
 
-                    // Initialize managers
+                    // Initialize managers with modern DirectX 12 Ultimate support
                     if (shaderManager != null) {
                         shaderManager.initialize();
                         shaderManager.preloadMinecraftShaders();
-                        logger.info("DirectX 12 shader manager initialized: {}", shaderManager.getCacheStats());
+                        logger.info("DirectX 12 Ultimate shader manager initialized: {}", shaderManager.getCacheStats());
                     }
 
                     if (bufferManager != null) {
                         bufferManager.initialize();
-                        logger.info("DirectX 12 buffer manager initialized: {}", bufferManager.getBufferStats());
+                        logger.info("DirectX 12 Ultimate buffer manager initialized: {}", bufferManager.getBufferStats());
                     }
 
                     // Load shaders after native initialization
@@ -147,7 +147,7 @@ public class DirectX12Renderer extends AbstractRenderer {
      * Check if DirectX 12 is fully initialized (has window handle and native context)
      */
     public boolean isFullyInitialized() {
-        return initialized && windowHandle != 0L && VitraD3D12Renderer.isInitialized();
+        return initialized && windowHandle != 0L && VitraD3D12Renderer.isInitializedStatic();
     }
 
     @Override
@@ -172,7 +172,7 @@ public class DirectX12Renderer extends AbstractRenderer {
     @Override
     public void present() {
         if (isInitialized()) {
-            VitraD3D12Renderer.present();
+            VitraD3D12Renderer.presentStatic();
         }
     }
 
@@ -199,12 +199,12 @@ public class DirectX12Renderer extends AbstractRenderer {
 
     @Override
     public boolean isVariableRateShadingSupported() {
-        return VitraD3D12Renderer.isVariableRateShadingSupported();
+        return VitraD3D12Renderer.isVariableRateShadingSupportedStatic();
     }
 
     @Override
     public boolean isMeshShadersSupported() {
-        return VitraD3D12Renderer.isMeshShadersSupported();
+        return VitraD3D12Renderer.isMeshShadersSupportedStatic();
     }
 
     @Override
@@ -215,32 +215,32 @@ public class DirectX12Renderer extends AbstractRenderer {
     // Performance metrics from DirectX 12
     @Override
     public float getGpuUtilization() {
-        return VitraD3D12Renderer.getGpuUtilization();
+        return VitraD3D12Renderer.getGpuUtilizationStatic();
     }
 
     @Override
     public long getFrameTime() {
-        return VitraD3D12Renderer.getFrameTime();
+        return VitraD3D12Renderer.getFrameTimeStatic();
     }
 
     @Override
     public int getDrawCallsPerFrame() {
-        return VitraD3D12Renderer.getDrawCallsPerFrame();
+        return VitraD3D12Renderer.getDrawCallsPerFrameStatic();
     }
 
     @Override
     public void resetPerformanceCounters() {
-        VitraD3D12Renderer.resetPerformanceCounters();
+        VitraD3D12Renderer.resetPerformanceCountersStatic();
     }
 
     @Override
     public void setDebugMode(boolean enabled) {
-        VitraD3D12Renderer.setDebugMode(enabled);
+        VitraD3D12Renderer.setDebugModeStatic(enabled);
     }
 
     @Override
     public void captureFrame(String filename) {
-        VitraD3D12Renderer.captureFrame(filename);
+        VitraD3D12Renderer.captureFrameStatic(filename);
     }
 
     @Override
@@ -255,8 +255,20 @@ public class DirectX12Renderer extends AbstractRenderer {
         // Include DirectX 12 Ultimate features
         stats.append("\n--- DirectX 12 Ultimate Features ---\n");
         stats.append("Ray Tracing: ").append(VitraD3D12Renderer.isRayTracingSupported()).append("\n");
-        stats.append("Variable Rate Shading: ").append(VitraD3D12Renderer.isVariableRateShadingSupported()).append("\n");
-        stats.append("Mesh Shaders: ").append(VitraD3D12Renderer.isMeshShadersSupported()).append("\n");
+        stats.append("Variable Rate Shading: ").append(VitraD3D12Renderer.isVariableRateShadingSupportedStatic()).append("\n");
+        stats.append("Mesh Shaders: ").append(VitraD3D12Renderer.isMeshShadersSupportedStatic()).append("\n");
+
+        // Include DirectStorage features
+        if (VitraD3D12Renderer.isDirectStorageSupported()) {
+            stats.append("\n--- DirectStorage ---\n");
+            stats.append(VitraD3D12Renderer.getDirectStorageStats());
+        }
+
+        // Include D3D12MA features
+        if (VitraD3D12Renderer.isD3D12MASupported()) {
+            stats.append("\n--- D3D12 Memory Allocator ---\n");
+            stats.append(VitraD3D12Renderer.getD3D12MAStats());
+        }
 
         // Include performance metrics
         stats.append("\n--- Performance Metrics ---\n");
@@ -265,9 +277,9 @@ public class DirectX12Renderer extends AbstractRenderer {
         stats.append("Draw Calls: ").append(getDrawCallsPerFrame()).append("\n");
 
         // Include debug stats if available
-        if (VitraD3D12Renderer.isInitialized()) {
+        if (VitraD3D12Renderer.isInitializedStatic()) {
             stats.append("\n--- Debug System ---\n");
-            stats.append(VitraD3D12Renderer.getDebugStats());
+            stats.append(VitraD3D12Renderer.getDebugStatsStatic());
         }
 
         // Include component stats
@@ -292,7 +304,7 @@ public class DirectX12Renderer extends AbstractRenderer {
 
     @Override
     public com.vitra.render.jni.VitraD3D12Renderer getDirectX12Renderer() {
-        return VitraD3D12Renderer.isInitialized() ? null : null; // Static class, return null for now
+        return VitraD3D12Renderer.isInitializedStatic() ? null : null; // Static class, return null for now
     }
 
     @Override
@@ -331,7 +343,112 @@ public class DirectX12Renderer extends AbstractRenderer {
         VitraD3D12Renderer.disableVariableRateShading();
     }
 
-  
+    // DirectStorage feature methods
+    public boolean isDirectStorageSupported() {
+        return VitraD3D12Renderer.isDirectStorageSupported();
+    }
+
+    public boolean isHardwareDecompressionSupported() {
+        return VitraD3D12Renderer.isHardwareDecompressionSupported();
+    }
+
+    public long openStorageFile(String filename) {
+        return VitraD3D12Renderer.openStorageFile(filename);
+    }
+
+    public boolean enqueueReadRequest(long fileHandle, long offset, long size, long destination, long requestTag) {
+        return VitraD3D12Renderer.enqueueReadRequest(fileHandle, offset, size, destination, requestTag);
+    }
+
+    public void processStorageQueue() {
+        VitraD3D12Renderer.processStorageQueue();
+    }
+
+    public boolean isStorageQueueEmpty() {
+        return VitraD3D12Renderer.isStorageQueueEmpty();
+    }
+
+    public void closeStorageFile(long fileHandle) {
+        VitraD3D12Renderer.closeStorageFile(fileHandle);
+    }
+
+    public void setStoragePriority(boolean realtimePriority) {
+        VitraD3D12Renderer.setStoragePriority(realtimePriority);
+    }
+
+    public String getDirectStorageStats() {
+        return VitraD3D12Renderer.getDirectStorageStats();
+    }
+
+    public float getStorageUtilization() {
+        return VitraD3D12Renderer.getStorageUtilization();
+    }
+
+    public long getStorageThroughput() {
+        return VitraD3D12Renderer.getStorageThroughput();
+    }
+
+    // D3D12 Memory Allocator (D3D12MA) feature methods
+    public boolean isD3D12MASupported() {
+        return VitraD3D12Renderer.isD3D12MASupported();
+    }
+
+    public boolean enableMemoryBudgeting(boolean enable) {
+        return VitraD3D12Renderer.enableMemoryBudgeting(enable);
+    }
+
+    public long createManagedBuffer(byte[] data, int size, int stride, int heapType, int allocationFlags) {
+        return VitraD3D12Renderer.createManagedBuffer(data, size, stride, heapType, allocationFlags);
+    }
+
+    public long createManagedTexture(byte[] data, int width, int height, int format, int heapType, int allocationFlags) {
+        return VitraD3D12Renderer.createManagedTexture(data, width, height, format, heapType, allocationFlags);
+    }
+
+    public long createManagedUploadBuffer(int size) {
+        return VitraD3D12Renderer.createManagedUploadBuffer(size);
+    }
+
+    public void releaseManagedResource(long handle) {
+        VitraD3D12Renderer.releaseManagedResource(handle);
+    }
+
+    public String getMemoryStatistics() {
+        return VitraD3D12Renderer.getMemoryStatistics();
+    }
+
+    public String getPoolStatistics(int poolType) {
+        return VitraD3D12Renderer.getPoolStatistics(poolType);
+    }
+
+    public boolean beginDefragmentation() {
+        return VitraD3D12Renderer.beginDefragmentation();
+    }
+
+    public boolean validateAllocation(long handle) {
+        return VitraD3D12Renderer.validateAllocation(handle);
+    }
+
+    public long getAllocationInfo(long handle) {
+        return VitraD3D12Renderer.getAllocationInfo(handle);
+    }
+
+    public void setResourceDebugName(long handle, String name) {
+        VitraD3D12Renderer.setResourceDebugName(handle, name);
+    }
+
+    public boolean checkMemoryBudget(long requiredSize, int heapType) {
+        return VitraD3D12Renderer.checkMemoryBudget(requiredSize, heapType);
+    }
+
+    public void dumpMemoryToJson() {
+        VitraD3D12Renderer.dumpMemoryToJson();
+    }
+
+    public String getD3D12MAStats() {
+        return VitraD3D12Renderer.getD3D12MAStats();
+    }
+
     public void processDebugMessages() {
         VitraD3D12Renderer.processDebugMessages();
     }
@@ -348,14 +465,14 @@ public class DirectX12Renderer extends AbstractRenderer {
     @Override
     public void clearDepthBuffer() {
         if (isInitialized()) {
-            VitraD3D12Renderer.clearDepthBuffer();
+            VitraD3D12Renderer.clearDepthBufferStatic();
         }
     }
 
     @Override
     public void waitForGpuCommands() {
         if (isInitialized()) {
-            VitraD3D12Renderer.waitForGpuCommands();
+            VitraD3D12Renderer.waitForGpuCommandsStatic();
         }
     }
 }

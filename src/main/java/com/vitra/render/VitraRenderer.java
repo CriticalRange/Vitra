@@ -4,6 +4,7 @@ import com.vitra.config.RendererType;
 import com.vitra.config.VitraConfig;
 import com.vitra.core.VitraCore;
 import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D12Renderer;
 import com.vitra.render.jni.D3D11ShaderManager;
 import com.vitra.render.jni.D3D11BufferManager;
 import com.vitra.render.opengl.GLInterceptor;
@@ -16,13 +17,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * JNI DirectX 11 renderer for Vitra
- * Uses native DirectX 11 calls through JNI interface
+ * Unified renderer for Vitra supporting both DirectX 11 and DirectX 12 backends
+ * Dynamically selects backend based on configuration
+ * Uses native DirectX calls through JNI interface
  */
 public class VitraRenderer extends AbstractRenderer {
+    // Renderer backend instances
+    private IVitraRenderer activeRenderer = null;
+
     // DirectX 11 components
     private D3D11ShaderManager shaderManager;
     private D3D11BufferManager bufferManager;
+
+    // DirectX 12 components
+    private VitraD3D12Renderer d3d12Renderer;
 
     // Constant buffer system (VulkanMod-style uniform management)
     private D3D11ConstantBuffer vertexConstantBuffer;     // b0 - vertex shader uniforms
@@ -38,7 +46,9 @@ public class VitraRenderer extends AbstractRenderer {
     // Interface implementation methods
     @Override
     public void initialize() {
-        initialize(RendererType.DIRECTX11);
+        // Get renderer type from config or default to DirectX 11
+        RendererType rendererType = (config != null) ? config.getRendererType() : RendererType.DIRECTX11;
+        initialize(rendererType);
     }
 
     @Override
@@ -48,19 +58,27 @@ public class VitraRenderer extends AbstractRenderer {
             return;
         }
 
-        logger.info("Preparing Vitra JNI DirectX 11 renderer (deferred initialization)");
+        logger.info("Preparing Vitra unified renderer - Backend: {}", rendererType);
 
         try {
             if (!rendererType.isSupported()) {
-                throw new RuntimeException("DirectX 11 is not supported on this platform. Vitra requires Windows 10+.");
+                throw new RuntimeException(rendererType + " is not supported on this platform. Vitra requires Windows 10+.");
             }
 
-            // Initialize DirectX 11 components
-            shaderManager = new D3D11ShaderManager();
-            bufferManager = new D3D11BufferManager();
+            // Select and initialize the appropriate backend
+            switch (rendererType) {
+                case DIRECTX11:
+                    initializeDirectX11Backend();
+                    break;
+                case DIRECTX12:
+                    initializeDirectX12Backend();
+                    break;
+                default:
+                    throw new RuntimeException("Unsupported renderer type: " + rendererType);
+            }
 
             initialized = true;
-            logger.info("Vitra renderer prepared, native DirectX 11 will initialize when window handle is available");
+            logger.info("Vitra unified renderer prepared - Backend: {}, native will initialize when window handle is available", rendererType);
 
         } catch (Exception e) {
             logger.error("Failed to prepare Vitra renderer", e);
@@ -68,10 +86,41 @@ public class VitraRenderer extends AbstractRenderer {
         }
     }
 
+    /**
+     * Initialize DirectX 11 backend
+     */
+    private void initializeDirectX11Backend() {
+        logger.info("Initializing DirectX 11 backend");
+        activeRenderer = this; // Use this instance as DirectX 11 renderer
+
+        // Initialize DirectX 11 components
+        shaderManager = new D3D11ShaderManager();
+        bufferManager = new D3D11BufferManager();
+
+        logger.info("DirectX 11 backend components initialized");
+    }
+
+    /**
+     * Initialize DirectX 12 backend
+     */
+    private void initializeDirectX12Backend() {
+        logger.info("Initializing DirectX 12 backend");
+
+        // Create DirectX 12 renderer instance
+        d3d12Renderer = new VitraD3D12Renderer();
+        activeRenderer = d3d12Renderer;
+
+        // DirectX 12 doesn't use the legacy shader/buffer managers
+        shaderManager = null;
+        bufferManager = null;
+
+        logger.info("DirectX 12 backend initialized");
+    }
+
     @Override
     public boolean initializeWithWindowHandle(long windowHandle) {
         this.windowHandle = windowHandle;
-        logger.info("JNI DirectX 11 window handle set: 0x{}", Long.toHexString(windowHandle));
+        logger.info("Vitra unified renderer window handle set: 0x{}", Long.toHexString(windowHandle));
 
         // Actually initialize native DirectX 11 with the window handle
         if (windowHandle != 0L) {
@@ -211,50 +260,63 @@ public class VitraRenderer extends AbstractRenderer {
 
     @Override
     public boolean isInitialized() {
-        // For deferred initialization: return true if prepared
-        // Full DirectX initialization happens in initializeWithWindowHandle()
-        return initialized;
+        // Check if unified renderer is prepared and active renderer is initialized
+        if (!initialized) return false;
+        if (activeRenderer != null) {
+            return activeRenderer.isInitialized();
+        }
+        return false;
     }
 
     /**
-     * Check if DirectX 11 is fully initialized (has window handle and native context)
+     * Check if active renderer is fully initialized (has window handle and native context)
      */
     public boolean isFullyInitialized() {
-        return initialized && windowHandle != 0L && VitraNativeRenderer.isInitialized();
+        if (!initialized || activeRenderer == null) return false;
+        return activeRenderer.isInitialized() && windowHandle != 0L;
     }
 
     @Override
     public RendererType getRendererType() {
-        return RendererType.DIRECTX11;
+        // Return the configured renderer type
+        return (config != null) ? config.getRendererType() : RendererType.DIRECTX11;
     }
 
     @Override
     public void beginFrame() {
-        if (isFullyInitialized()) {
-            // Handle pending resize
-            if (resizePending) {
-                // Actual resize will be handled by resize() method
-                resizePending = false;
+        // Delegate to active renderer
+        if (activeRenderer != null && activeRenderer.isInitialized()) {
+            // Special handling for DirectX 11 specific features
+            if (getRendererType() == RendererType.DIRECTX11) {
+                // Handle pending resize
+                if (resizePending) {
+                    // Actual resize will be handled by resize() method
+                    resizePending = false;
+                }
+
+                // Update constant buffers EVERY frame for DirectX 11
+                // DirectX 11 may unbind constant buffers during pipeline changes,
+                // so we need to rebind them every frame to be safe
+                uploadConstantBuffers();
+                uniformsDirty = false;
             }
 
-            // Update constant buffers EVERY frame
-            // DirectX 11 may unbind constant buffers during pipeline changes,
-            // so we need to rebind them every frame to be safe
-            uploadConstantBuffers();
-            uniformsDirty = false;
-
-            VitraNativeRenderer.beginFrame();
+            activeRenderer.beginFrame();
         }
     }
 
     @Override
     public void endFrame() {
-        if (isFullyInitialized()) {
-            VitraNativeRenderer.endFrame();
+        if (activeRenderer != null && activeRenderer.isInitialized()) {
+            activeRenderer.endFrame();
 
-            // Process DirectX debug messages after each frame (if debug mode enabled)
-            if (VitraNativeRenderer.isDebugEnabled()) {
+            // Process debug messages for DirectX 11
+            if (getRendererType() == RendererType.DIRECTX11 && VitraNativeRenderer.isDebugEnabled()) {
                 VitraNativeRenderer.processDebugMessages();
+            }
+            // Process debug messages for DirectX 12
+            else if (getRendererType() == RendererType.DIRECTX12 && d3d12Renderer != null) {
+                d3d12Renderer.processDebugMessages();
             }
         }
     }
@@ -267,61 +329,82 @@ public class VitraRenderer extends AbstractRenderer {
 
     @Override
     public void resize(int width, int height) {
-        if (isFullyInitialized()) {
-            VitraNativeRenderer.resize(width, height);
-            logger.info("DirectX 11 view resized to {}x{}", width, height);
+        if (activeRenderer != null && activeRenderer.isInitialized()) {
+            activeRenderer.resize(width, height);
+            logger.info("Renderer view resized to {}x{} (backend: {})", width, height, getRendererType());
         }
     }
 
     @Override
     public void clear(float r, float g, float b, float a) {
-        if (isFullyInitialized()) {
-            // Use new clear implementation: set color then clear with mask
-            VitraNativeRenderer.setClearColor(r, g, b, a);
-            VitraNativeRenderer.clear(0x4100); // GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT
+        if (activeRenderer != null && activeRenderer.isInitialized()) {
+            activeRenderer.clear(r, g, b, a);
         }
     }
 
-    // DirectX 11 doesn't support these advanced features
+    // Feature support delegates to active renderer
     @Override
     public boolean isRayTracingSupported() {
+        if (activeRenderer != null) {
+            return activeRenderer.isRayTracingSupported();
+        }
         return false;
     }
 
     @Override
     public boolean isVariableRateShadingSupported() {
+        if (activeRenderer != null) {
+            return activeRenderer.isVariableRateShadingSupported();
+        }
         return false;
     }
 
     @Override
     public boolean isMeshShadersSupported() {
+        if (activeRenderer != null) {
+            return activeRenderer.isMeshShadersSupported();
+        }
         return false;
     }
 
     @Override
     public boolean isGpuDrivenRenderingSupported() {
+        if (activeRenderer != null) {
+            return activeRenderer.isGpuDrivenRenderingSupported();
+        }
         return false;
     }
 
-    // DirectX 11 doesn't expose these performance metrics
+    // Performance metrics delegate to active renderer
     @Override
     public float getGpuUtilization() {
+        if (activeRenderer != null) {
+            return activeRenderer.getGpuUtilization();
+        }
         return 0.0f;
     }
 
     @Override
     public long getFrameTime() {
+        if (activeRenderer != null) {
+            return activeRenderer.getFrameTime();
+        }
         return 0L;
     }
 
     @Override
     public int getDrawCallsPerFrame() {
+        if (activeRenderer != null) {
+            return activeRenderer.getDrawCallsPerFrame();
+        }
         return 0;
     }
 
     @Override
     public void resetPerformanceCounters() {
-        // No-op for DirectX 11
+        if (activeRenderer != null) {
+            activeRenderer.resetPerformanceCounters();
+        }
     }
 
     @Override
@@ -376,22 +459,28 @@ public class VitraRenderer extends AbstractRenderer {
     // Feature access methods
     @Override
     public VitraRenderer getDirectX11Renderer() {
-        return this;
+        return (getRendererType() == RendererType.DIRECTX11) ? this : null;
     }
 
     @Override
     public com.vitra.render.jni.VitraD3D12Renderer getDirectX12Renderer() {
-        return null;
+        return (getRendererType() == RendererType.DIRECTX12) ? d3d12Renderer : null;
     }
 
     @Override
     public Object getShaderManager() {
-        return shaderManager;
+        if (activeRenderer != null) {
+            return activeRenderer.getShaderManager();
+        }
+        return null;
     }
 
     @Override
     public Object getBufferManager() {
-        return bufferManager;
+        if (activeRenderer != null) {
+            return activeRenderer.getBufferManager();
+        }
+        return null;
     }
 
     // Getters for DirectX 11 components
@@ -482,16 +571,18 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     // Screen rendering methods
+    @Override
     public void clearDepthBuffer() {
-        if (isFullyInitialized()) {
-            VitraNativeRenderer.clearDepthBuffer(1.0f);
+        if (activeRenderer != null) {
+            activeRenderer.clearDepthBuffer();
         }
     }
 
     // Screenshot and GPU synchronization methods
+    @Override
     public void waitForGpuCommands() {
-        if (isFullyInitialized()) {
-            VitraNativeRenderer.waitForGpuCommands();
+        if (activeRenderer != null) {
+            activeRenderer.waitForGpuCommands();
         }
     }
 

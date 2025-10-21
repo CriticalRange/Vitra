@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import com.vitra.render.VRenderSystem;
 import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D12Renderer;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
@@ -20,16 +21,27 @@ import org.slf4j.LoggerFactory;
 import static com.mojang.blaze3d.systems.RenderSystem.*;
 
 /**
- * DirectX 11 RenderSystem mixin following VulkanMod standards.
- * Replaces OpenGL matrix operations with DirectX 11 equivalents.
- * Handles projection, model-view, texture matrices, and shader state for DirectX 11.
+ * Vitra unified RenderSystem mixin following VulkanMod standards.
+ * Replaces OpenGL matrix operations with configured DirectX backend equivalents.
+ * Handles projection, model-view, texture matrices, and shader state for both DirectX 11 and DirectX 12.
  *
- * Pattern based on VulkanMod's MRenderSystem with DirectX 11 adaptations.
+ * Pattern based on VulkanMod's MRenderSystem with unified backend adaptations.
  * Includes thread-safe operations and silent error handling following VulkanMod patterns.
  */
 @Mixin(RenderSystem.class)
 public abstract class RenderSystemMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/RenderSystem");
+
+    /**
+     * Helper method to get the current renderer type
+     */
+    private static com.vitra.config.RendererType getCurrentRendererType() {
+        com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
+        if (core != null && core.getRenderer() != null) {
+            return core.getRenderer().getRendererType();
+        }
+        return com.vitra.config.RendererType.DIRECTX11; // Fallback
+    }
 
     @Shadow private static Matrix4f projectionMatrix;
     @Shadow private static Matrix4f savedProjectionMatrix;
@@ -51,14 +63,18 @@ public abstract class RenderSystemMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace OpenGL renderer initialization with DirectX 11
+     * @reason Replace OpenGL renderer initialization with configured DirectX backend
      */
     @Overwrite(remap = false)
     public static void initRenderer(int debugVerbosity, boolean debugSync) {
         try {
-            LOGGER.info("RenderSystem.initRenderer() called - initializing DirectX 11");
+            // Get configured renderer type
+            com.vitra.config.VitraConfig config = com.vitra.VitraMod.getConfig();
+            com.vitra.config.RendererType rendererType = (config != null) ? config.getRendererType() : com.vitra.config.RendererType.DIRECTX11;
 
-            // Initialize DirectX 11 (following VulkanMod's pattern: VRenderSystem.initRenderer())
+            LOGGER.info("RenderSystem.initRenderer() called - initializing {}", rendererType);
+
+            // Initialize configured backend (following VulkanMod's pattern: VRenderSystem.initRenderer())
             // Window handle was already stored by WindowMixin
             com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
             if (core != null && core.getRenderer() != null) {
@@ -67,12 +83,12 @@ public abstract class RenderSystemMixin {
                 // Initialize with the stored window handle
                 boolean success = renderer.initializeWithWindowHandle(renderer.getWindowHandle());
                 if (success) {
-                    LOGGER.info("DirectX 11 initialized successfully via initRenderer()");
+                    LOGGER.info("{} initialized successfully via initRenderer()", rendererType);
                 } else {
-                    LOGGER.error("DirectX 11 initialization returned false");
+                    LOGGER.error("{} initialization returned false", rendererType);
                 }
             } else {
-                LOGGER.error("VitraCore or renderer is null, cannot initialize DirectX 11");
+                LOGGER.error("VitraCore or renderer is null, cannot initialize {}", rendererType);
             }
 
             // Follow VulkanMod pattern: set render thread priority
@@ -81,39 +97,50 @@ public abstract class RenderSystemMixin {
             }
         } catch (Exception e) {
             // Silent error following VulkanMod pattern - don't crash Minecraft
-            LOGGER.error("DirectX 11 renderer initialization failed", e);
+            LOGGER.error("Vitra renderer initialization failed", e);
         }
     }
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL default state setup with DirectX 11 equivalents
+     * @reason Replace OpenGL default state setup with configured DirectX backend equivalents
      */
     @Overwrite(remap = false)
     public static void setupDefaultState(int x, int y, int width, int height) {
-        LOGGER.info("RenderSystem.setupDefaultState intercepted - DirectX 11 JNI handles state internally (1.21.1)");
-        // NO-OP: DirectX 11 JNI handles its own state setup
+        LOGGER.info("RenderSystem.setupDefaultState intercepted - Vitra JNI handles state internally (1.21.1)");
+        // NO-OP: Vitra JNI handles its own state setup
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace OpenGL max texture size query with DirectX 11 equivalent
+     * @reason Replace OpenGL max texture size query with Vitra backend equivalent
      */
     @Overwrite(remap = false)
     public static int maxSupportedTextureSize() {
         try {
-            // Use existing getMaxTextureSize() method - it already has C++ implementation
+            // Get the configured renderer and query its max texture size
+            com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
+            if (core != null && core.getRenderer() != null) {
+                com.vitra.render.IVitraRenderer renderer = core.getRenderer();
+
+                // Try to get max texture size through unified interface
+                // This would need to be added to IVitraRenderer interface
+                // For now, use the DirectX 11 native method as fallback
+                return VitraNativeRenderer.getMaxTextureSize();
+            }
+
+            // Fallback to DirectX 11 native method
             return VitraNativeRenderer.getMaxTextureSize();
         } catch (Exception e) {
             // Follow VulkanMod pattern: silent fallback
-            LOGGER.warn("Failed to get DirectX 11 max texture size, returning default");
+            LOGGER.warn("Failed to get Vitra max texture size, returning default");
             return 2048; // Default texture size
         }
     }
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL shader lights setup with DirectX 11 equivalent
+     * @reason Replace OpenGL shader lights setup with Vitra backend equivalent
      */
     @Overwrite(remap = false)
     public static void setShaderLights(Vector3f dir0, Vector3f dir1) {
@@ -121,11 +148,25 @@ public abstract class RenderSystemMixin {
         shaderLightDirections[1] = dir1;
 
         try {
-            VitraNativeRenderer.setShaderLightDirection(0, dir0.x(), dir0.y(), dir0.z());
-            VitraNativeRenderer.setShaderLightDirection(1, dir1.x(), dir1.y(), dir1.z());
+            // Get configured renderer and set shader light directions
+            com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
+            if (core != null && core.getRenderer() != null) {
+                com.vitra.render.IVitraRenderer renderer = core.getRenderer();
+
+                // For DirectX 11 backend
+                if (renderer.getRendererType() == com.vitra.config.RendererType.DIRECTX11) {
+                    VitraNativeRenderer.setShaderLightDirection(0, dir0.x(), dir0.y(), dir0.z());
+                    VitraNativeRenderer.setShaderLightDirection(1, dir1.x(), dir1.y(), dir1.z());
+                }
+                // For DirectX 12 backend - would need equivalent method
+                else if (renderer.getRendererType() == com.vitra.config.RendererType.DIRECTX12) {
+                    // TODO: Implement DirectX 12 shader light direction setting
+                    LOGGER.debug("DirectX 12 shader light directions not yet implemented");
+                }
+            }
         } catch (Exception e) {
             // Silent error following VulkanMod pattern
-            LOGGER.warn("Failed to set DirectX 11 shader light directions");
+            LOGGER.warn("Failed to set Vitra shader light directions");
         }
     }
 
