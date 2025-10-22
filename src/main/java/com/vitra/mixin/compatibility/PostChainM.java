@@ -1,7 +1,7 @@
 package com.vitra.mixin.compatibility;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.VitraRenderer;
 import net.minecraft.client.renderer.PostChain;
 import net.minecraft.client.renderer.PostPass;
 import org.spongepowered.asm.mixin.Final;
@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * DirectX 11 PostChain compatibility mixin
+ * Renderer-agnostic PostChain compatibility mixin
  *
  * Based on VulkanMod's PostChainM but adapted for DirectX 11 pipeline.
  * Handles post-processing effect chains consisting of multiple sequential render passes.
@@ -66,6 +66,15 @@ import java.util.Map;
 @Mixin(PostChain.class)
 public abstract class PostChainM {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/PostChainM");
+
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
 
     @Shadow private int screenWidth;
     @Shadow private int screenHeight;
@@ -173,7 +182,7 @@ public abstract class PostChainM {
      * - MaxDepth: 1.0f
      */
     private void resetDirectX11Viewport() {
-        VitraNativeRenderer.setViewport(0, 0, screenWidth, screenHeight);
+        getRenderer().setViewport(0, 0, screenWidth, screenHeight);
 
         LOGGER.trace("Reset viewport to screen dimensions: {}x{}", screenWidth, screenHeight);
     }

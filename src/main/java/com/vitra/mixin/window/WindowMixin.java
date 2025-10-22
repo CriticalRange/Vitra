@@ -108,12 +108,13 @@ public abstract class WindowMixin {
         try {
             LOGGER.info("Window constructed with handle: 0x{} (GLFW_NO_API)", Long.toHexString(this.window));
 
-            // Store the window handle in VitraRenderer
-            if (VitraMod.getRenderer() instanceof VitraRenderer renderer) {
-                renderer.setWindowHandle(this.window);
-                LOGGER.info("Stored window handle in VitraRenderer for DirectX 11 initialization");
+            // Store the window handle in renderer (works for both DirectX 11 and DirectX 12)
+            com.vitra.render.IVitraRenderer renderer = VitraMod.getRenderer();
+            if (renderer instanceof com.vitra.render.AbstractRenderer abstractRenderer) {
+                abstractRenderer.setWindowHandle(this.window);
+                LOGGER.info("Stored window handle in {} for initialization", renderer.getClass().getSimpleName());
             } else {
-                LOGGER.error("Renderer is not VitraRenderer, cannot store window handle!");
+                LOGGER.error("Renderer is not AbstractRenderer, cannot store window handle!");
             }
         } catch (Exception e) {
             LOGGER.error("Failed to store window handle", e);

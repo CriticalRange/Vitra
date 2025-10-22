@@ -7,7 +7,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.main.GameConfig;
 import com.vitra.core.VitraCore;
-import com.vitra.render.jni.VitraNativeRenderer;
 import com.vitra.render.texture.SpriteUpdateUtil;
 import com.vitra.render.VitraRenderer;
 import org.objectweb.asm.Opcodes;
@@ -28,6 +27,15 @@ import java.util.Optional;
 public class MinecraftMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/MinecraftMixin");
 
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
+
     @Shadow @Final public Options options;
 
     @Inject(method = "<init>", at = @At(value = "RETURN"))
@@ -35,7 +43,7 @@ public class MinecraftMixin {
         var graphicsModeOption = this.options.graphicsMode();
 
         if (graphicsModeOption.get() == GraphicsStatus.FABULOUS) {
-            VitraCore.getLogger().info("Fabulous graphics mode not supported with DirectX 11, forcing Fancy");
+            VitraCore.getLogger().info("Fabulous graphics mode not supported with Vitra renderer, forcing Fancy");
             graphicsModeOption.set(GraphicsStatus.FANCY);
         }
     }
@@ -44,7 +52,7 @@ public class MinecraftMixin {
      * Redirect RenderSystem.clear() to inject beginFrame() call
      * Based on VulkanMod's beginRender pattern
      *
-     * CRITICAL FIX: This ensures DirectX 11's beginFrame() is called before each frame's rendering begins,
+     * CRITICAL FIX: This ensures the renderer's beginFrame() is called before each frame's rendering begins,
      * which sets up the viewport, clears the render target, and prepares for drawing.
      * Without this, the screen appears blank or with incorrect clear color.
      */
@@ -61,16 +69,16 @@ public class MinecraftMixin {
             // Call original RenderSystem.clear() first
             RenderSystem.clear(mask, getError);
 
-            // Then call DirectX 11 beginFrame to set up rendering state
+            // Then call renderer beginFrame to set up rendering state (renderer-agnostic)
             // This clears the render target with the correct color, sets viewport, and binds default shaders
-            System.out.println("[JAVA] Calling VitraNativeRenderer.beginFrame()...");
-            VitraNativeRenderer.beginFrame();
-            System.out.println("[JAVA] VitraNativeRenderer.beginFrame() returned");
+            System.out.println("[JAVA] Calling getRenderer().beginFrame()...");
+            getRenderer().beginFrame();
+            System.out.println("[JAVA] getRenderer().beginFrame() returned");
 
-            LOGGER.trace("DirectX 11 beginFrame() called for new frame");
+            LOGGER.trace("Renderer beginFrame() called for new frame");
 
         } catch (Exception e) {
-            LOGGER.error("Failed to inject DirectX 11 beginFrame()", e);
+            LOGGER.error("Failed to inject renderer beginFrame()", e);
             e.printStackTrace();
             // Still call original to prevent total rendering failure
             RenderSystem.clear(mask, getError);
@@ -79,7 +87,7 @@ public class MinecraftMixin {
 
     @Redirect(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/TimerQuery;getInstance()Ljava/util/Optional;"))
     private Optional<TimerQuery> removeTimer() {
-        // DirectX 11 doesn't need OpenGL timer queries
+        // Vitra renderer doesn't need OpenGL timer queries
         return Optional.empty();
     }
 

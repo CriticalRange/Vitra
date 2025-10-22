@@ -1,13 +1,13 @@
 package com.vitra.mixin.debug;
 
 import com.mojang.blaze3d.platform.GlUtil;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.VitraRenderer;
 import com.vitra.util.SystemInfo;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
 /**
- * DirectX 11 Debug Info Mixin
+ * Renderer-agnostic Debug Info Mixin
  *
  * Based on VulkanMod's GlDebugInfoM but adapted for DirectX 11.
  * Overrides OpenGL debug info methods to return DirectX 11 device information.
@@ -24,6 +24,15 @@ import org.spongepowered.asm.mixin.Overwrite;
 @Mixin(GlUtil.class)
 public class GlDebugInfoM {
 
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getVitraRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
+
     /**
      * @author Vitra (adapted from VulkanMod)
      * @reason Replace OpenGL vendor query with DirectX 11 GPU vendor
@@ -36,7 +45,7 @@ public class GlDebugInfoM {
     @Overwrite
     public static String getVendor() {
         try {
-            String deviceInfo = VitraNativeRenderer.getDeviceInfo();
+            String deviceInfo = getVitraRenderer().getDeviceInfo();
             if (deviceInfo != null && !deviceInfo.isEmpty()) {
                 // Parse device info for vendor line
                 // Expected format: "GPU: <vendor> <model>"
@@ -70,7 +79,7 @@ public class GlDebugInfoM {
     @Overwrite
     public static String getRenderer() {
         try {
-            String deviceInfo = VitraNativeRenderer.getDeviceInfo();
+            String deviceInfo = getVitraRenderer().getDeviceInfo();
             if (deviceInfo != null && !deviceInfo.isEmpty()) {
                 // Parse device info for GPU line
                 String[] lines = deviceInfo.split("\n");
@@ -98,7 +107,7 @@ public class GlDebugInfoM {
     @Overwrite
     public static String getOpenGLVersion() {
         try {
-            String deviceInfo = VitraNativeRenderer.getDeviceInfo();
+            String deviceInfo = getVitraRenderer().getDeviceInfo();
             if (deviceInfo != null && !deviceInfo.isEmpty()) {
                 // Parse device info for driver version line
                 String[] lines = deviceInfo.split("\n");

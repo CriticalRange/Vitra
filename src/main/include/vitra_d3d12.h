@@ -745,7 +745,7 @@ void enableGPUValidation(bool enable);
 void enableSynchronizedCommandQueueValidation(bool enable);
 
 // Debug utility functions
-std::string getCurrentTimestamp();
+// Note: getCurrentTimestamp is a static internal function, not exported
 void logDebugMessage(D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID id, const char* message);
 void flushDebugMessages();
 

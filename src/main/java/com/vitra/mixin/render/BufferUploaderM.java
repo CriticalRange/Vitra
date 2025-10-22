@@ -7,12 +7,21 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import com.vitra.render.VBO;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.VitraRenderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
 @Mixin(BufferUploader.class)
 public abstract class BufferUploaderM {
+
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
 
     /**
      * @author
@@ -37,8 +46,8 @@ public abstract class BufferUploaderM {
                 return;
             }
 
-            // Set primitive topology for DirectX 11
-            VitraNativeRenderer.setPrimitiveTopology(parameters.mode().asGLMode);
+            // Set primitive topology (renderer-agnostic)
+            getRenderer().setPrimitiveTopology(parameters.mode().asGLMode);
 
             // Update shader uniforms
             shaderInstance.setDefaultUniforms(VertexFormat.Mode.QUADS, RenderSystem.getModelViewMatrix(),
@@ -63,8 +72,8 @@ public abstract class BufferUploaderM {
         MeshData.DrawState parameters = meshData.drawState();
 
         if (parameters.vertexCount() > 0) {
-            // Set primitive topology for DirectX 11
-            VitraNativeRenderer.setPrimitiveTopology(parameters.mode().asGLMode);
+            // Set primitive topology (renderer-agnostic)
+            getRenderer().setPrimitiveTopology(parameters.mode().asGLMode);
 
             // Upload and draw using temporary VBO (immediate mode)
             VBO tempVbo = new VBO(com.mojang.blaze3d.vertex.VertexBuffer.Usage.DYNAMIC);

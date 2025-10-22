@@ -3,8 +3,7 @@ package com.vitra.mixin.render.frame;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import com.vitra.render.VRenderSystem;
-import com.vitra.render.jni.VitraNativeRenderer;
-import com.vitra.render.jni.VitraD3D12Renderer;
+import com.vitra.render.VitraRenderer;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
@@ -22,8 +21,8 @@ import static com.mojang.blaze3d.systems.RenderSystem.*;
 
 /**
  * Vitra unified RenderSystem mixin following VulkanMod standards.
- * Replaces OpenGL matrix operations with configured DirectX backend equivalents.
- * Handles projection, model-view, texture matrices, and shader state for both DirectX 11 and DirectX 12.
+ * Replaces OpenGL matrix operations with renderer-agnostic backend equivalents.
+ * Handles projection, model-view, texture matrices, and shader state.
  *
  * Pattern based on VulkanMod's MRenderSystem with unified backend adaptations.
  * Includes thread-safe operations and silent error handling following VulkanMod patterns.
@@ -31,6 +30,15 @@ import static com.mojang.blaze3d.systems.RenderSystem.*;
 @Mixin(RenderSystem.class)
 public abstract class RenderSystemMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/RenderSystem");
+
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
 
     /**
      * Helper method to get the current renderer type
@@ -78,14 +86,21 @@ public abstract class RenderSystemMixin {
             // Window handle was already stored by WindowMixin
             com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
             if (core != null && core.getRenderer() != null) {
-                com.vitra.render.VitraRenderer renderer = (com.vitra.render.VitraRenderer) core.getRenderer();
+                com.vitra.render.IVitraRenderer renderer = core.getRenderer();
+
+                // Get window handle from AbstractRenderer
+                long windowHandle = 0;
+                if (renderer instanceof com.vitra.render.AbstractRenderer abstractRenderer) {
+                    windowHandle = abstractRenderer.getWindowHandle();
+                }
 
                 // Initialize with the stored window handle
-                boolean success = renderer.initializeWithWindowHandle(renderer.getWindowHandle());
+                boolean success = renderer.initializeWithWindowHandle(windowHandle);
                 if (success) {
                     LOGGER.info("{} initialized successfully via initRenderer()", rendererType);
                 } else {
                     LOGGER.error("{} initialization returned false", rendererType);
+                    throw new RuntimeException(rendererType + " initialization failed. Check logs for details.");
                 }
             } else {
                 LOGGER.error("VitraCore or renderer is null, cannot initialize {}", rendererType);
@@ -126,11 +141,11 @@ public abstract class RenderSystemMixin {
                 // Try to get max texture size through unified interface
                 // This would need to be added to IVitraRenderer interface
                 // For now, use the DirectX 11 native method as fallback
-                return VitraNativeRenderer.getMaxTextureSize();
+                return getRenderer().getMaxTextureSize();
             }
 
             // Fallback to DirectX 11 native method
-            return VitraNativeRenderer.getMaxTextureSize();
+            return getRenderer().getMaxTextureSize();
         } catch (Exception e) {
             // Follow VulkanMod pattern: silent fallback
             LOGGER.warn("Failed to get Vitra max texture size, returning default");
@@ -155,8 +170,8 @@ public abstract class RenderSystemMixin {
 
                 // For DirectX 11 backend
                 if (renderer.getRendererType() == com.vitra.config.RendererType.DIRECTX11) {
-                    VitraNativeRenderer.setShaderLightDirection(0, dir0.x(), dir0.y(), dir0.z());
-                    VitraNativeRenderer.setShaderLightDirection(1, dir1.x(), dir1.y(), dir1.z());
+                    getRenderer().setShaderLightDirection(0, dir0.x(), dir0.y(), dir0.z());
+                    getRenderer().setShaderLightDirection(1, dir1.x(), dir1.y(), dir1.z());
                 }
                 // For DirectX 12 backend - would need equivalent method
                 else if (renderer.getRendererType() == com.vitra.config.RendererType.DIRECTX12) {
@@ -182,7 +197,7 @@ public abstract class RenderSystemMixin {
         shaderColor[3] = a;
 
         try {
-            VitraNativeRenderer.setShaderColor(r, g, b, a);
+            getRenderer().setShaderColor(r, g, b, a);
         } catch (Exception e) {
             // Silent error following VulkanMod pattern
             LOGGER.warn("Failed to set DirectX 11 shader color");
@@ -225,7 +240,7 @@ public abstract class RenderSystemMixin {
         shaderFogColor[3] = i;
 
         try {
-            VitraNativeRenderer.setShaderFogColor(f, g, h, i);
+            getRenderer().setShaderFogColor(f, g, h, i);
         } catch (Exception e) {
             // Silent error following VulkanMod pattern
             LOGGER.warn("Failed to set DirectX 11 shader fog color");
@@ -286,7 +301,7 @@ public abstract class RenderSystemMixin {
             RenderSystem.recordRenderCall(() -> {
                 textureMatrix = matrix4f2;
                 try {
-                    VitraNativeRenderer.setTextureMatrix(new float[]{
+                    getRenderer().setTextureMatrix(new float[]{
                         matrix4f2.m00(), matrix4f2.m01(), matrix4f2.m02(), matrix4f2.m03(),
                         matrix4f2.m10(), matrix4f2.m11(), matrix4f2.m12(), matrix4f2.m13(),
                         matrix4f2.m20(), matrix4f2.m21(), matrix4f2.m22(), matrix4f2.m23(),
@@ -300,7 +315,7 @@ public abstract class RenderSystemMixin {
         } else {
             textureMatrix = matrix4f2;
             try {
-                VitraNativeRenderer.setTextureMatrix(new float[]{
+                getRenderer().setTextureMatrix(new float[]{
                     matrix4f2.m00(), matrix4f2.m01(), matrix4f2.m02(), matrix4f2.m03(),
                     matrix4f2.m10(), matrix4f2.m11(), matrix4f2.m12(), matrix4f2.m13(),
                     matrix4f2.m20(), matrix4f2.m21(), matrix4f2.m22(), matrix4f2.m23(),
@@ -323,7 +338,7 @@ public abstract class RenderSystemMixin {
             RenderSystem.recordRenderCall(() -> {
                 textureMatrix.identity();
                 try {
-                    VitraNativeRenderer.setTextureMatrix(new float[]{
+                    getRenderer().setTextureMatrix(new float[]{
                         1.0f, 0.0f, 0.0f, 0.0f,
                         0.0f, 1.0f, 0.0f, 0.0f,
                         0.0f, 0.0f, 1.0f, 0.0f,
@@ -337,7 +352,7 @@ public abstract class RenderSystemMixin {
         } else {
             textureMatrix.identity();
             try {
-                VitraNativeRenderer.setTextureMatrix(new float[]{
+                getRenderer().setTextureMatrix(new float[]{
                     1.0f, 0.0f, 0.0f, 0.0f,
                     0.0f, 1.0f, 0.0f, 0.0f,
                     0.0f, 0.0f, 1.0f, 0.0f,
@@ -406,7 +421,7 @@ public abstract class RenderSystemMixin {
 
         // Upload all three matrices to native constant buffer
         // CRITICAL: This is the FIX - we're now sending the COMPUTED MVP, not just projection!
-        VitraNativeRenderer.setTransformMatrices(mvpArray, mvArray, projArray);
+        getRenderer().setTransformMatrices(mvpArray, mvArray, projArray);
     }
 
     /**
@@ -419,7 +434,7 @@ public abstract class RenderSystemMixin {
         vertexSorting = savedVertexSorting;
 
         try {
-            VitraNativeRenderer.setProjectionMatrix(new float[]{
+            getRenderer().setProjectionMatrix(new float[]{
                 projectionMatrix.m00(), projectionMatrix.m01(), projectionMatrix.m02(), projectionMatrix.m03(),
                 projectionMatrix.m10(), projectionMatrix.m11(), projectionMatrix.m12(), projectionMatrix.m13(),
                 projectionMatrix.m20(), projectionMatrix.m21(), projectionMatrix.m22(), projectionMatrix.m23(),

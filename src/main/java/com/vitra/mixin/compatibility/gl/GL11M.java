@@ -1,6 +1,6 @@
 package com.vitra.mixin.compatibility.gl;
 
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.VitraRenderer;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.NativeType;
@@ -14,13 +14,22 @@ import java.nio.IntBuffer;
 @Mixin(GL11.class)
 public class GL11M {
 
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
+
     /**
      * @author
      * @reason ideally Scissor should be used. but using vkCmdSetScissor() caused glitches with invisible menus with replay mod, so disabled for now as temp fix
      */
     @Overwrite(remap = false)
     public static void glScissor(@NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height) {
-        VitraNativeRenderer.setScissor(x, y, width, height);
+        getRenderer().setScissor(x, y, width, height);
     }
 
     /**
@@ -29,7 +38,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glViewport(@NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLsizei") int w, @NativeType("GLsizei") int h) {
-        VitraNativeRenderer.setViewport(x, y, w, h);
+        getRenderer().setViewport(x, y, w, h);
     }
 
     /**
@@ -38,7 +47,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glBindTexture(@NativeType("GLenum") int target, @NativeType("GLuint") int texture) {
-        VitraNativeRenderer.bindTexture(texture);
+        getRenderer().bindTexture(texture);
     }
 
     /**
@@ -57,7 +66,7 @@ public class GL11M {
     @NativeType("void")
     @Overwrite(remap = false)
     public static int glGenTextures() {
-        return VitraNativeRenderer.generateGLTextureId();
+        return getRenderer().generateGLTextureId();
     }
 
     /**
@@ -76,7 +85,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glClear(@NativeType("GLbitfield") int mask) {
-        VitraNativeRenderer.clear(mask);
+        getRenderer().clear(mask);
     }
 
     /**
@@ -95,7 +104,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glClearColor(@NativeType("GLfloat") float red, @NativeType("GLfloat") float green, @NativeType("GLfloat") float blue, @NativeType("GLfloat") float alpha) {
-        VitraNativeRenderer.setClearColor(red, green, blue, alpha);
+        getRenderer().setClearColor(red, green, blue, alpha);
     }
 
     /**
@@ -104,7 +113,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glDepthMask(@NativeType("GLboolean") boolean flag) {
-        VitraNativeRenderer.depthMask(flag);
+        getRenderer().depthMask(flag);
     }
 
     /**
@@ -123,7 +132,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, @Nullable ByteBuffer pixels) {
-        VitraNativeRenderer.texImage2D(target, level, internalformat, width, height, border, format, type, pixels);
+        getRenderer().texImage2D(target, level, internalformat, width, height, border, format, type, pixels);
     }
 
     /**
@@ -133,7 +142,7 @@ public class GL11M {
     @Overwrite(remap = false)
     public static void glTexImage2D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int internalformat, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLint") int border, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") long pixels) {
         ByteBuffer buffer = pixels != 0 ? MemoryUtil.memByteBuffer(pixels, width * height * 4) : null;
-        VitraNativeRenderer.texImage2D(target, level, internalformat, width, height, border, format, type, buffer);
+        getRenderer().texImage2D(target, level, internalformat, width, height, border, format, type, buffer);
     }
 
     /**
@@ -142,7 +151,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glTexSubImage2D(int target, int level, int xOffset, int yOffset, int width, int height, int format, int type, long pixels) {
-        VitraNativeRenderer.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, pixels);
+        getRenderer().texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, pixels);
     }
 
     /**
@@ -152,7 +161,7 @@ public class GL11M {
     @Overwrite(remap = false)
     public static void glTexSubImage2D(int target, int level, int xOffset, int yOffset, int width, int height, int format, int type, @Nullable ByteBuffer pixels) {
         long address = pixels != null ? MemoryUtil.memAddress(pixels) : 0;
-        VitraNativeRenderer.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, address);
+        getRenderer().texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, address);
     }
 
     /**
@@ -162,7 +171,7 @@ public class GL11M {
     @Overwrite(remap = false)
     public static void glTexSubImage2D(int target, int level, int xOffset, int yOffset, int width, int height, int format, int type, @Nullable IntBuffer pixels) {
         long address = pixels != null ? MemoryUtil.memAddress(pixels) : 0;
-        VitraNativeRenderer.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, address);
+        getRenderer().texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, address);
     }
 
     /**
@@ -171,7 +180,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glTexParameteri(@NativeType("GLenum") int target, @NativeType("GLenum") int pname, @NativeType("GLint") int param) {
-        VitraNativeRenderer.texParameteri(target, pname, param);
+        getRenderer().texParameteri(target, pname, param);
     }
 
     /**
@@ -189,7 +198,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static int glGetTexParameteri(@NativeType("GLenum") int target, @NativeType("GLenum") int pname) {
-        return VitraNativeRenderer.getTextureParameter(target, pname);
+        return getRenderer().getTextureParameter(target, pname);
     }
 
     /**
@@ -198,7 +207,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static int glGetTexLevelParameteri(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLenum") int pname) {
-        return VitraNativeRenderer.getTextureLevelParameter(target, level, pname);
+        return getRenderer().getTextureLevelParameter(target, level, pname);
     }
 
     /**
@@ -207,7 +216,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glPixelStorei(@NativeType("GLenum") int pname, @NativeType("GLint") int param) {
-        VitraNativeRenderer.setPixelStore(pname, param);
+        getRenderer().setPixelStore(pname, param);
     }
 
     /**
@@ -249,7 +258,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glDeleteTextures(@NativeType("GLuint const *") int texture) {
-        VitraNativeRenderer.deleteTexture(texture);
+        getRenderer().deleteTexture(texture);
     }
 
     /**
@@ -259,7 +268,7 @@ public class GL11M {
     @Overwrite(remap = false)
     public static void glDeleteTextures(@NativeType("GLuint const *") IntBuffer textures) {
         while (textures.hasRemaining()) {
-            VitraNativeRenderer.deleteTexture(textures.get());
+            getRenderer().deleteTexture(textures.get());
         }
     }
 
@@ -269,7 +278,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glGetTexImage(@NativeType("GLenum") int tex, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void *") long pixels) {
-        VitraNativeRenderer.glGetTexImage(tex, level, format, type, pixels);
+        getRenderer().glGetTexImage(tex, level, format, type, pixels);
     }
 
     /**
@@ -278,7 +287,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glGetTexImage(@NativeType("GLenum") int tex, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void *") ByteBuffer pixels) {
-        VitraNativeRenderer.glGetTexImage(tex, level, format, type, pixels);
+        getRenderer().glGetTexImage(tex, level, format, type, pixels);
     }
 
     /**
@@ -287,7 +296,7 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glGetTexImage(@NativeType("GLenum") int tex, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void *") IntBuffer pixels) {
-        VitraNativeRenderer.glGetTexImage(tex, level, format, type, pixels);
+        getRenderer().glGetTexImage(tex, level, format, type, pixels);
     }
 
     /**
@@ -316,6 +325,6 @@ public class GL11M {
      */
     @Overwrite(remap = false)
     public static void glPolygonOffset(@NativeType("GLfloat") float factor, @NativeType("GLfloat") float units) {
-        VitraNativeRenderer.polygonOffset(factor, units);
+        getRenderer().polygonOffset(factor, units);
     }
 }

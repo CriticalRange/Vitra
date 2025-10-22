@@ -2,7 +2,7 @@ package com.vitra.mixin.texture.image;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.vitra.render.Dx11Texture;
+import com.vitra.render.texture.VitraTextureFactory;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -69,7 +69,7 @@ public abstract class MNativeImage {
     }
 
     /**
-     * CRITICAL: Overwrite _upload() method to use DirectX 11 instead of OpenGL
+     * CRITICAL: Overwrite _upload() method to use renderer-agnostic texture system
      *
      * This is THE final interception point for ALL texture uploads including:
      * - Font textures (the ones causing crashes)
@@ -78,7 +78,7 @@ public abstract class MNativeImage {
      * - Mipmap textures
      *
      * @author Vitra (based on VulkanMod pattern)
-     * @reason Replace OpenGL texture upload with DirectX 11
+     * @reason Replace OpenGL texture upload with renderer-agnostic texture system
      */
     @Overwrite
     private void _upload(int level, int xOffset, int yOffset, int unpackSkipPixels, int unpackSkipRows,
@@ -86,14 +86,14 @@ public abstract class MNativeImage {
         RenderSystem.assertOnRenderThreadOrInit();
 
         // CRITICAL: Set OpenGL unpack parameters BEFORE upload
-        // These are used by Dx11Texture.texSubImage2D to calculate proper offsets
-        Dx11Texture.pixelStorei(0x0CF3, unpackSkipRows);   // GL_UNPACK_SKIP_ROWS
-        Dx11Texture.pixelStorei(0x0CF4, unpackSkipPixels); // GL_UNPACK_SKIP_PIXELS
-        Dx11Texture.pixelStorei(0x0CF2, this.getWidth());  // GL_UNPACK_ROW_LENGTH = image width
+        // These are used by texSubImage2D to calculate proper offsets
+        VitraTextureFactory.pixelStorei(0x0CF3, unpackSkipRows);   // GL_UNPACK_SKIP_ROWS
+        VitraTextureFactory.pixelStorei(0x0CF4, unpackSkipPixels); // GL_UNPACK_SKIP_PIXELS
+        VitraTextureFactory.pixelStorei(0x0CF2, this.getWidth());  // GL_UNPACK_ROW_LENGTH = image width
 
-        // Upload texture using DirectX 11 via our texture wrapper
+        // Upload texture using renderer-agnostic factory
         // texImage2D will call texSubImage2D internally, which uses the unpack parameters
-        Dx11Texture.texImage2D(
+        VitraTextureFactory.texImage2D(
             0x0DE1,          // GL_TEXTURE_2D
             level,
             this.format.glFormat(),  // Internal format (RGBA, RGB, etc.)
@@ -106,12 +106,12 @@ public abstract class MNativeImage {
         );
 
         // Reset unpack parameters to defaults after upload
-        Dx11Texture.pixelStorei(0x0CF3, 0);  // GL_UNPACK_SKIP_ROWS = 0
-        Dx11Texture.pixelStorei(0x0CF4, 0);  // GL_UNPACK_SKIP_PIXELS = 0
-        Dx11Texture.pixelStorei(0x0CF2, 0);  // GL_UNPACK_ROW_LENGTH = 0
+        VitraTextureFactory.pixelStorei(0x0CF3, 0);  // GL_UNPACK_SKIP_ROWS = 0
+        VitraTextureFactory.pixelStorei(0x0CF4, 0);  // GL_UNPACK_SKIP_PIXELS = 0
+        VitraTextureFactory.pixelStorei(0x0CF2, 0);  // GL_UNPACK_ROW_LENGTH = 0
 
         // Handle texture parameters (blur/clamp/mipmap) if needed
-        // TODO: Implement updateTextureSampler in Dx11Texture
+        // TODO: Implement updateTextureSampler in texture implementations
 
         if (autoClose) {
             this.close();

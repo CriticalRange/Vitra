@@ -70,6 +70,19 @@ import java.nio.charset.StandardCharsets;
 public class ProgramM {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/ProgramM");
 
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
+
+    // Shader type constants (renderer-agnostic)
+    private static final int SHADER_TYPE_VERTEX = 0;
+    private static final int SHADER_TYPE_PIXEL = 1;
+
     /**
      * @author Vitra (adapted from VulkanMod)
      * @reason Replace OpenGL shader compilation with DirectX 11 precompiled shader loading
@@ -153,7 +166,7 @@ public class ProgramM {
             byte[] bytecode = compiler.compile(hlslSource, "main", profile);
 
             // Create DirectX 11 shader from bytecode
-            long shaderHandle = VitraNativeRenderer.createGLProgramShader(
+            long shaderHandle = getRenderer().createGLProgramShader(
                 bytecode, bytecode.length, d3d11ShaderType);
 
             LOGGER.info("Compiled runtime HLSL shader: {} (handle: 0x{})",
@@ -222,8 +235,8 @@ public class ProgramM {
      */
     private static int mapProgramTypeToD3D11(Program.Type type) {
         return switch (type) {
-            case VERTEX -> VitraNativeRenderer.SHADER_TYPE_VERTEX;
-            case FRAGMENT -> VitraNativeRenderer.SHADER_TYPE_PIXEL;
+            case VERTEX -> SHADER_TYPE_VERTEX;
+            case FRAGMENT -> SHADER_TYPE_PIXEL;
         };
     }
 

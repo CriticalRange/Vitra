@@ -207,14 +207,106 @@ public class VitraD3D12Native {
     public static native boolean removeGpuBreakpoint(long resourceHandle);
     public static native boolean validateResource(long resourceHandle);
 
-    // Static initialization
+    // ============================================================================
+    // ADVANCED FEATURES - Complete implementations from vitra_d3d12.cpp
+    // All features from vitra_d3d12_enhanced.cpp now fully implemented
+    // Note: Some methods like checkMemoryBudget, enableMemoryBudgeting,
+    // getMemoryStatistics, and generateMipmaps are already declared above
+    // ============================================================================
+
+    // Multi-Queue Support (Compute + Copy Queues)
+    public static native void submitComputeCommandList(long commandListHandle);
+    public static native void submitCopyCommandList(long commandListHandle);
+    public static native void waitForComputeQueue();
+    public static native void waitForCopyQueue();
+    public static native void synchronizeAllQueues();
+
+    // Staged Upload Buffer System (64MB Ring Buffer)
+    public static native void uploadBufferDataStaged(long dstBufferHandle, byte[] data, int size, int dstOffset);
+    public static native void uploadBufferDataImmediate(long dstBufferHandle, byte[] data, int size, int dstOffset);
+
+    // Texture Streaming System
+    public static native boolean enableTextureStreaming(String texturePath);
+    public static native void processTextureStream();
+
+    // Parallel Shader Precompilation
+    public static native void precompileMinecraftShaders();
+
+    // Frame Latency Configuration
+    public static native void setFrameLatencyMode(int maxLatency);
+
+    // Pipeline State Caching
+    public static native long getCachedPipelineState(String name);
+    public static native void cachePipelineState(String name, long pipelineHandle);
+
+    // Advanced Features Initialization
+    public static native boolean initializeAdvancedFeatures();
+
+    // Static initialization - Load native library
     static {
         try {
-            System.loadLibrary("vitra-d3d12");
-            LOGGER.info("Loaded vitra-d3d12 native library");
+            // Verify Windows platform
+            String osName = System.getProperty("os.name").toLowerCase();
+            if (!osName.contains("win")) {
+                throw new RuntimeException("Vitra DirectX 12 requires Windows 10+. Current OS: " + osName);
+            }
+
+            // CRITICAL: Load dxcompiler.dll dependency first (following JNA best practices)
+            // This ensures Windows can resolve the dependency when loading vitra-d3d12.dll
+            boolean dxcompilerLoaded = false;
+
+            // Try to pre-load dxcompiler.dll from Windows SDK or resources
+            try {
+                // First attempt: Load from Windows SDK path
+                String windowsKits = System.getenv("ProgramFiles(x86)") + "\\Windows Kits\\10\\bin\\10.0.26100.0\\x64\\dxcompiler.dll";
+                if (new java.io.File(windowsKits).exists()) {
+                    System.load(windowsKits);
+                    LOGGER.info("✓ Loaded dxcompiler.dll dependency from Windows SDK");
+                    dxcompilerLoaded = true;
+                } else {
+                    // Second attempt: Try loading from resources (copied by Gradle)
+                    String dxcompilerPath = VitraD3D12Native.class.getResource("/native/windows/dxcompiler.dll").getPath();
+                    if (dxcompilerPath != null) {
+                        System.load(dxcompilerPath);
+                        LOGGER.info("✓ Loaded dxcompiler.dll from resources");
+                        dxcompilerLoaded = true;
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Could not pre-load dxcompiler.dll: {}", e.getMessage());
+                LOGGER.warn("vitra-d3d12.dll will attempt to load it from PATH at runtime");
+            }
+
+            // Now load the main DLL (matching DirectX 11 pattern)
+            try {
+                // Try loading from JAR resources or system library path first
+                System.loadLibrary("vitra-d3d12");
+                LOGGER.info("✓ Loaded DirectX 12 native library");
+            } catch (UnsatisfiedLinkError e) {
+                try {
+                    // Fallback: Load from resources directory
+                    String nativePath = VitraD3D12Native.class.getResource("/native/windows/vitra-d3d12.dll").getPath();
+                    if (nativePath != null) {
+                        System.load(nativePath);
+                        LOGGER.info("✓ Loaded DirectX 12 native library from resources");
+                    } else {
+                        throw new RuntimeException("DirectX 12 native library (vitra-d3d12.dll) not found");
+                    }
+                } catch (Exception ex) {
+                    LOGGER.error("Failed to load DirectX 12 native library");
+                    LOGGER.error("Missing dependencies - check that DirectX 12 SDK is installed");
+                    LOGGER.error("System dependencies: d3d12.dll, dxgi.dll, D3DCOMPILER_47.dll");
+                    LOGGER.error("Manual dependency: dxcompiler.dll (pre-loaded: {})", dxcompilerLoaded);
+                    throw new RuntimeException("Failed to load DirectX 12 native library. Ensure you are running on Windows 10+ with DirectX 12 support.", ex);
+                }
+            }
+
         } catch (UnsatisfiedLinkError e) {
-            System.err.println("Failed to load vitra-d3d12 native library");
-            e.printStackTrace();
+            LOGGER.error("Failed to load DirectX 12 native library (vitra-d3d12.dll)");
+            LOGGER.error("Make sure DirectX 12 native library is compiled and available");
+            throw new RuntimeException("DirectX 12 native library not found. Run './gradlew compileNativeDX12' to build it.", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize DirectX 12 native library", e);
         }
     }
 }

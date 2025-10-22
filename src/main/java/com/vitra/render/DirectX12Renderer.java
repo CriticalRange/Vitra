@@ -68,9 +68,20 @@ public class DirectX12Renderer extends AbstractRenderer {
 
                 logger.info("Initializing native DirectX 12 Ultimate with debug={}, verbose={}", debugMode, verboseMode);
 
-                // Initialize DirectX 12 with configuration
-                String configJson = String.format("{\"debug\":%b,\"vsync\":%b}", debugMode, config.isVsyncEnabled());
-                boolean success = VitraD3D12Renderer.initializeWithConfig(windowHandle, configJson);
+                // Convert GLFW window handle to Win32 HWND
+                long nativeWindowHandle = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(windowHandle);
+                if (nativeWindowHandle == 0) {
+                    logger.error("Failed to get Win32 HWND from GLFW window");
+                    return false;
+                }
+                logger.debug("Converted GLFW handle 0x{} to Win32 HWND 0x{}",
+                    Long.toHexString(windowHandle), Long.toHexString(nativeWindowHandle));
+
+                // Initialize DirectX 12 with window handle and dimensions
+                // TODO: Get actual window dimensions from Minecraft
+                int width = 1920;  // Default width
+                int height = 1080; // Default height
+                boolean success = VitraD3D12Native.initializeDirectX12(nativeWindowHandle, width, height, debugMode);
                 if (success) {
                     logger.info("Native DirectX 12 Ultimate initialized successfully (debug={})", debugMode);
 

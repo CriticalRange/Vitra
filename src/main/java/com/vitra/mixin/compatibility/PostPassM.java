@@ -4,7 +4,7 @@ import com.mojang.blaze3d.pipeline.MainTarget;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.VitraRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.EffectInstance;
 import net.minecraft.client.renderer.PostPass;
@@ -72,6 +72,15 @@ import java.util.function.IntSupplier;
 @Mixin(PostPass.class)
 public class PostPassM {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/PostPassM");
+
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
 
     @Shadow @Final public RenderTarget inTarget;
     @Shadow @Final public RenderTarget outTarget;
@@ -233,7 +242,7 @@ public class PostPassM {
     private void disableDirectX11Cull() {
         try {
             // CULL_MODE_NONE = 0 (D3D11_CULL_NONE)
-            VitraNativeRenderer.setRasterizerState(0, 0, false);
+            getRenderer().setRasterizerState(0, 0, false);
         } catch (Exception e) {
             LOGGER.warn("Failed to disable DirectX 11 cull mode", e);
         }
@@ -248,7 +257,7 @@ public class PostPassM {
     private void enableDirectX11Cull() {
         try {
             // CULL_MODE_BACK = 2 (D3D11_CULL_BACK)
-            VitraNativeRenderer.setRasterizerState(2, 0, false);
+            getRenderer().setRasterizerState(2, 0, false);
         } catch (Exception e) {
             LOGGER.warn("Failed to enable DirectX 11 cull mode", e);
         }
@@ -265,7 +274,7 @@ public class PostPassM {
             // Map OpenGL depth func to DirectX 11 D3D11_COMPARISON_FUNC
             // GL_GREATER (519) -> D3D11_COMPARISON_GREATER
             int d3d11ComparisonFunc = mapGLDepthFuncToD3D11(glDepthFunc);
-            VitraNativeRenderer.setDepthFunc(d3d11ComparisonFunc);
+            getRenderer().depthFunc(d3d11ComparisonFunc);
         } catch (Exception e) {
             LOGGER.warn("Failed to set DirectX 11 depth function", e);
         }
@@ -312,7 +321,7 @@ public class PostPassM {
         try {
             // Map OpenGL topology to DirectX 11
             // GL_TRIANGLES (4) -> D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST (4)
-            VitraNativeRenderer.setPrimitiveTopology(glTopology);
+            getRenderer().setPrimitiveTopology(glTopology);
         } catch (Exception e) {
             LOGGER.warn("Failed to set DirectX 11 primitive topology", e);
         }
@@ -333,7 +342,7 @@ public class PostPassM {
     private void setInvertedViewport(int x, int y, int width, int height) {
         try {
             // DirectX 11 viewport with inverted Y
-            VitraNativeRenderer.setViewport(x, y, width, height);
+            getRenderer().setViewport(x, y, width, height);
         } catch (Exception e) {
             LOGGER.warn("Failed to set inverted DirectX 11 viewport", e);
         }
@@ -347,7 +356,7 @@ public class PostPassM {
     @Unique
     private void resetScissor() {
         try {
-            VitraNativeRenderer.setScissorRect(0, 0, this.outTarget.width, this.outTarget.height);
+            getRenderer().setScissorRect(0, 0, this.outTarget.width, this.outTarget.height);
         } catch (Exception e) {
             LOGGER.warn("Failed to reset DirectX 11 scissor", e);
         }

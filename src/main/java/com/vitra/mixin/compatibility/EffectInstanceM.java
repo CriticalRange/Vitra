@@ -8,7 +8,6 @@ import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.shaders.ProgramManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.vitra.render.jni.VitraNativeRenderer;
 import com.vitra.render.VitraRenderer;
 import com.vitra.render.jni.D3D11ShaderManager;
 import net.minecraft.client.renderer.EffectInstance;
@@ -74,6 +73,19 @@ import java.util.function.Supplier;
 public class EffectInstanceM {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/EffectInstanceM");
 
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
+
+    // Shader type constants (renderer-agnostic)
+    private static final int SHADER_TYPE_VERTEX = 0;
+    private static final int SHADER_TYPE_PIXEL = 1;
+
     @Shadow @Final private Map<String, com.mojang.blaze3d.shaders.Uniform> uniformMap;
     @Shadow @Final private List<com.mojang.blaze3d.shaders.Uniform> uniforms;
 
@@ -138,22 +150,22 @@ public class EffectInstanceM {
 
         // Schedule DirectX 11 pipeline cleanup
         if (pipelineHandle != 0) {
-            VitraNativeRenderer.destroyResource(pipelineHandle);
+            getRenderer().destroyResource(pipelineHandle);
             pipelineHandle = 0;
         }
 
         if (vertexShaderHandle != 0) {
-            VitraNativeRenderer.destroyResource(vertexShaderHandle);
+            getRenderer().destroyResource(vertexShaderHandle);
             vertexShaderHandle = 0;
         }
 
         if (pixelShaderHandle != 0) {
-            VitraNativeRenderer.destroyResource(pixelShaderHandle);
+            getRenderer().destroyResource(pixelShaderHandle);
             pixelShaderHandle = 0;
         }
 
         if (constantBufferHandle != 0) {
-            VitraNativeRenderer.destroyResource(constantBufferHandle);
+            getRenderer().destroyResource(constantBufferHandle);
             constantBufferHandle = 0;
         }
 
@@ -183,7 +195,7 @@ public class EffectInstanceM {
 
             // Strategy 1: Load precompiled DirectX 11 shaders (.cso files)
             // These are HLSL compiled with fxc.exe to shader model 5.0
-            Object shaderManagerObj = ((VitraRenderer) VitraRenderer.getRenderer()).getShaderManager();
+            Object shaderManagerObj = getRenderer().getShaderManager();
             if (!(shaderManagerObj instanceof D3D11ShaderManager)) {
                 LOGGER.error("Shader manager is not D3D11ShaderManager");
                 return;
@@ -191,7 +203,7 @@ public class EffectInstanceM {
             D3D11ShaderManager shaderManager = (D3D11ShaderManager) shaderManagerObj;
 
             // Load vertex shader (e.g., /shaders/compiled/blit_screen_vs.cso)
-            vertexShaderHandle = shaderManager.loadShader(vshBaseName, VitraNativeRenderer.SHADER_TYPE_VERTEX);
+            vertexShaderHandle = shaderManager.loadShader(vshBaseName, SHADER_TYPE_VERTEX);
 
             if (vertexShaderHandle == 0) {
                 LOGGER.error("Failed to load vertex shader: {}", vshBaseName);
@@ -199,7 +211,7 @@ public class EffectInstanceM {
             }
 
             // Load pixel shader (e.g., /shaders/compiled/blit_screen_ps.cso)
-            pixelShaderHandle = shaderManager.loadShader(fshBaseName, VitraNativeRenderer.SHADER_TYPE_PIXEL);
+            pixelShaderHandle = shaderManager.loadShader(fshBaseName, SHADER_TYPE_PIXEL);
 
             if (pixelShaderHandle == 0) {
                 LOGGER.error("Failed to load pixel shader: {}", fshBaseName);
@@ -207,7 +219,7 @@ public class EffectInstanceM {
             }
 
             // Create DirectX 11 graphics pipeline
-            pipelineHandle = VitraNativeRenderer.createShaderPipeline(vertexShaderHandle, pixelShaderHandle);
+            pipelineHandle = getRenderer().createShaderPipeline(vertexShaderHandle, pixelShaderHandle);
 
             if (pipelineHandle == 0) {
                 LOGGER.error("Failed to create DirectX 11 pipeline for effect: {}", name);
@@ -240,8 +252,8 @@ public class EffectInstanceM {
             byte[] vshBytecode = compileHlslShader(vshHlslSource, "vs_5_0", "main");
             byte[] fshBytecode = compileHlslShader(fshHlslSource, "ps_5_0", "main");
 
-            vertexShaderHandle = VitraNativeRenderer.createGLProgramShader(vshBytecode, vshBytecode.length, VitraNativeRenderer.SHADER_TYPE_VERTEX);
-            pixelShaderHandle = VitraNativeRenderer.createGLProgramShader(fshBytecode, fshBytecode.length, VitraNativeRenderer.SHADER_TYPE_PIXEL);
+            vertexShaderHandle = getRenderer().createGLProgramShader(vshBytecode, vshBytecode.length, SHADER_TYPE_VERTEX);
+            pixelShaderHandle = getRenderer().createGLProgramShader(fshBytecode, fshBytecode.length, SHADER_TYPE_PIXEL);
             */
 
             // Initialize constant buffer for uniforms
@@ -278,7 +290,7 @@ public class EffectInstanceM {
 
         // Create DirectX 11 constant buffer
         // TODO: Implement when createConstantBuffer is available
-        // constantBufferHandle = VitraNativeRenderer.createConstantBuffer(bufferSize);
+        // constantBufferHandle = getRenderer().createConstantBuffer(bufferSize);
 
         if (constantBufferHandle == 0) {
             LOGGER.error("Failed to create constant buffer for effect: {}", name);
@@ -356,7 +368,7 @@ public class EffectInstanceM {
 
         // Bind DirectX 11 graphics pipeline if changed
         if (this.pipelineHandle != lastPipelineHandle) {
-            VitraNativeRenderer.setShaderPipeline(pipelineHandle);
+            getRenderer().setShaderPipeline(pipelineHandle);
             lastPipelineHandle = this.pipelineHandle;
         }
 
@@ -383,7 +395,7 @@ public class EffectInstanceM {
         }
 
         // Upload and bind constant buffers to DirectX 11 pipeline
-        VitraNativeRenderer.uploadAndBindUBOs();
+        getRenderer().uploadAndBindUBOs();
 
         LOGGER.trace("Applied DirectX 11 effect: {}", name);
     }

@@ -304,6 +304,21 @@ task compileNativeDX12(type: Exec) {
 
 	doLast {
 		println "DirectX 12 Ultimate native library compiled successfully: ${file("$buildDir/native/vitra-d3d12.dll")}"
+
+		// Copy dxcompiler.dll dependency from Windows SDK to build/native
+		def windowsKitsPath = "${System.env['ProgramFiles(x86)']}\\Windows Kits\\10"
+		def dxcompilerSource = "${windowsKitsPath}\\bin\\10.0.26100.0\\x64\\dxcompiler.dll"
+
+		if (file(dxcompilerSource).exists()) {
+			copy {
+				from dxcompilerSource
+				into "$buildDir/native"
+			}
+			println "Copied dxcompiler.dll dependency to build/native"
+		} else {
+			println "WARNING: dxcompiler.dll not found at ${dxcompilerSource}"
+			println "DirectX 12 may fail to load. Please install Windows 10 SDK."
+		}
 	}
 }
 

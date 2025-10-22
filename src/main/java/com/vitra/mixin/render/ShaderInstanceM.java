@@ -38,8 +38,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Complete ShaderInstance mixin for DirectX 11 shader pipeline management.
- * Based on VulkanMod's approach but adapted for DirectX 11.
+ * Complete ShaderInstance mixin for renderer shader pipeline management.
+ * Based on VulkanMod's approach but adapted for renderer.
  */
 @Mixin(ShaderInstance.class)
 public class ShaderInstanceM implements ShaderMixed {
@@ -92,12 +92,12 @@ public class ShaderInstanceM implements ShaderMixed {
     }
 
     /**
-     * Intercept ShaderInstance constructor to create DirectX 11 pipeline.
+     * Intercept ShaderInstance constructor to create renderer pipeline.
      */
     @Inject(method = "<init>", at = @At("RETURN"))
     private void onConstructed(ResourceProvider resourceProvider, String shaderLocation, VertexFormat format, CallbackInfo ci) {
         try {
-            LOGGER.info("Creating DirectX 11 shader pipeline for: {}", this.name);
+            LOGGER.info("Creating renderer shader pipeline for: {}", this.name);
 
             // Check for Vitra-specific shader config
             JsonObject config = ShaderLoadUtil.getJsonConfig(resourceProvider, "core", this.name);
@@ -119,9 +119,9 @@ public class ShaderInstanceM implements ShaderMixed {
                 LOGGER.error("Pipeline is null after creation for shader: {}", this.name);
             }
 
-            LOGGER.info("Successfully created DirectX 11 pipeline for shader: {}", this.name);
+            LOGGER.info("Successfully created renderer pipeline for shader: {}", this.name);
         } catch (Exception e) {
-            LOGGER.error("Failed to create DirectX 11 shader pipeline for: {}", this.name, e);
+            LOGGER.error("Failed to create renderer shader pipeline for: {}", this.name, e);
             throw new RuntimeException("Shader creation failed: " + this.name, e);
         }
     }
@@ -155,23 +155,23 @@ public class ShaderInstanceM implements ShaderMixed {
     @Redirect(method = "<init>", at = @At(value = "INVOKE",
               target = "Lcom/mojang/blaze3d/shaders/Uniform;glBindAttribLocation(IILjava/lang/CharSequence;)V"))
     private void skipBindAttr(int program, int index, CharSequence name) {
-        // No-op for DirectX 11
+        // No-op for renderer
     }
 
     /**
      * Redirect updateLocations - skip OpenGL uniform location queries.
-     * DirectX 11 uniforms are managed via constant buffers.
+     * renderer uniforms are managed via constant buffers.
      */
     @Redirect(method = "<init>", at = @At(value = "INVOKE",
               target = "Lnet/minecraft/client/renderer/ShaderInstance;updateLocations()V"))
     private void skipUpdateLocations(ShaderInstance instance) {
-        // Skip - DirectX 11 uniforms are managed via constant buffers
-        // Uniform locations are not needed for DirectX 11
+        // Skip - renderer uniforms are managed via constant buffers
+        // Uniform locations are not needed for renderer
         LOGGER.debug("Skipped updateLocations() for shader: {}", this.name);
     }
 
     /**
-     * Overwrite close() to clean up DirectX 11 resources.
+     * Overwrite close() to clean up renderer resources.
      *
      * @author Vitra
      */
@@ -190,7 +190,7 @@ public class ShaderInstanceM implements ShaderMixed {
     }
 
     /**
-     * Overwrite apply() to bind DirectX 11 pipeline and update uniforms.
+     * Overwrite apply() to bind renderer pipeline and update uniforms.
      *
      * @author Vitra
      */
@@ -207,7 +207,7 @@ public class ShaderInstanceM implements ShaderMixed {
             lastProgramId = this.programId;
         }
 
-        // Bind DirectX 11 pipeline
+        // Bind renderer pipeline
         bindPipeline();
     }
 
@@ -275,17 +275,17 @@ public class ShaderInstanceM implements ShaderMixed {
     }
 
     /**
-     * Overwrite clear() - not needed for DirectX 11.
+     * Overwrite clear() - not needed for renderer.
      *
      * @author Vitra
      */
     @Overwrite
     public void clear() {
-        // No-op for DirectX 11
+        // No-op for renderer
     }
 
     /**
-     * Bind DirectX 11 pipeline and upload uniforms.
+     * Bind renderer pipeline and upload uniforms.
      * Uses VulkanMod-style direct pipeline binding.
      */
     @Unique
@@ -433,21 +433,41 @@ public class ShaderInstanceM implements ShaderMixed {
                 }
             }
 
-            // Create shaders from precompiled bytecode
-            long vsHandle = VitraNativeRenderer.createGLProgramShader(vsBytecode, vsBytecode.length, 0); // 0 = vertex shader
-            long psHandle = VitraNativeRenderer.createGLProgramShader(psBytecode, psBytecode.length, 1); // 1 = pixel shader
+            // Get the active renderer type and create shaders accordingly (renderer-agnostic)
+            com.vitra.config.RendererType rendererType = getActiveRendererType();
+            LOGGER.debug("Creating shader for renderer type: {}", rendererType);
 
-            if (vsHandle == 0 || psHandle == 0) {
-                throw new RuntimeException("Failed to create shader objects for: " + this.name);
+            long vsHandle, psHandle, pipelineHandle;
+
+            if (rendererType == com.vitra.config.RendererType.DIRECTX12 ||
+                rendererType == com.vitra.config.RendererType.DIRECTX12_ULTIMATE) {
+                // DirectX 12 path
+                vsHandle = com.vitra.render.jni.VitraD3D12Native.createShader(vsBytecode, 0); // 0 = vertex shader
+                psHandle = com.vitra.render.jni.VitraD3D12Native.createShader(psBytecode, 1); // 1 = pixel shader
+
+                if (vsHandle == 0 || psHandle == 0) {
+                    throw new RuntimeException("Failed to create DirectX 12 shader objects for: " + this.name);
+                }
+
+                // DirectX 12 requires Pipeline State Objects (PSO) - for now use simplified approach
+                pipelineHandle = vsHandle; // Placeholder
+            } else {
+                // renderer path (default)
+                vsHandle = VitraNativeRenderer.createGLProgramShader(vsBytecode, vsBytecode.length, 0); // 0 = vertex shader
+                psHandle = VitraNativeRenderer.createGLProgramShader(psBytecode, psBytecode.length, 1); // 1 = pixel shader
+
+                if (vsHandle == 0 || psHandle == 0) {
+                    throw new RuntimeException("Failed to create renderer shader objects for: " + this.name);
+                }
+
+                // Create pipeline from shader handles
+                pipelineHandle = VitraNativeRenderer.createShaderPipeline(vsHandle, psHandle);
+                if (pipelineHandle == 0) {
+                    throw new RuntimeException("Failed to create renderer shader pipeline for: " + this.name);
+                }
             }
 
-            // Create pipeline from shader handles
-            long pipelineHandle = VitraNativeRenderer.createShaderPipeline(vsHandle, psHandle);
-            if (pipelineHandle == 0) {
-                throw new RuntimeException("Failed to create shader pipeline for: " + this.name);
-            }
-
-            LOGGER.info("Created pipeline for '{}': handle=0x{}", this.name, Long.toHexString(pipelineHandle));
+            LOGGER.info("Created {} pipeline for '{}': handle=0x{}", rendererType, this.name, Long.toHexString(pipelineHandle));
 
             this.pipeline = new DirectX11Pipeline(this.name, vsHandle, psHandle, pipelineHandle, format);
 
@@ -513,5 +533,22 @@ public class ShaderInstanceM implements ShaderMixed {
         }
         // Align to 16 bytes
         return (totalSize + 15) & ~15;
+    }
+
+    /**
+     * Get the active renderer type in a renderer-agnostic way.
+     */
+    @Unique
+    private com.vitra.config.RendererType getActiveRendererType() {
+        try {
+            com.vitra.render.IVitraRenderer renderer = com.vitra.VitraMod.getRenderer();
+            if (renderer != null) {
+                return renderer.getRendererType();
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to get active renderer type: {}", e.getMessage());
+        }
+        // Default to renderer
+        return com.vitra.config.RendererType.DIRECTX11;
     }
 }

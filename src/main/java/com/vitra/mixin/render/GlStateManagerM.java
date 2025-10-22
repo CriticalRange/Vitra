@@ -2,7 +2,7 @@ package com.vitra.mixin.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.VitraRenderer;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,6 +16,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Mixin(GlStateManager.class)
 public class GlStateManagerM {
+
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
 
     // ID counters for resource management
     // Note: Texture IDs are managed by D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
@@ -48,7 +57,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _disableBlend() {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.disableBlend();
+        getRenderer().disableBlend();
     }
 
     /**
@@ -57,7 +66,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _enableBlend() {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.enableBlend();
+        getRenderer().enableBlend();
     }
 
     /**
@@ -66,7 +75,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _blendFunc(int i, int j) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.blendFunc(i, j);
+        getRenderer().blendFunc(i, j);
     }
 
     /**
@@ -75,7 +84,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _blendFuncSeparate(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.blendFuncSeparate(i, j, k, l);
+        getRenderer().blendFuncSeparate(i, j, k, l);
     }
 
     /**
@@ -84,7 +93,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _blendEquation(int i) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.blendEquation(i);
+        getRenderer().blendEquation(i);
     }
 
     /**
@@ -92,7 +101,7 @@ public class GlStateManagerM {
      */
     @Overwrite(remap = false)
     public static void _disableScissorTest() {
-        VitraNativeRenderer.resetScissor();
+        getRenderer().resetScissor();
     }
 
     /**
@@ -108,7 +117,7 @@ public class GlStateManagerM {
      */
     @Overwrite(remap = false)
     public static void _enableCull() {
-        VitraNativeRenderer.enableCull();
+        getRenderer().enableCull();
     }
 
     /**
@@ -116,7 +125,7 @@ public class GlStateManagerM {
      */
     @Overwrite(remap = false)
     public static void _disableCull() {
-        VitraNativeRenderer.disableCull();
+        getRenderer().disableCull();
     }
 
     /**
@@ -124,7 +133,7 @@ public class GlStateManagerM {
      */
     @Redirect(method = "_viewport", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL11;glViewport(IIII)V"), remap = false)
     private static void _viewport(int x, int y, int width, int height) {
-        VitraNativeRenderer.setViewport(x, y, width, height);
+        getRenderer().setViewport(x, y, width, height);
     }
 
     /**
@@ -132,7 +141,7 @@ public class GlStateManagerM {
      */
     @Overwrite(remap = false)
     public static void _scissorBox(int x, int y, int width, int height) {
-        VitraNativeRenderer.setScissor(x, y, width, height);
+        getRenderer().setScissor(x, y, width, height);
     }
 
     /**
@@ -203,7 +212,7 @@ public class GlStateManagerM {
      */
     @Overwrite(remap = false)
     public static void _texParameter(int i, int j, int k) {
-        VitraNativeRenderer.texParameteri(i, j, k);
+        getRenderer().texParameteri(i, j, k);
     }
 
     /**
@@ -211,7 +220,7 @@ public class GlStateManagerM {
      */
     @Overwrite(remap = false)
     public static void _texParameter(int i, int j, float k) {
-        VitraNativeRenderer.setTextureParameterf(i, j, k);
+        getRenderer().setTextureParameterf(i, j, k);
     }
 
     /**
@@ -219,7 +228,7 @@ public class GlStateManagerM {
      */
     @Overwrite(remap = false)
     public static int _getTexLevelParameter(int i, int j, int k) {
-        return VitraNativeRenderer.getTexLevelParameter(i, j, k);
+        return getRenderer().getTexLevelParameter(i, j, k);
     }
 
     /**
@@ -248,7 +257,7 @@ public class GlStateManagerM {
         }
 
         // Also forward to native renderer for any other pixel store operations
-        VitraNativeRenderer.pixelStore(pname, param);
+        getRenderer().pixelStore(pname, param);
     }
 
     /**
@@ -279,7 +288,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.colorMask(red, green, blue, alpha);
+        getRenderer().colorMask(red, green, blue, alpha);
     }
 
     /**
@@ -288,7 +297,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _polygonMode(int face, int mode) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.setPolygonMode(mode);
+        getRenderer().setPolygonMode(mode);
     }
 
     /**
@@ -297,7 +306,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _enablePolygonOffset() {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.enablePolygonOffset();
+        getRenderer().enablePolygonOffset();
     }
 
     /**
@@ -306,7 +315,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _disablePolygonOffset() {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.disablePolygonOffset();
+        getRenderer().disablePolygonOffset();
     }
 
     /**
@@ -315,7 +324,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _polygonOffset(float f, float g) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.polygonOffset(f, g);
+        getRenderer().polygonOffset(f, g);
     }
 
     /**
@@ -324,7 +333,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _enableColorLogicOp() {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.enableColorLogicOp();
+        getRenderer().enableColorLogicOp();
     }
 
     /**
@@ -333,7 +342,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _disableColorLogicOp() {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.disableColorLogicOp();
+        getRenderer().disableColorLogicOp();
     }
 
     /**
@@ -342,7 +351,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _logicOp(int i) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.logicOp(i);
+        getRenderer().logicOp(i);
     }
 
     /**
@@ -358,7 +367,7 @@ public class GlStateManagerM {
             clearColorCount++;
         }
 
-        VitraNativeRenderer.setClearColor(f, g, h, i);
+        getRenderer().setClearColor(f, g, h, i);
     }
 
     /**
@@ -367,7 +376,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _clearDepth(double d) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.clearDepth((float) d);
+        getRenderer().clearDepth((float) d);
     }
 
     /**
@@ -377,7 +386,7 @@ public class GlStateManagerM {
     public static void _clear(int mask, boolean bl) {
         RenderSystem.assertOnRenderThread();
         System.out.println("[JAVA_CLEAR] _clear() called with mask=0x" + Integer.toHexString(mask) + ", bl=" + bl);
-        VitraNativeRenderer.clear(mask);
+        getRenderer().clear(mask);
     }
 
     /**
@@ -386,7 +395,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _disableDepthTest() {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.disableDepthTest();
+        getRenderer().disableDepthTest();
     }
 
     /**
@@ -395,7 +404,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _enableDepthTest() {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.enableDepthTest();
+        getRenderer().enableDepthTest();
     }
 
     /**
@@ -404,7 +413,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _depthFunc(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
-        VitraNativeRenderer.depthFunc(i);
+        getRenderer().depthFunc(i);
     }
 
     /**
@@ -413,7 +422,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _depthMask(boolean bl) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.depthMask(bl);
+        getRenderer().depthMask(bl);
 
     }
 
@@ -442,7 +451,7 @@ public class GlStateManagerM {
     public static void _glBindFramebuffer(int i, int j) {
         RenderSystem.assertOnRenderThread();
         boundFramebuffer = j;
-        VitraNativeRenderer.bindFramebuffer(i, j);
+        getRenderer().bindFramebuffer(i, j);
     }
 
     /**
@@ -451,7 +460,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _glFramebufferTexture2D(int i, int j, int k, int l, int m) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.framebufferTexture2D(i, j, k, l, m);
+        getRenderer().framebufferTexture2D(i, j, k, l, m);
     }
 
     /**
@@ -460,7 +469,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _glBindRenderbuffer(int i, int j) {
         RenderSystem.assertOnRenderThreadOrInit();
-        VitraNativeRenderer.bindRenderbuffer(i, j);
+        getRenderer().bindRenderbuffer(i, j);
     }
 
     /**
@@ -469,7 +478,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _glFramebufferRenderbuffer(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThreadOrInit();
-        VitraNativeRenderer.framebufferRenderbuffer(i, j, k, l);
+        getRenderer().framebufferRenderbuffer(i, j, k, l);
     }
 
     /**
@@ -478,7 +487,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _glRenderbufferStorage(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThreadOrInit();
-        VitraNativeRenderer.renderbufferStorage(i, j, k, l);
+        getRenderer().renderbufferStorage(i, j, k, l);
     }
 
     /**
@@ -488,7 +497,7 @@ public class GlStateManagerM {
     public static int glCheckFramebufferStatus(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
         // Use currently bound framebuffer handle (0 means main framebuffer)
-        return VitraNativeRenderer.checkFramebufferStatus(boundFramebuffer, i);
+        return getRenderer().checkFramebufferStatus(boundFramebuffer, i);
     }
 
     /**
@@ -576,7 +585,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void _glUseProgram(int i) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.useProgram(i);
+        getRenderer().useProgram(i);
     }
 
     /**
@@ -594,7 +603,7 @@ public class GlStateManagerM {
     @Overwrite(remap = false)
     public static void glDeleteProgram(int i) {
         RenderSystem.assertOnRenderThread();
-        VitraNativeRenderer.deleteProgram(i);
+        getRenderer().deleteProgram(i);
     }
 
     /**

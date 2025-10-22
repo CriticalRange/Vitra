@@ -1,7 +1,8 @@
 package com.vitra.mixin.texture;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.vitra.render.Dx11Texture;
+import com.vitra.render.texture.IVitraTexture;
+import com.vitra.render.texture.VitraTextureFactory;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -42,25 +43,25 @@ public abstract class MAbstractTexture {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Update texture sampler parameters for DirectX 11
+     * @reason Update texture sampler parameters for active renderer
      */
     @Overwrite
     public void setFilter(boolean blur, boolean mipmap) {
         this.blur = blur;
         this.mipmap = mipmap;
 
-        // Update DirectX 11 texture sampler when filter changes
-        Dx11Texture texture = Dx11Texture.getTexture(this.id);
+        // Update texture sampler when filter changes
+        IVitraTexture texture = VitraTextureFactory.getTexture(this.id);
         if (texture != null && texture.getNativeHandle() != 0) {
-            // DirectX 11 sampler state will be updated based on blur/mipmap flags
+            // Texture sampler state will be updated based on blur/mipmap flags
             LOGGER.debug("Updated texture {} filter: blur={}, mipmap={}", this.id, blur, mipmap);
         }
     }
 
     @Unique
     private void bindTexture() {
-        // CRITICAL: Bind DirectX 11 texture instead of OpenGL texture
-        Dx11Texture.bindTexture(this.id);
-        LOGGER.debug("Bound DirectX 11 texture: ID={}", this.id);
+        // CRITICAL: Bind texture using renderer-agnostic factory
+        VitraTextureFactory.bindTexture(this.id);
+        LOGGER.debug("Bound texture: ID={}", this.id);
     }
 }
