@@ -82,9 +82,9 @@ public final class VitraMod {
         return core != null ? core.getRenderer() : null;
     }
 
-    public static VitraRenderer getDirectX11Renderer() {
+    public static VitraRenderer getD3D11Renderer() {
         IVitraRenderer renderer = getRenderer();
-        return renderer != null ? renderer.getDirectX11Renderer() : null;
+        return renderer != null ? renderer.getD3D11Renderer() : null;
     }
 
     public static boolean isInitialized() {

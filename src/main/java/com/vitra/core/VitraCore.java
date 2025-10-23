@@ -4,7 +4,7 @@ import com.vitra.config.VitraConfig;
 import com.vitra.config.RendererType;
 import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
-import com.vitra.render.DirectX12Renderer;
+import com.vitra.render.D3D12Renderer;
 import com.vitra.render.jni.D3D11ShaderManager;
 import com.vitra.render.jni.D3D12ShaderManager;
 import org.slf4j.Logger;
@@ -69,7 +69,7 @@ public class VitraCore {
 
             case DIRECTX12:
             case DIRECTX12_ULTIMATE:
-                renderer = new DirectX12Renderer();
+                renderer = new D3D12Renderer();
                 renderer.setConfig(config);
                 renderer.setCore(this);
                 renderer.initialize(rendererType);
@@ -134,14 +134,14 @@ public class VitraCore {
     }
 
     /**
-     * Load DirectX 11 shaders
+     * Load D3D11 shaders
      */
     private void loadDirectX11Shaders() {
-        LOGGER.debug("Loading DirectX 11 shaders...");
+        LOGGER.debug("Loading D3D11 shaders...");
 
         D3D11ShaderManager shaderManager = (D3D11ShaderManager) renderer.getShaderManager();
         if (shaderManager == null) {
-            LOGGER.error("DirectX 11 shader manager not available");
+            LOGGER.error("D3D11 shader manager not available");
             return;
         }
 
@@ -159,30 +159,30 @@ public class VitraCore {
         loadAndRegisterShader("rendertype_text");    // Text rendering
         loadAndRegisterShader("glint");              // Enchantment glint
 
-        LOGGER.info("DirectX 11 shader loading complete: {}", shaderManager.getCacheStats());
+        LOGGER.info("D3D11 shader loading complete: {}", shaderManager.getCacheStats());
     }
 
     /**
-     * Load DirectX 12 shaders
+     * Load D3D12 shaders
      */
     private void loadDirectX12Shaders() {
-        LOGGER.debug("Loading DirectX 12 shaders...");
+        LOGGER.debug("Loading D3D12 shaders...");
 
         D3D12ShaderManager shaderManager = (D3D12ShaderManager) renderer.getShaderManager();
         if (shaderManager == null) {
-            LOGGER.error("DirectX 12 shader manager not available");
+            LOGGER.error("D3D12 shader manager not available");
             return;
         }
 
         // Preload all shader types
         shaderManager.preloadMinecraftShaders();
 
-        LOGGER.info("DirectX 12 shader loading complete: {}", shaderManager.getCacheStats());
+        LOGGER.info("D3D12 shader loading complete: {}", shaderManager.getCacheStats());
     }
 
     /**
      * Load and register a single shader pipeline.
-     * Works with both DirectX 11 and DirectX 12 shader managers.
+     * Works with both D3D11 and D3D12 shader managers.
      */
     private void loadAndRegisterShader(String shaderName) {
         try {
@@ -208,8 +208,8 @@ public class VitraCore {
                     break;
                 case DIRECTX12:
                 case DIRECTX12_ULTIMATE:
-                    // DirectX 12 shaders are loaded differently - this method is mainly for DirectX 11
-                    LOGGER.debug("DirectX 12 shader loading handled by preloadMinecraftShaders()");
+                    // D3D12 shaders are loaded differently - this method is mainly for D3D11
+                    LOGGER.debug("D3D12 shader loading handled by preloadMinecraftShaders()");
                     return;
                 default:
                     LOGGER.error("Unsupported renderer type for shader loading: {}", rendererType);

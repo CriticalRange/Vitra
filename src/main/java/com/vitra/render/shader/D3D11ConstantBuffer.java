@@ -1,6 +1,6 @@
 package com.vitra.render.shader;
 
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import com.vitra.render.shader.descriptor.UBO;
 import org.lwjgl.system.MemoryUtil;
 
@@ -46,7 +46,7 @@ public class D3D11ConstantBuffer {
         this.stagingBuffer = MemoryUtil.memAlloc(this.size);
 
         // Create GPU constant buffer (dynamic usage for frequent updates)
-        this.nativeHandle = VitraNativeRenderer.createConstantBuffer(this.size);
+        this.nativeHandle = VitraD3D11Renderer.createConstantBuffer(this.size);
 
         if (this.nativeHandle == 0) {
             throw new RuntimeException("Failed to create DirectX 11 constant buffer (binding=" + binding +
@@ -73,7 +73,7 @@ public class D3D11ConstantBuffer {
         byte[] data = new byte[size];
         stagingBuffer.position(0);
         stagingBuffer.get(data);
-        VitraNativeRenderer.updateConstantBuffer(nativeHandle, data);
+        VitraD3D11Renderer.updateConstantBuffer(nativeHandle, data);
         stagingBuffer.position(0); // Reset position
     }
 
@@ -82,10 +82,10 @@ public class D3D11ConstantBuffer {
      */
     public void bind() {
         if (isVertexStage()) {
-            VitraNativeRenderer.bindConstantBufferVS(binding, nativeHandle);
+            VitraD3D11Renderer.bindConstantBufferVS(binding, nativeHandle);
         }
         if (isFragmentStage()) {
-            VitraNativeRenderer.bindConstantBufferPS(binding, nativeHandle);
+            VitraD3D11Renderer.bindConstantBufferPS(binding, nativeHandle);
         }
     }
 
@@ -144,7 +144,7 @@ public class D3D11ConstantBuffer {
      */
     public void cleanup() {
         if (nativeHandle != 0) {
-            VitraNativeRenderer.destroyResource(nativeHandle);
+            VitraD3D11Renderer.destroyResource(nativeHandle);
             nativeHandle = 0;
         }
 

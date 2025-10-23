@@ -3,7 +3,7 @@ package com.vitra.render.texture;
 import com.vitra.VitraMod;
 import com.vitra.config.RendererType;
 import com.vitra.core.VitraCore;
-import com.vitra.render.Dx11Texture;
+import com.vitra.render.D3D11Texture;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
 
 /**
  * Factory for creating renderer-appropriate textures.
- * Automatically selects DirectX 11 or DirectX 12 texture implementation based on active renderer.
+ * Automatically selects D3D11 or DirectX 12 texture implementation based on active renderer.
  */
 public class VitraTextureFactory {
     private static final Logger LOGGER = LoggerFactory.getLogger(VitraTextureFactory.class);
@@ -32,7 +32,7 @@ public class VitraTextureFactory {
         if (core != null && core.getRenderer() != null) {
             return core.getRenderer().getRendererType();
         }
-        // Default to DirectX 11 if renderer not initialized yet
+        // Default to D3D11 if renderer not initialized yet
         return RendererType.DIRECTX11;
     }
 
@@ -59,9 +59,9 @@ public class VitraTextureFactory {
 
             case DIRECTX11:
             default:
-                // For DirectX 11, we still use the existing Dx11Texture system
+                // For D3D11, we still use the existing D3D11Texture system
                 // which manages its own texture map
-                // This is a temporary bridge until Dx11Texture is fully refactored
+                // This is a temporary bridge until D3D11Texture is fully refactored
                 return new D3D11TextureWrapper(id);
         }
     }
@@ -119,9 +119,9 @@ public class VitraTextureFactory {
      * These parameters affect how texture data is unpacked during upload
      */
     public static void pixelStorei(int pname, int param) {
-        // For now, delegate to Dx11Texture which manages these static parameters
+        // For now, delegate to D3D11Texture which manages these static parameters
         // TODO: Make this renderer-agnostic by storing parameters here
-        Dx11Texture.pixelStorei(pname, param);
+        D3D11Texture.pixelStorei(pname, param);
     }
 
     /**
@@ -130,9 +130,9 @@ public class VitraTextureFactory {
      */
     public static void texImage2D(int target, int level, int internalFormat, int width, int height,
                                    int border, int format, int type, @Nullable ByteBuffer pixels) {
-        // For now, delegate to Dx11Texture for compatibility
+        // For now, delegate to D3D11Texture for compatibility
         // TODO: Make this renderer-agnostic by using IVitraTexture interface
-        Dx11Texture.texImage2D(target, level, internalFormat, width, height, border, format, type, pixels);
+        D3D11Texture.texImage2D(target, level, internalFormat, width, height, border, format, type, pixels);
     }
 
     /**
@@ -141,22 +141,22 @@ public class VitraTextureFactory {
      */
     public static void texSubImage2D(int target, int level, int xOffset, int yOffset,
                                       int width, int height, int format, int type, long pixels) {
-        // For now, delegate to Dx11Texture for compatibility
+        // For now, delegate to D3D11Texture for compatibility
         // TODO: Make this renderer-agnostic by using IVitraTexture interface
-        Dx11Texture.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, pixels);
+        D3D11Texture.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, pixels);
     }
 
     /**
-     * Wrapper class that bridges to existing Dx11Texture system
-     * This is temporary until Dx11Texture is fully refactored to implement IVitraTexture
+     * Wrapper class that bridges to existing D3D11Texture system
+     * This is temporary until D3D11Texture is fully refactored to implement IVitraTexture
      */
     private static class D3D11TextureWrapper implements IVitraTexture {
         private final int id;
 
         public D3D11TextureWrapper(int id) {
             this.id = id;
-            // Ensure Dx11Texture has this ID in its map
-            Dx11Texture.getTexture(id);
+            // Ensure D3D11Texture has this ID in its map
+            D3D11Texture.getTexture(id);
         }
 
         @Override
@@ -166,52 +166,52 @@ public class VitraTextureFactory {
 
         @Override
         public long getNativeHandle() {
-            Dx11Texture tex = Dx11Texture.getTexture(id);
+            D3D11Texture tex = D3D11Texture.getTexture(id);
             return tex != null ? tex.getNativeHandle() : 0;
         }
 
         @Override
         public int getWidth() {
-            Dx11Texture tex = Dx11Texture.getTexture(id);
+            D3D11Texture tex = D3D11Texture.getTexture(id);
             return tex != null ? tex.getWidth() : 0;
         }
 
         @Override
         public int getHeight() {
-            Dx11Texture tex = Dx11Texture.getTexture(id);
+            D3D11Texture tex = D3D11Texture.getTexture(id);
             return tex != null ? tex.getHeight() : 0;
         }
 
         @Override
         public int getFormat() {
-            Dx11Texture tex = Dx11Texture.getTexture(id);
+            D3D11Texture tex = D3D11Texture.getTexture(id);
             return tex != null ? tex.getFormat() : 0;
         }
 
         @Override
         public int getMipLevels() {
-            Dx11Texture tex = Dx11Texture.getTexture(id);
+            D3D11Texture tex = D3D11Texture.getTexture(id);
             return tex != null ? tex.getMipLevels() : 0;
         }
 
         @Override
         public void bind() {
-            Dx11Texture.bindTexture(id);
+            D3D11Texture.bindTexture(id);
         }
 
         @Override
         public void unbind() {
-            Dx11Texture.bindTexture(0);
+            D3D11Texture.bindTexture(0);
         }
 
         @Override
         public void upload(byte[] pixels, int width, int height, int format) {
-            // Delegate to Dx11Texture static methods
+            // Delegate to D3D11Texture static methods
             // Convert byte array to ByteBuffer
             java.nio.ByteBuffer buffer = java.nio.ByteBuffer.allocateDirect(pixels.length);
             buffer.put(pixels);
             buffer.flip();
-            Dx11Texture.texImage2D(0x0DE1, 0, format, width, height, 0, format, 0x1401, buffer);
+            D3D11Texture.texImage2D(0x0DE1, 0, format, width, height, 0, format, 0x1401, buffer);
         }
 
         @Override
@@ -221,29 +221,29 @@ public class VitraTextureFactory {
             buffer.put(pixels);
             buffer.flip();
             long address = org.lwjgl.system.MemoryUtil.memAddress(buffer);
-            Dx11Texture.texSubImage2D(0x0DE1, 0, x, y, width, height, format, 0x1401, address);
+            D3D11Texture.texSubImage2D(0x0DE1, 0, x, y, width, height, format, 0x1401, address);
         }
 
         @Override
         public void setParameter(int paramName, int value) {
-            Dx11Texture.setTextureParameter(id, paramName, value);
+            D3D11Texture.setTextureParameter(id, paramName, value);
         }
 
         @Override
         public void generateMipmaps() {
-            // TODO: Implement generateMipmaps for Dx11Texture
-            // For now, this is a no-op as Dx11Texture doesn't have this method yet
-            LOGGER.debug("generateMipmaps called for DirectX 11 texture ID={} (not yet implemented)", id);
+            // TODO: Implement generateMipmaps for D3D11Texture
+            // For now, this is a no-op as D3D11Texture doesn't have this method yet
+            LOGGER.debug("generateMipmaps called for D3D11 texture ID={} (not yet implemented)", id);
         }
 
         @Override
         public void destroy() {
-            Dx11Texture.deleteTexture(id);
+            D3D11Texture.deleteTexture(id);
         }
 
         @Override
         public boolean needsRecreation(int mipLevels, int width, int height) {
-            Dx11Texture tex = Dx11Texture.getTexture(id);
+            D3D11Texture tex = D3D11Texture.getTexture(id);
             return tex != null && tex.needsRecreation(mipLevels, width, height);
         }
 

@@ -15,7 +15,7 @@ public class JniUtils {
     public static boolean isNativeLibraryAvailable() {
         try {
             // Test a simple native call to check if library is loaded
-            return VitraNativeRenderer.isInitialized() || true; // Allow first call to fail during initialization
+            return VitraD3D11Renderer.isInitialized() || true; // Allow first call to fail during initialization
         } catch (UnsatisfiedLinkError e) {
             LOGGER.error("Native library not available: {}", e.getMessage());
             return false;
@@ -104,7 +104,7 @@ public class JniUtils {
 
         try {
             // Check if we can call a native method
-            VitraNativeRenderer.isInitialized();
+            VitraD3D11Renderer.isInitialized();
             status.append("  Status: Loaded and functional\n");
         } catch (UnsatisfiedLinkError e) {
             status.append("  Status: Not loaded - ").append(e.getMessage()).append("\n");
@@ -150,10 +150,10 @@ public class JniUtils {
         LOGGER.debug("enableBlend: {}", enable);
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setBlendState(enable,
-                enable ? VitraNativeRenderer.GL_SRC_ALPHA : VitraNativeRenderer.GL_ONE,
-                enable ? VitraNativeRenderer.GL_ONE_MINUS_SRC_ALPHA : VitraNativeRenderer.GL_ZERO,
-                VitraNativeRenderer.GL_FUNC_ADD);
+            VitraD3D11Renderer.setBlendState(enable,
+                enable ? VitraD3D11Renderer.GL_SRC_ALPHA : VitraD3D11Renderer.GL_ONE,
+                enable ? VitraD3D11Renderer.GL_ONE_MINUS_SRC_ALPHA : VitraD3D11Renderer.GL_ZERO,
+                VitraD3D11Renderer.GL_FUNC_ADD);
         } catch (Exception e) {
             LOGGER.error("Failed to enable blend in DirectX 11", e);
         }
@@ -166,7 +166,7 @@ public class JniUtils {
         LOGGER.debug("enableDepthTest: {}", enable);
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setDepthState(enable, true, enable ? VitraNativeRenderer.GL_LESS : VitraNativeRenderer.GL_ALWAYS);
+            VitraD3D11Renderer.setDepthState(enable, true, enable ? VitraD3D11Renderer.GL_LESS : VitraD3D11Renderer.GL_ALWAYS);
         } catch (Exception e) {
             LOGGER.error("Failed to enable depth test in DirectX 11", e);
         }
@@ -179,8 +179,8 @@ public class JniUtils {
         LOGGER.debug("enableCull: {}", enable);
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setRasterizerState(enable ? VitraNativeRenderer.GL_BACK : 0,
-                VitraNativeRenderer.GL_FILL, false);
+            VitraD3D11Renderer.setRasterizerState(enable ? VitraD3D11Renderer.GL_BACK : 0,
+                VitraD3D11Renderer.GL_FILL, false);
         } catch (Exception e) {
             LOGGER.error("Failed to enable culling in DirectX 11", e);
         }
@@ -193,7 +193,7 @@ public class JniUtils {
         LOGGER.debug("setDepthFunc: 0x{}", Integer.toHexString(func));
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setDepthState(true, true, func);
+            VitraD3D11Renderer.setDepthState(true, true, func);
         } catch (Exception e) {
             LOGGER.error("Failed to set depth function in DirectX 11", e);
         }
@@ -206,7 +206,7 @@ public class JniUtils {
         LOGGER.debug("setDepthMask: {}", mask);
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setDepthMask(mask);
+            VitraD3D11Renderer.setDepthMask(mask);
         } catch (Exception e) {
             LOGGER.error("Failed to set depth mask in DirectX 11", e);
         }
@@ -219,7 +219,7 @@ public class JniUtils {
         LOGGER.debug("setColorMask: {}, {}, {}, {}", r, g, b, a);
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setColorMask(r, g, b, a);
+            VitraD3D11Renderer.setColorMask(r, g, b, a);
         } catch (Exception e) {
             LOGGER.error("Failed to set color mask in DirectX 11", e);
         }
@@ -234,7 +234,7 @@ public class JniUtils {
             Integer.toHexString(srcAlpha), Integer.toHexString(dstAlpha));
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setBlendState(true, srcRGB, dstRGB, VitraNativeRenderer.GL_FUNC_ADD);
+            VitraD3D11Renderer.setBlendState(true, srcRGB, dstRGB, VitraD3D11Renderer.GL_FUNC_ADD);
         } catch (Exception e) {
             LOGGER.error("Failed to set blend function in DirectX 11", e);
         }
@@ -247,7 +247,7 @@ public class JniUtils {
         LOGGER.debug("setViewport: {}, {}, {}, {}", x, y, width, height);
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setViewport(x, y, width, height);
+            VitraD3D11Renderer.setViewport(x, y, width, height);
         } catch (Exception e) {
             LOGGER.error("Failed to set viewport in DirectX 11", e);
         }
@@ -260,8 +260,8 @@ public class JniUtils {
         LOGGER.debug("enableScissorTest: {}", enable);
         try {
             // Forward to DirectX 11 native method via rasterizer state
-            VitraNativeRenderer.setRasterizerState(VitraNativeRenderer.GL_BACK,
-                VitraNativeRenderer.GL_FILL, enable);
+            VitraD3D11Renderer.setRasterizerState(VitraD3D11Renderer.GL_BACK,
+                VitraD3D11Renderer.GL_FILL, enable);
         } catch (Exception e) {
             LOGGER.error("Failed to enable scissor test in DirectX 11", e);
         }
@@ -274,7 +274,7 @@ public class JniUtils {
         LOGGER.debug("setScissorRect: {}, {}, {}, {}", x, y, width, height);
         try {
             // Forward to DirectX 11 native method
-            VitraNativeRenderer.setScissorRect(x, y, width, height);
+            VitraD3D11Renderer.setScissorRect(x, y, width, height);
         } catch (Exception e) {
             LOGGER.error("Failed to set scissor rect in DirectX 11", e);
         }
@@ -288,7 +288,7 @@ public class JniUtils {
         try {
             // Use new clear implementation - just pass the mask directly
             // The clear color should already be set via setClearColor
-            VitraNativeRenderer.clear(mask);
+            VitraD3D11Renderer.clear(mask);
         } catch (Exception e) {
             LOGGER.error("Failed to clear with mask 0x{}: {}", Integer.toHexString(mask), e.getMessage());
         }
@@ -302,8 +302,8 @@ public class JniUtils {
             if ((mask & 0x00004000) != 0) { // GL_COLOR_BUFFER_BIT
                 // Clear color buffer with current clear color
                 // Note: The actual clear color should be set via glClearColor before this
-                VitraNativeRenderer.setClearColor(0.1f, 0.2f, 0.4f, 1.0f); // Use blue debug color
-                VitraNativeRenderer.clear(0x00004000);
+                VitraD3D11Renderer.setClearColor(0.1f, 0.2f, 0.4f, 1.0f); // Use blue debug color
+                VitraD3D11Renderer.clear(0x00004000);
             }
 
             if ((mask & 0x00000100) != 0) { // GL_DEPTH_BUFFER_BIT
@@ -311,18 +311,18 @@ public class JniUtils {
                 // This is more comprehensive than the old clearDepth method
                 try {
                     // Try to use the depth stencil buffer if available
-                    long depthBuffer = VitraNativeRenderer.createDepthStencilBuffer(1920, 1080,
-                        VitraNativeRenderer.DEPTH_FORMAT_D24_UNORM_S8_UINT);
+                    long depthBuffer = VitraD3D11Renderer.createDepthStencilBuffer(1920, 1080,
+                        VitraD3D11Renderer.DEPTH_FORMAT_D24_UNORM_S8_UINT);
                     if (depthBuffer != 0) {
-                        VitraNativeRenderer.clearDepthStencilBuffer(depthBuffer, true, false, 1.0f, 0);
-                        VitraNativeRenderer.releaseDepthStencilBuffer(depthBuffer);
+                        VitraD3D11Renderer.clearDepthStencilBuffer(depthBuffer, true, false, 1.0f, 0);
+                        VitraD3D11Renderer.releaseDepthStencilBuffer(depthBuffer);
                     } else {
                         // Fallback to old method
-                        VitraNativeRenderer.clearDepth(1.0f);
+                        VitraD3D11Renderer.clearDepth(1.0f);
                     }
                 } catch (Exception fallback) {
                     // Fallback to old method if depth stencil buffer creation fails
-                    VitraNativeRenderer.clearDepth(1.0f);
+                    VitraD3D11Renderer.clearDepth(1.0f);
                 }
             }
         } catch (Exception e) {
@@ -340,8 +340,8 @@ public class JniUtils {
             // Forward to DirectX 11 native method
             // Convert OpenGL primitive mode to DirectX 11 topology
             int topology = convertOpenGLToDirectXTopology(mode);
-            VitraNativeRenderer.setPrimitiveTopology(topology);
-            VitraNativeRenderer.draw(0, 0, first, 0, count, 1);
+            VitraD3D11Renderer.setPrimitiveTopology(topology);
+            VitraD3D11Renderer.draw(0, 0, first, 0, count, 1);
         } catch (Exception e) {
             LOGGER.error("Failed to draw arrays in DirectX 11", e);
         }
@@ -357,8 +357,8 @@ public class JniUtils {
             // Forward to DirectX 11 native method
             // Convert OpenGL primitive mode to DirectX 11 topology
             int topology = convertOpenGLToDirectXTopology(mode);
-            VitraNativeRenderer.setPrimitiveTopology(topology);
-            VitraNativeRenderer.draw(0, 0, 0, 0, count, 1);
+            VitraD3D11Renderer.setPrimitiveTopology(topology);
+            VitraD3D11Renderer.draw(0, 0, 0, 0, count, 1);
         } catch (Exception e) {
             LOGGER.error("Failed to draw elements in DirectX 11", e);
         }

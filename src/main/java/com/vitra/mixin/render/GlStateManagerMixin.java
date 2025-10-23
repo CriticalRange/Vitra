@@ -2,10 +2,9 @@ package com.vitra.mixin.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.VitraRenderer;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,536 +14,420 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Critical mixin to intercept ALL GlStateManager calls and redirect to DirectX 11
- * Pattern based on VulkanMod's GlStateManagerM - prevents OpenGL calls
- */
 @Mixin(GlStateManager.class)
 public class GlStateManagerMixin {
-    private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/GlStateManager");
-    private static final AtomicInteger textureIdCounter = new AtomicInteger(1);
+
+    // Helper to get renderer instance (with null-safety check)
+    private static VitraRenderer getRenderer() {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer == null) {
+            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        }
+        return renderer;
+    }
+
+    // ID counters for resource management
+    // Note: Texture IDs are managed by D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
     private static final AtomicInteger framebufferIdCounter = new AtomicInteger(1);
     private static final AtomicInteger renderbufferIdCounter = new AtomicInteger(1);
     private static final AtomicInteger bufferIdCounter = new AtomicInteger(1);
     private static final AtomicInteger programIdCounter = new AtomicInteger(1);
 
-    // ==================== TEXTURE OPERATIONS ====================
+    // Track bound framebuffer for OpenGL compatibility
+    private static int boundFramebuffer = 0;
+
+    // Debug counter for _clearColor logging
+    private static int clearColorCount = 0;
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect texture binding to DirectX 11
+     * @reason Use D3D11GlTexture system for texture binding
      */
     @Overwrite(remap = false)
-    public static void _bindTexture(int textureId) {
-        try {
-            VitraNativeRenderer.bindTexture(textureId);
-        } catch (Exception e) {
-            // Silent error following VulkanMod pattern
-        }
+    public static void _bindTexture(int i) {
+        RenderSystem.assertOnRenderThreadOrInit();
+        // CRITICAL: Bind through D3D11GlTexture to map OpenGL ID → DirectX handle
+        // This is the fix for the yellow screen issue!
+        com.vitra.render.d3d11.D3D11GlTexture.bindTexture(i);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Generate DirectX 11 texture ID instead of OpenGL
-     */
-    @Overwrite(remap = false)
-    public static int _genTexture() {
-        RenderSystem.assertOnRenderThread();
-        // Generate unique texture ID (DirectX handles created on-demand during texImage2D)
-        return textureIdCounter.getAndIncrement();
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect texture deletion to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _deleteTexture(int textureId) {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.deleteTexture(textureId);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect texImage2D to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, @Nullable IntBuffer pixels) {
-        RenderSystem.assertOnRenderThread();
-        try {
-            // Convert IntBuffer to ByteBuffer if needed
-            ByteBuffer byteBuffer = null;
-            if (pixels != null) {
-                byteBuffer = ByteBuffer.allocateDirect(pixels.remaining() * 4);
-                while (pixels.hasRemaining()) {
-                    int value = pixels.get();
-                    byteBuffer.put((byte)(value & 0xFF));
-                    byteBuffer.put((byte)((value >> 8) & 0xFF));
-                    byteBuffer.put((byte)((value >> 16) & 0xFF));
-                    byteBuffer.put((byte)((value >> 24) & 0xFF));
-                }
-                byteBuffer.flip();
-            }
-            VitraNativeRenderer.texImage2D(target, level, internalFormat, width, height, border, format, type, byteBuffer);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect texSubImage2D to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _texSubImage2D(int target, int level, int offsetX, int offsetY, int width, int height, int format, int type, long pixels) {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.texSubImage2D(target, level, offsetX, offsetY, width, height, format, type, pixels);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect active texture to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _activeTexture(int texture) {
-        try {
-            VitraNativeRenderer.activeTexture(texture);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect texture parameter to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _texParameter(int target, int pname, int param) {
-        try {
-            VitraNativeRenderer.texParameteri(target, pname, param);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect texture parameter (float) to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _texParameter(int target, int pname, float param) {
-        // TODO: Implement float texture parameters if needed
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect getTexLevelParameter to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static int _getTexLevelParameter(int target, int level, int pname) {
-        try {
-            return VitraNativeRenderer.getTexLevelParameter(target, level, pname);
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect pixelStore to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _pixelStore(int pname, int param) {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.pixelStore(pname, param);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    // ==================== BLEND STATE ====================
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect blend enable to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _enableBlend() {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.enableBlend();
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect blend disable to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     public static void _disableBlend() {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.disableBlend();
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().disableBlend();
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect blend function to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _blendFunc(int srcFactor, int dstFactor) {
+    public static void _enableBlend() {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.blendFunc(srcFactor, dstFactor);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().enableBlend();
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect blend function separate to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _blendFuncSeparate(int srcRGB, int dstRGB, int srcAlpha, int dstAlpha) {
+    public static void _blendFunc(int i, int j) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().blendFunc(i, j);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect blend equation to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _blendEquation(int mode) {
+    public static void _blendFuncSeparate(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.blendEquation(mode);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().blendFuncSeparate(i, j, k, l);
     }
 
-    // ==================== DEPTH STATE ====================
-
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect depth test enable to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _enableDepthTest() {
+    public static void _blendEquation(int i) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.enableDepthTest();
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().blendEquation(i);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect depth test disable to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _disableDepthTest() {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.disableDepthTest();
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect depth function to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _depthFunc(int func) {
-        RenderSystem.assertOnRenderThreadOrInit();
-        try {
-            VitraNativeRenderer.depthFunc(func);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect depth mask to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _depthMask(boolean flag) {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.depthMask(flag);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    // ==================== CULL STATE ====================
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect cull enable to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _enableCull() {
-        try {
-            VitraNativeRenderer.enableCull();
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect cull disable to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _disableCull() {
-        try {
-            VitraNativeRenderer.disableCull();
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    // ==================== SCISSOR/VIEWPORT ====================
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect scissor enable to DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _enableScissorTest() {
-        // DirectX 11 scissor is always available, just set the rect
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect scissor disable to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     public static void _disableScissorTest() {
-        try {
-            // Reset scissor to full viewport
-            VitraNativeRenderer.resetScissor();
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().resetScissor();
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect scissor box to DirectX 11
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _enableScissorTest() {
+        // No-op - scissor enabled by setScissor call
+    }
+
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _enableCull() {
+        getRenderer().enableCull();
+    }
+
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _disableCull() {
+        getRenderer().disableCull();
+    }
+
+    /**
+     * @author
+     */
+    @Redirect(method = "_viewport", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL11;glViewport(IIII)V"), remap = false)
+    private static void _viewport(int x, int y, int width, int height) {
+        getRenderer().setViewport(x, y, width, height);
+    }
+
+    /**
+     * @author
      */
     @Overwrite(remap = false)
     public static void _scissorBox(int x, int y, int width, int height) {
-        try {
-            VitraNativeRenderer.setScissor(x, y, width, height);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().setScissor(x, y, width, height);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect viewport to DirectX 11
-     */
-    @Redirect(method = "_viewport", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL11;glViewport(IIII)V"), remap = false)
-    private static void redirectViewport(int x, int y, int width, int height) {
-        try {
-            VitraNativeRenderer.setViewport(x, y, width, height);
-        } catch (Exception e) {
-            // Silent error
-        }
-    }
-
-    // ==================== CLEAR OPERATIONS ====================
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect clear color to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _clearColor(float red, float green, float blue, float alpha) {
+    public static int _getError() {
+        return 0;
+    }
+
+    /**
+     * @author Vitra (adapted from VulkanMod)
+     * @reason Use D3D11GlTexture system for proper texture management
+     */
+    @Overwrite(remap = false)
+    public static void _texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, @Nullable IntBuffer pixels) {
+        RenderSystem.assertOnRenderThread();
+
+        // Get currently bound texture ID from D3D11GlTexture
+        int boundTextureId = com.vitra.render.d3d11.D3D11GlTexture.getBoundTexture(
+            com.vitra.render.d3d11.D3D11GlTexture.getActiveTextureSlot()
+        );
+
+        // Convert IntBuffer to ByteBuffer for D3D11GlTexture
+        ByteBuffer byteBuffer = pixels != null ? MemoryUtil.memByteBuffer(pixels) : null;
+
+        // Upload texture data to DirectX 11 (matches VulkanMod's VkGlTexture.texImage2D pattern)
+        com.vitra.render.d3d11.D3D11GlTexture.texImage2D(
+            boundTextureId, level, internalFormat, width, height, format, type, byteBuffer
+        );
+    }
+
+    /**
+     * @author Vitra (adapted from VulkanMod)
+     * @reason Use D3D11GlTexture system for proper texture management
+     */
+    @Overwrite(remap = false)
+    public static void _texSubImage2D(int target, int level, int offsetX, int offsetY, int width, int height, int format, int type, long pixels) {
+        RenderSystem.assertOnRenderThread();
+
+        // Get currently bound texture ID from D3D11GlTexture
+        int boundTextureId = com.vitra.render.d3d11.D3D11GlTexture.getBoundTexture(
+            com.vitra.render.d3d11.D3D11GlTexture.getActiveTextureSlot()
+        );
+
+        // Convert long pointer to ByteBuffer
+        ByteBuffer byteBuffer = pixels != 0 ? MemoryUtil.memByteBuffer(pixels, width * height * 4) : null;
+
+        // Update texture subregion in DirectX 11 (matches VulkanMod's VkGlTexture.texSubImage2D pattern)
+        com.vitra.render.d3d11.D3D11GlTexture.texSubImage2D(
+            boundTextureId, level, offsetX, offsetY, width, height, format, type, byteBuffer
+        );
+    }
+
+    /**
+     * @author Vitra (adapted from VulkanMod)
+     * @reason Use D3D11GlTexture to track active texture slot
+     */
+    @Overwrite(remap = false)
+    public static void _activeTexture(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
-        try {
-            VitraNativeRenderer.setClearColor(red, green, blue, alpha);
-        } catch (Exception e) {
-            // Silent error
-        }
+        // Track active texture slot in D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
+        com.vitra.render.d3d11.D3D11GlTexture.activeTexture(i);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect clear depth to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _clearDepth(double depth) {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.clearDepth((float)depth);
-        } catch (Exception e) {
-            // Silent error
-        }
+    public static void _texParameter(int i, int j, int k) {
+        getRenderer().texParameteri(i, j, k);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect clear to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _clear(int mask, boolean checkError) {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.clear(mask);
-        } catch (Exception e) {
-            // Silent error
-        }
+    public static void _texParameter(int i, int j, float k) {
+        getRenderer().setTextureParameterf(i, j, k);
     }
 
-    // ==================== COLOR/POLYGON STATE ====================
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static int _getTexLevelParameter(int i, int j, int k) {
+        return getRenderer().getTexLevelParameter(i, j, k);
+    }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect color mask to DirectX 11
+     * @reason Use D3D11GlTexture to track pixel store parameters for texture uploads
+     */
+    @Overwrite(remap = false)
+    public static void _pixelStore(int pname, int param) {
+        RenderSystem.assertOnRenderThread();
+
+        // Track unpack parameters for D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
+        final int GL_UNPACK_ROW_LENGTH = 0x0CF2;
+        final int GL_UNPACK_SKIP_ROWS = 0x0CF3;
+        final int GL_UNPACK_SKIP_PIXELS = 0x0CF4;
+
+        switch (pname) {
+            case GL_UNPACK_ROW_LENGTH:
+                com.vitra.render.d3d11.D3D11GlTexture.setUnpackRowLength(param);
+                break;
+            case GL_UNPACK_SKIP_ROWS:
+                com.vitra.render.d3d11.D3D11GlTexture.setUnpackSkipRows(param);
+                break;
+            case GL_UNPACK_SKIP_PIXELS:
+                com.vitra.render.d3d11.D3D11GlTexture.setUnpackSkipPixels(param);
+                break;
+        }
+
+        // Also forward to native renderer for any other pixel store operations
+        getRenderer().pixelStore(pname, param);
+    }
+
+    /**
+     * @author Vitra (adapted from VulkanMod)
+     * @reason Use D3D11GlTexture to generate texture IDs
+     */
+    @Overwrite(remap = false)
+    public static int _genTexture() {
+        RenderSystem.assertOnRenderThreadOrInit();
+        // Generate texture ID through D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
+        return com.vitra.render.d3d11.D3D11GlTexture.genTextureId();
+    }
+
+    /**
+     * @author Vitra (adapted from VulkanMod)
+     * @reason Use D3D11GlTexture to delete textures and clean up DirectX resources
+     */
+    @Overwrite(remap = false)
+    public static void _deleteTexture(int i) {
+        RenderSystem.assertOnRenderThread();
+        // Delete texture through D3D11GlTexture which handles DirectX cleanup (matches VulkanMod's VkGlTexture pattern)
+        com.vitra.render.d3d11.D3D11GlTexture.deleteTexture(i);
+    }
+
+    /**
+     * @author
      */
     @Overwrite(remap = false)
     public static void _colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.colorMask(red, green, blue, alpha);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().colorMask(red, green, blue, alpha);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect polygon mode to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     public static void _polygonMode(int face, int mode) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.setPolygonMode(mode);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().setPolygonMode(mode);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect polygon offset enable to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     public static void _enablePolygonOffset() {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.enablePolygonOffset();
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().enablePolygonOffset();
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect polygon offset disable to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     public static void _disablePolygonOffset() {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.disablePolygonOffset();
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().disablePolygonOffset();
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect polygon offset to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _polygonOffset(float factor, float units) {
+    public static void _polygonOffset(float f, float g) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.polygonOffset(factor, units);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().polygonOffset(f, g);
     }
 
-    // ==================== COLOR LOGIC OP ====================
-
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect color logic op enable to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     public static void _enableColorLogicOp() {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.enableColorLogicOp();
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().enableColorLogicOp();
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect color logic op disable to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     public static void _disableColorLogicOp() {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.disableColorLogicOp();
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().disableColorLogicOp();
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect logic op to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _logicOp(int opcode) {
+    public static void _logicOp(int i) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.logicOp(opcode);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().logicOp(i);
     }
 
-    // ==================== FRAMEBUFFER OPERATIONS ====================
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _clearColor(float f, float g, float h, float i) {
+        RenderSystem.assertOnRenderThreadOrInit();
+
+        // DEBUG: Log first 20 _clearColor calls
+        if (clearColorCount < 20) {
+            System.out.println("[JAVA_CLEARCOLOR " + clearColorCount + "] _clearColor(" + f + ", " + g + ", " + h + ", " + i + ")");
+            clearColorCount++;
+        }
+
+        getRenderer().setClearColor(f, g, h, i);
+    }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Generate DirectX 11 framebuffer ID
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _clearDepth(double d) {
+        RenderSystem.assertOnRenderThread();
+        getRenderer().clearDepth((float) d);
+    }
+
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _clear(int mask, boolean bl) {
+        RenderSystem.assertOnRenderThread();
+        System.out.println("[JAVA_CLEAR] _clear() called with mask=0x" + Integer.toHexString(mask) + ", bl=" + bl);
+        getRenderer().clear(mask);
+    }
+
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _disableDepthTest() {
+        RenderSystem.assertOnRenderThread();
+        getRenderer().disableDepthTest();
+    }
+
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _enableDepthTest() {
+        RenderSystem.assertOnRenderThread();
+        getRenderer().enableDepthTest();
+    }
+
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _depthFunc(int i) {
+        RenderSystem.assertOnRenderThreadOrInit();
+        getRenderer().depthFunc(i);
+    }
+
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _depthMask(boolean bl) {
+        RenderSystem.assertOnRenderThread();
+        getRenderer().depthMask(bl);
+
+    }
+
+    /**
+     * @author
      */
     @Overwrite(remap = false)
     public static int glGenFramebuffers() {
@@ -553,8 +436,7 @@ public class GlStateManagerMixin {
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Generate DirectX 11 renderbuffer ID
+     * @author
      */
     @Overwrite(remap = false)
     public static int glGenRenderbuffers() {
@@ -563,201 +445,151 @@ public class GlStateManagerMixin {
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect framebuffer bind to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glBindFramebuffer(int target, int framebuffer) {
+    public static void _glBindFramebuffer(int i, int j) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.bindFramebuffer(target, framebuffer);
-        } catch (Exception e) {
-            // Silent error
-        }
+        boundFramebuffer = j;
+        getRenderer().bindFramebuffer(i, j);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect framebuffer texture attachment to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glFramebufferTexture2D(int target, int attachment, int textarget, int texture, int level) {
+    public static void _glFramebufferTexture2D(int i, int j, int k, int l, int m) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.framebufferTexture2D(target, attachment, textarget, texture, level);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().framebufferTexture2D(i, j, k, l, m);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect renderbuffer bind to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glBindRenderbuffer(int target, int renderbuffer) {
+    public static void _glBindRenderbuffer(int i, int j) {
         RenderSystem.assertOnRenderThreadOrInit();
-        try {
-            VitraNativeRenderer.bindRenderbuffer(target, renderbuffer);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().bindRenderbuffer(i, j);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect framebuffer renderbuffer attachment to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glFramebufferRenderbuffer(int target, int attachment, int renderbuffertarget, int renderbuffer) {
+    public static void _glFramebufferRenderbuffer(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThreadOrInit();
-        try {
-            VitraNativeRenderer.framebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().framebufferRenderbuffer(i, j, k, l);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect renderbuffer storage to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glRenderbufferStorage(int target, int internalformat, int width, int height) {
+    public static void _glRenderbufferStorage(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThreadOrInit();
-        try {
-            VitraNativeRenderer.renderbufferStorage(target, internalformat, width, height);
-        } catch (Exception e) {
-            // Silent error
-        }
+        getRenderer().renderbufferStorage(i, j, k, l);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 framebuffers always complete
+     * @author
      */
     @Overwrite(remap = false)
-    public static int glCheckFramebufferStatus(int target) {
+    public static int glCheckFramebufferStatus(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
-        return 0x8CD5; // GL_FRAMEBUFFER_COMPLETE
+        // Use currently bound framebuffer handle (0 means main framebuffer)
+        return getRenderer().checkFramebufferStatus(boundFramebuffer, i);
     }
 
-    // ==================== BUFFER OPERATIONS ====================
-
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Generate DirectX 11 buffer ID
+     * @author
      */
     @Overwrite(remap = false)
     public static int _glGenBuffers() {
         RenderSystem.assertOnRenderThreadOrInit();
-        return bufferIdCounter.getAndIncrement();
+        // Delegate to GL15M which handles pixel buffers
+        return org.lwjgl.opengl.GL15.glGenBuffers();
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect buffer bind to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glBindBuffer(int target, int buffer) {
+    public static void _glBindBuffer(int i, int j) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.bindBuffer(target, buffer);
-        } catch (Exception e) {
-            // Silent error
-        }
+        // Delegate to GL15M which handles pixel buffers
+        org.lwjgl.opengl.GL15.glBindBuffer(i, j);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect buffer data (ByteBuffer) to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glBufferData(int target, ByteBuffer data, int usage) {
+    public static void _glBufferData(int i, ByteBuffer byteBuffer, int j) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.bufferData(target, data, usage);
-        } catch (Exception e) {
-            // Silent error
-        }
+        // Delegate to GL15M which handles pixel buffers
+        org.lwjgl.opengl.GL15.glBufferData(i, byteBuffer, j);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect buffer data (size) to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glBufferData(int target, long size, int usage) {
+    public static void _glBufferData(int i, long l, int j) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.bufferData(target, size, usage);
-        } catch (Exception e) {
-            // Silent error
-        }
+        // Delegate to GL15M which handles pixel buffers
+        org.lwjgl.opengl.GL15.glBufferData(i, l, j);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect buffer mapping to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     @Nullable
-    public static ByteBuffer _glMapBuffer(int target, int access) {
+    public static ByteBuffer _glMapBuffer(int i, int j) {
         RenderSystem.assertOnRenderThreadOrInit();
-        try {
-            return VitraNativeRenderer.mapBuffer(target, access);
-        } catch (Exception e) {
-            return null;
-        }
+        // Delegate to GL15M which handles pixel buffers
+        return org.lwjgl.opengl.GL15.glMapBuffer(i, j);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect buffer unmapping to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glUnmapBuffer(int target) {
+    public static void _glUnmapBuffer(int i) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.unmapBuffer(target);
-        } catch (Exception e) {
-            // Silent error
-        }
+        // Delegate to GL15M which handles pixel buffers
+        org.lwjgl.opengl.GL15.glUnmapBuffer(i);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect buffer deletion to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glDeleteBuffers(int buffer) {
+    public static void _glDeleteBuffers(int i) {
         RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.deleteBuffer(buffer);
-        } catch (Exception e) {
-            // Silent error
-        }
+        // Delegate to GL15M which handles pixel buffers
+        org.lwjgl.opengl.GL15.glDeleteBuffers(i);
     }
 
-    // ==================== SHADER/PROGRAM OPERATIONS ====================
-
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect program use to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void _glUseProgram(int program) {
-        RenderSystem.assertOnRenderThread();
-        try {
-            VitraNativeRenderer.useProgram(program);
-        } catch (Exception e) {
-            // Silent error
-        }
+    public static void _disableVertexAttribArray(int i) {
+        // No-op for DirectX 11 - vertex attributes handled differently
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Generate DirectX 11 program ID
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _glUseProgram(int i) {
+        RenderSystem.assertOnRenderThread();
+        getRenderer().useProgram(i);
+    }
+
+    /**
+     * @author
      */
     @Overwrite(remap = false)
     public static int glCreateProgram() {
@@ -766,42 +598,21 @@ public class GlStateManagerMixin {
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Redirect program deletion to DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
-    public static void glDeleteProgram(int program) {
+    public static void glDeleteProgram(int i) {
         RenderSystem.assertOnRenderThread();
-        // DirectX programs are managed by shader manager
+        getRenderer().deleteProgram(i);
     }
 
     /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason VAOs not used in DirectX 11
+     * @author
      */
     @Overwrite(remap = false)
     public static int _glGenVertexArrays() {
         RenderSystem.assertOnRenderThreadOrInit();
-        return 0;
-    }
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason Vertex attrib arrays handled by input layout in DirectX 11
-     */
-    @Overwrite(remap = false)
-    public static void _disableVertexAttribArray(int index) {
-        // NO-OP: DirectX 11 uses input layout instead
-    }
-
-    // ==================== ERROR HANDLING ====================
-
-    /**
-     * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 uses debug layer instead of glGetError
-     */
-    @Overwrite(remap = false)
-    public static int _getError() {
-        return 0; // No error
+        // DirectX 11 doesn't use VAOs - return dummy ID
+        return 1;
     }
 }

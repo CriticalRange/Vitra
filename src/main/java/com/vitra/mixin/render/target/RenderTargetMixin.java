@@ -1,7 +1,7 @@
 package com.vitra.mixin.render.target;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
@@ -60,10 +60,10 @@ public abstract class RenderTargetMixin {
      */
     @Overwrite
     public void bindWrite(boolean setViewport) {
-        VitraNativeRenderer.bindFramebuffer(36160, this.frameBufferId); // GL_FRAMEBUFFER
+        VitraD3D11Renderer.bindFramebuffer(36160, this.frameBufferId); // GL_FRAMEBUFFER
 
         if (setViewport) {
-            VitraNativeRenderer.setViewport(0, 0, this.viewWidth, this.viewHeight);
+            VitraD3D11Renderer.setViewport(0, 0, this.viewWidth, this.viewHeight);
         }
 
         this.bound = true;
@@ -107,7 +107,7 @@ public abstract class RenderTargetMixin {
      */
     @Overwrite
     public void unbindWrite() {
-        VitraNativeRenderer.bindFramebuffer(36160, 0);
+        VitraD3D11Renderer.bindFramebuffer(36160, 0);
         this.bound = false;
     }
 
@@ -137,7 +137,7 @@ public abstract class RenderTargetMixin {
         // This is how VulkanMod works - each RenderTarget has its own clear color
         // Without this, we use stale clear color (Mojang logo red persists)
 
-        VitraNativeRenderer.setClearColor(
+        VitraD3D11Renderer.setClearColor(
             this.clearChannels[0],
             this.clearChannels[1],
             this.clearChannels[2],
@@ -150,7 +150,7 @@ public abstract class RenderTargetMixin {
             clearFlags |= 256; // GL_DEPTH_BUFFER_BIT
         }
 
-        VitraNativeRenderer.clear(clearFlags);
+        VitraD3D11Renderer.clear(clearFlags);
         needClear = false;
     }
 

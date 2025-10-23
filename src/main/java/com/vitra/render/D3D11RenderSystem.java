@@ -1,7 +1,7 @@
 package com.vitra.render;
 
 import com.mojang.blaze3d.platform.Window;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.lwjgl.system.MemoryUtil;
@@ -113,7 +113,7 @@ public abstract class D3D11RenderSystem {
             // Initialize DirectX 11 via JNI
             // Note: Window handle is set via WindowMixin after GLFW window creation
             if (window != 0L) {
-                boolean success = VitraNativeRenderer.initializeDirectX(window, 1920, 1080, false, false);
+                boolean success = VitraD3D11Renderer.initializeDirectX(window, 1920, 1080, false, false);
                 if (success) {
                     LOGGER.info("✓ DirectX 11 initialized successfully");
                 } else {
@@ -216,8 +216,8 @@ public abstract class D3D11RenderSystem {
     public static void applyModelViewMatrix(Matrix4f mat) {
         mat.get(modelViewMatrix);
         // Upload to DirectX 11 constant buffer via JNI
-        VitraNativeRenderer.updateConstantBuffer(
-            VitraNativeRenderer.CONSTANT_BUFFER_SLOT_MATRICES,
+        VitraD3D11Renderer.updateConstantBuffer(
+            VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_MATRICES,
             modelViewMatrix
         );
     }
@@ -228,8 +228,8 @@ public abstract class D3D11RenderSystem {
     public static void applyProjectionMatrix(Matrix4f mat) {
         mat.get(projectionMatrix);
         // Upload to DirectX 11 constant buffer via JNI
-        VitraNativeRenderer.updateConstantBuffer(
-            VitraNativeRenderer.CONSTANT_BUFFER_SLOT_MATRICES,
+        VitraD3D11Renderer.updateConstantBuffer(
+            VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_MATRICES,
             projectionMatrix
         );
     }
@@ -248,8 +248,8 @@ public abstract class D3D11RenderSystem {
         P.mul(MV).get(MVP);
 
         // Upload MVP to DirectX 11
-        VitraNativeRenderer.updateConstantBuffer(
-            VitraNativeRenderer.CONSTANT_BUFFER_SLOT_MATRICES,
+        VitraD3D11Renderer.updateConstantBuffer(
+            VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_MATRICES,
             MVP
         );
     }
@@ -260,8 +260,8 @@ public abstract class D3D11RenderSystem {
     public static void setTextureMatrix(Matrix4f mat) {
         mat.get(textureMatrix);
         // Upload to DirectX 11 constant buffer
-        VitraNativeRenderer.updateConstantBuffer(
-            VitraNativeRenderer.CONSTANT_BUFFER_SLOT_MATRICES,
+        VitraD3D11Renderer.updateConstantBuffer(
+            VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_MATRICES,
             textureMatrix
         );
     }
@@ -305,8 +305,8 @@ public abstract class D3D11RenderSystem {
         modelOffset.put(2, z);
 
         // Upload to DirectX 11
-        VitraNativeRenderer.updateConstantBuffer(
-            VitraNativeRenderer.CONSTANT_BUFFER_SLOT_VECTORS,
+        VitraD3D11Renderer.updateConstantBuffer(
+            VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_VECTORS,
             modelOffset
         );
     }
@@ -321,8 +321,8 @@ public abstract class D3D11RenderSystem {
         shaderColor.put(3, a);
 
         // Upload to DirectX 11
-        VitraNativeRenderer.updateConstantBuffer(
-            VitraNativeRenderer.CONSTANT_BUFFER_SLOT_COLORS,
+        VitraD3D11Renderer.updateConstantBuffer(
+            VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_COLORS,
             shaderColor
         );
     }
@@ -337,8 +337,8 @@ public abstract class D3D11RenderSystem {
         shaderFogColor.put(3, a);
 
         // Upload to DirectX 11
-        VitraNativeRenderer.updateConstantBuffer(
-            VitraNativeRenderer.CONSTANT_BUFFER_SLOT_COLORS,
+        VitraD3D11Renderer.updateConstantBuffer(
+            VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_COLORS,
             shaderFogColor
         );
     }
@@ -380,7 +380,7 @@ public abstract class D3D11RenderSystem {
         boolean clearStencilBuffer = (mask & 0x400) != 0; // GL_STENCIL_BUFFER_BIT
 
         if (clearColorBuffer || clearDepthBuffer || clearStencilBuffer) {
-            VitraNativeRenderer.clearRenderTarget(
+            VitraD3D11Renderer.clearRenderTarget(
                 clearColorBuffer,
                 clearDepthBuffer,
                 clearStencilBuffer,
@@ -407,7 +407,7 @@ public abstract class D3D11RenderSystem {
     public static void disableDepthTest() {
         if (depthTest) {
             depthTest = false;
-            VitraNativeRenderer.setDepthTestEnabled(false);
+            VitraD3D11Renderer.setDepthTestEnabled(false);
         }
     }
 
@@ -417,7 +417,7 @@ public abstract class D3D11RenderSystem {
     public static void enableDepthTest() {
         if (!depthTest) {
             depthTest = true;
-            VitraNativeRenderer.setDepthTestEnabled(true);
+            VitraD3D11Renderer.setDepthTestEnabled(true);
         }
     }
 
@@ -427,7 +427,7 @@ public abstract class D3D11RenderSystem {
     public static void depthMask(boolean mask) {
         if (depthMask != mask) {
             depthMask = mask;
-            VitraNativeRenderer.setDepthWriteMask(mask);
+            VitraD3D11Renderer.setDepthWriteMask(mask);
         }
     }
 
@@ -437,7 +437,7 @@ public abstract class D3D11RenderSystem {
     public static void depthFunc(int func) {
         if (depthFunc != func) {
             depthFunc = func;
-            VitraNativeRenderer.setDepthFunc(translateDepthFunc(func));
+            VitraD3D11Renderer.setDepthFunc(translateDepthFunc(func));
         }
     }
 
@@ -466,7 +466,7 @@ public abstract class D3D11RenderSystem {
     public static void enableBlend() {
         if (!blendEnabled) {
             blendEnabled = true;
-            VitraNativeRenderer.setBlendEnabled(true);
+            VitraD3D11Renderer.setBlendEnabled(true);
         }
     }
 
@@ -476,7 +476,7 @@ public abstract class D3D11RenderSystem {
     public static void disableBlend() {
         if (blendEnabled) {
             blendEnabled = false;
-            VitraNativeRenderer.setBlendEnabled(false);
+            VitraD3D11Renderer.setBlendEnabled(false);
         }
     }
 
@@ -501,7 +501,7 @@ public abstract class D3D11RenderSystem {
 
             // Note: DirectX 11 blend state supports separate RGB/Alpha factors, but our JNI method
             // only accepts source/destination factor pairs. For now, use RGB factors for both.
-            VitraNativeRenderer.setBlendFunc(
+            VitraD3D11Renderer.setBlendFunc(
                 translateBlendFactor(srcFactorRGB),
                 translateBlendFactor(dstFactorRGB)
             );
@@ -541,7 +541,7 @@ public abstract class D3D11RenderSystem {
             colorMaskBlue = blue;
             colorMaskAlpha = alpha;
 
-            VitraNativeRenderer.setColorMask(red, green, blue, alpha);
+            VitraD3D11Renderer.setColorMask(red, green, blue, alpha);
         }
     }
 
@@ -553,7 +553,7 @@ public abstract class D3D11RenderSystem {
     public static void enableCull() {
         if (!cullEnabled) {
             cullEnabled = true;
-            VitraNativeRenderer.setCullEnabled(true);
+            VitraD3D11Renderer.setCullEnabled(true);
         }
     }
 
@@ -563,7 +563,7 @@ public abstract class D3D11RenderSystem {
     public static void disableCull() {
         if (cullEnabled) {
             cullEnabled = false;
-            VitraNativeRenderer.setCullEnabled(false);
+            VitraD3D11Renderer.setCullEnabled(false);
         }
     }
 
@@ -575,7 +575,7 @@ public abstract class D3D11RenderSystem {
     public static void setPolygonMode(int mode) {
         if (polygonMode != mode) {
             polygonMode = mode;
-            VitraNativeRenderer.setPolygonMode(translatePolygonMode(mode));
+            VitraD3D11Renderer.setPolygonMode(translatePolygonMode(mode));
         }
     }
 
@@ -628,7 +628,7 @@ public abstract class D3D11RenderSystem {
             depthBiasSlope = slope;
 
             if (depthBiasEnabled) {
-                VitraNativeRenderer.setDepthBias(constant, slope);
+                VitraD3D11Renderer.setDepthBias(constant, slope);
             }
         }
     }
@@ -639,7 +639,7 @@ public abstract class D3D11RenderSystem {
     public static void enablePolygonOffset() {
         if (!depthBiasEnabled) {
             depthBiasEnabled = true;
-            VitraNativeRenderer.setDepthBias(depthBiasConstant, depthBiasSlope);
+            VitraD3D11Renderer.setDepthBias(depthBiasConstant, depthBiasSlope);
         }
     }
 
@@ -649,7 +649,7 @@ public abstract class D3D11RenderSystem {
     public static void disablePolygonOffset() {
         if (depthBiasEnabled) {
             depthBiasEnabled = false;
-            VitraNativeRenderer.setDepthBias(0.0f, 0.0f);
+            VitraD3D11Renderer.setDepthBias(0.0f, 0.0f);
         }
     }
 
@@ -675,7 +675,7 @@ public abstract class D3D11RenderSystem {
         MemoryUtil.memFree(screenSize);
 
         // Shutdown DirectX 11 via JNI
-        VitraNativeRenderer.shutdown();
+        VitraD3D11Renderer.shutdown();
 
         LOGGER.info("D3D11RenderSystem shutdown complete");
     }

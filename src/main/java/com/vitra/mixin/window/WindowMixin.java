@@ -4,7 +4,7 @@ import com.mojang.blaze3d.platform.*;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.vitra.VitraMod;
 import com.vitra.render.VitraRenderer;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GLCapabilities;
 import org.slf4j.Logger;
@@ -133,7 +133,7 @@ public abstract class WindowMixin {
             // DirectX 11 swap chain VSync is set during creation
             // Changing VSync requires recreating the swap chain
             LOGGER.info("VSync changed to: {} - recreating DirectX 11 swap chain", vsync);
-            VitraNativeRenderer.recreateSwapChain();
+            VitraD3D11Renderer.recreateSwapChain();
         } catch (Exception e) {
             LOGGER.error("Failed to update VSync setting", e);
         }
@@ -184,7 +184,7 @@ public abstract class WindowMixin {
 
                 // Schedule swap chain recreation (matches VulkanMod's Renderer.scheduleSwapChainUpdate())
                 try {
-                    VitraNativeRenderer.recreateSwapChain();
+                    VitraD3D11Renderer.recreateSwapChain();
                 } catch (Exception e) {
                     LOGGER.error("Failed to recreate swap chain on framebuffer resize", e);
                 }
@@ -207,7 +207,7 @@ public abstract class WindowMixin {
 
             // Schedule swap chain recreation (matches VulkanMod's Renderer.scheduleSwapChainUpdate())
             try {
-                VitraNativeRenderer.recreateSwapChain();
+                VitraD3D11Renderer.recreateSwapChain();
             } catch (Exception e) {
                 LOGGER.error("Failed to recreate swap chain on window resize", e);
             }

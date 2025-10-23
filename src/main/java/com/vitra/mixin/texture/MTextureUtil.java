@@ -12,8 +12,8 @@ import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
 
 /**
- * Mixin to replace OpenGL texture operations with DirectX 11 equivalents.
- * Intercepts TextureUtil methods and redirects to Dx11Texture wrapper.
+ * Mixin to replace OpenGL texture operations with D3D11 equivalents.
+ * Intercepts TextureUtil methods and redirects to D3D11Texture wrapper.
  */
 @Mixin(TextureUtil.class)
 public class MTextureUtil {
@@ -44,8 +44,8 @@ public class MTextureUtil {
             }
 
             // Create texture with specified parameters using renderer-agnostic factory
-            // Note: For DirectX 12, texture will be created during upload()
-            // For DirectX 11, we need to create it explicitly
+            // Note: For D3D12, texture will be created during upload()
+            // For D3D11, we need to create it explicitly
             texture = VitraTextureFactory.getTexture(id);
             if (texture != null) {
                 // Upload empty texture to initialize it with correct dimensions

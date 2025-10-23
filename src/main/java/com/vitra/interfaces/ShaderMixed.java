@@ -1,27 +1,27 @@
 package com.vitra.interfaces;
 
-import com.vitra.render.dx11.DirectX11Pipeline;
+import com.vitra.render.d3d11.D3D11Pipeline;
 
 /**
- * Interface for ShaderInstance mixin to manage DirectX 11 pipeline binding.
- * This allows ShaderInstance to hold and manage DirectX 11 shader pipelines.
+ * Interface for ShaderInstance mixin to manage D3D11 pipeline binding.
+ * This allows ShaderInstance to hold and manage D3D11 shader pipelines.
  */
 public interface ShaderMixed {
     /**
-     * Get the DirectX 11 graphics pipeline associated with this shader.
-     * @return The DirectX 11 pipeline instance
+     * Get the D3D11 graphics pipeline associated with this shader.
+     * @return The D3D11 pipeline instance
      */
-    DirectX11Pipeline getPipeline();
+    D3D11Pipeline getPipeline();
 
     /**
-     * Set the DirectX 11 graphics pipeline for this shader.
-     * @param pipeline The DirectX 11 pipeline to bind
+     * Set the D3D11 graphics pipeline for this shader.
+     * @param pipeline The D3D11 pipeline to bind
      */
-    void setPipeline(DirectX11Pipeline pipeline);
+    void setPipeline(D3D11Pipeline pipeline);
 
     /**
      * Enable uniform updates for this shader.
-     * When enabled, the shader will update uniforms to DirectX 11 constant buffers.
+     * When enabled, the shader will update uniforms to D3D11 constant buffers.
      */
     void setDoUniformsUpdate();
 }

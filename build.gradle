@@ -44,7 +44,7 @@ dependencies {
 	include "org.lwjgl:lwjgl:${lwjgl_version}"
 	include "org.lwjgl:lwjgl-glfw:${lwjgl_version}"
 
-	// Platform-specific natives (Windows only for DirectX 11)
+	// Platform-specific natives (Windows only for D3D11)
 	runtimeOnly "org.lwjgl:lwjgl:${lwjgl_version}:natives-windows"
 	runtimeOnly "org.lwjgl:lwjgl-glfw:${lwjgl_version}:natives-windows"
 
@@ -52,7 +52,7 @@ dependencies {
 	include "org.lwjgl:lwjgl-glfw:${lwjgl_version}:natives-windows"
 
 	// Optional JNA dependency for future cross-platform native access
-	// Currently using JNI for Windows DirectX 11, but JNA could be used for other platforms
+	// Currently using JNI for Windows D3D11, but JNA could be used for other platforms
 	implementation "net.java.dev.jna:jna:${jna_version}"
 
 	// SLF4J for logging
@@ -103,7 +103,7 @@ task compileShaders {
 		def windowsKitsDir = file("${programFiles}\\Windows Kits\\10")
 
 		if (!windowsKitsDir.exists()) {
-			throw new GradleException("Windows 10 SDK not found. Please install Windows SDK with DirectX support.")
+			throw new GradleException("Windows 10 SDK not found. Please install Windows SDK with D3D support.")
 		}
 
 		// Find the latest SDK version with fxc.exe
@@ -120,10 +120,10 @@ task compileShaders {
 		}
 
 		if (fxcExe == null) {
-			throw new GradleException("fxc.exe not found in Windows SDK. Please install Windows SDK with DirectX support.")
+			throw new GradleException("fxc.exe not found in Windows SDK. Please install Windows SDK with D3D support.")
 		}
 
-		println "Using DirectX Shader Compiler: ${fxcExe}"
+		println "Using D3D Shader Compiler: ${fxcExe}"
 
 		// Shader list to compile - extended set covering Minecraft 1.21+ pipelines
 		def shaderNames = [
@@ -214,7 +214,7 @@ task compileShaders {
 // RenderDoc.dll will be loaded dynamically at runtime if present
 // No build-time dependency required for RenderDoc integration
 
-// DirectX 11 native library compilation task
+// D3D 11 native library compilation task
 task compileNativeDX11(type: Exec) {
 	// Only compile on Windows
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
@@ -239,28 +239,28 @@ task compileNativeDX11(type: Exec) {
 			throw new GradleException("vcvars64.bat not found at: ${vcvarsPath}")
 		}
 
-		println "Compiling DirectX 11 native library with Visual Studio at: ${vsPath}"
+		println "Compiling D3D 11 native library with Visual Studio at: ${vsPath}"
 		println "RenderDoc integration: Enabled (runtime dynamic loading)"
 	}
 
-	// Set up Visual Studio environment and compile DirectX 11
+	// Set up Visual Studio environment and compile D3D 11
 	commandLine 'cmd', '/c', "call \"${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt && " +
 		"set /p VS_PATH=<vs_path.txt && " +
 		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
 		"cl /LD /EHsc /D_DEBUG /MDd /I\"src/main/include\" " +
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
 		"\"src/main/cpp/vitra_d3d11.cpp\" " +
-		"/Fe:\"$buildDir/native/vitra-native.dll\" " +
+		"/Fe:\"$buildDir/native/vitra-d3d11.dll\" " +
 		"/link /LIBPATH:\"libs/x64\" d3d11.lib dxgi.lib d3dcompiler.lib dxguid.lib user32.lib Ole32.lib Shell32.lib"
 
 	workingDir projectDir
 
 	doLast {
-		println "DirectX 11 native library compiled successfully: ${file("$buildDir/native/vitra-native.dll")}"
+		println "D3D 11 native library compiled successfully: ${file("$buildDir/native/vitra-d3d11.dll")}"
 	}
 }
 
-// DirectX 12 Ultimate native library compilation task
+// D3D 12 Ultimate native library compilation task
 task compileNativeDX12(type: Exec) {
 	// Only compile on Windows
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
@@ -285,11 +285,11 @@ task compileNativeDX12(type: Exec) {
 			throw new GradleException("vcvars64.bat not found at: ${vcvarsPath}")
 		}
 
-		println "Compiling DirectX 12 Ultimate native library with Visual Studio at: ${vsPath}"
+		println "Compiling D3D 12 Ultimate native library with Visual Studio at: ${vsPath}"
 		println "RenderDoc integration: Enabled (runtime dynamic loading)"
 	}
 
-	// Set up Visual Studio environment and compile DirectX 12 Ultimate with D3D12MA
+	// Set up Visual Studio environment and compile D3D 12 Ultimate with D3D12MA
 	commandLine 'cmd', '/c', "call \"${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt && " +
 		"set /p VS_PATH=<vs_path.txt && " +
 		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
@@ -303,7 +303,7 @@ task compileNativeDX12(type: Exec) {
 	workingDir projectDir
 
 	doLast {
-		println "DirectX 12 Ultimate native library compiled successfully: ${file("$buildDir/native/vitra-d3d12.dll")}"
+		println "D3D 12 Ultimate native library compiled successfully: ${file("$buildDir/native/vitra-d3d12.dll")}"
 
 		// Copy dxcompiler.dll dependency from Windows SDK to build/native
 		def windowsKitsPath = "${System.env['ProgramFiles(x86)']}\\Windows Kits\\10"
@@ -317,7 +317,7 @@ task compileNativeDX12(type: Exec) {
 			println "Copied dxcompiler.dll dependency to build/native"
 		} else {
 			println "WARNING: dxcompiler.dll not found at ${dxcompilerSource}"
-			println "DirectX 12 may fail to load. Please install Windows 10 SDK."
+			println "D3D 12 may fail to load. Please install Windows 10 SDK."
 		}
 	}
 }

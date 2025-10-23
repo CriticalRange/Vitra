@@ -105,12 +105,12 @@ public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {
     }
 
     @Override
-    public com.vitra.render.VitraRenderer getDirectX11Renderer() {
-        return null; // This is a DirectX 12 renderer
+    public com.vitra.render.VitraRenderer getD3D11Renderer() {
+        return null; // This is a D3D12 renderer
     }
 
     @Override
-    public com.vitra.render.jni.VitraD3D12Renderer getDirectX12Renderer() {
+    public com.vitra.render.jni.VitraD3D12Renderer getD3D12Renderer() {
         return this;
     }
 

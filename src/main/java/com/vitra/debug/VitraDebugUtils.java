@@ -1,6 +1,6 @@
 package com.vitra.debug;
 
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +38,7 @@ public class VitraDebugUtils {
 
     /**
      * Initialize debugging system with configuration
-     * Note: DirectX debug layer is initialized in VitraNativeRenderer.initializeDirectX()
+     * Note: DirectX debug layer is initialized in VitraD3D11Renderer.initializeDirectX()
      * This method only sets up Java-side logging and message processing
      */
     public static synchronized void initializeDebug(boolean enabled, boolean verbose) {
@@ -68,11 +68,11 @@ public class VitraDebugUtils {
 
             logInfo("=== Vitra Debug System Initializing ===");
             logInfo("Configuration: enabled=" + enabled + ", verbose=" + verbose);
-            logInfo("Note: DirectX debug layer initialized via VitraNativeRenderer.initializeDirectX()");
+            logInfo("Note: DirectX debug layer initialized via VitraD3D11Renderer.initializeDirectX()");
 
             // Query device information
             try {
-                String deviceInfo = VitraNativeRenderer.nativeGetDeviceInfo();
+                String deviceInfo = VitraD3D11Renderer.nativeGetDeviceInfo();
                 if (deviceInfo != null && !deviceInfo.isEmpty()) {
                     logInfo("Device Info: " + deviceInfo);
                 }
@@ -133,10 +133,10 @@ public class VitraDebugUtils {
         try {
             // CRITICAL: Call native processDebugMessages to write dx11_native_*.log
             // This processes ID3D11InfoQueue messages and writes them to native log file
-            VitraNativeRenderer.nativeProcessDebugMessages();
+            VitraD3D11Renderer.nativeProcessDebugMessages();
 
             // Also get messages from native DirectX debug layer for Java-side logging
-            String nativeMessages = VitraNativeRenderer.nativeGetDebugMessages();
+            String nativeMessages = VitraD3D11Renderer.nativeGetDebugMessages();
             if (nativeMessages != null && !nativeMessages.isEmpty()) {
                 String[] messages = nativeMessages.split("\n");
                 for (String message : messages) {
@@ -146,7 +146,7 @@ public class VitraDebugUtils {
                 }
 
                 // Clear native message queue after retrieval
-                VitraNativeRenderer.nativeClearDebugMessages();
+                VitraD3D11Renderer.nativeClearDebugMessages();
             }
 
             // Process queued messages
@@ -267,7 +267,7 @@ public class VitraDebugUtils {
 
         // Query native device info if available
         try {
-            String deviceInfo = VitraNativeRenderer.nativeGetDeviceInfo();
+            String deviceInfo = VitraD3D11Renderer.nativeGetDeviceInfo();
             if (deviceInfo != null && !deviceInfo.isEmpty()) {
                 stats.append("Device Info: ").append(deviceInfo).append("\n");
             }

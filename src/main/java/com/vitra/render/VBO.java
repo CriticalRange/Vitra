@@ -3,7 +3,7 @@ package com.vitra.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
@@ -80,7 +80,7 @@ public class VBO {
 
         // Free old vertex buffer if exists
         if (this.vertexBufferHandle != 0) {
-            VitraNativeRenderer.deleteBuffer((int) this.vertexBufferHandle);
+            VitraD3D11Renderer.deleteBuffer((int) this.vertexBufferHandle);
             this.vertexBufferHandle = 0;
         }
 
@@ -90,8 +90,8 @@ public class VBO {
         // Create new DirectX 11 vertex buffer with explicit stride
         // Use GL_ARRAY_BUFFER constant (34962) for vertex buffers
         int bufferId = generateBufferId();
-        VitraNativeRenderer.bindBuffer(34962, bufferId); // GL_ARRAY_BUFFER
-        VitraNativeRenderer.bufferData(34962, data, 0x88E4, stride); // GL_STREAM_DRAW with stride
+        VitraD3D11Renderer.bindBuffer(34962, bufferId); // GL_ARRAY_BUFFER
+        VitraD3D11Renderer.bufferData(34962, data, 0x88E4, stride); // GL_STREAM_DRAW with stride
 
         this.vertexBufferHandle = bufferId;
 
@@ -105,7 +105,7 @@ public class VBO {
     public void uploadIndexBuffer(ByteBuffer data) {
         // Free old index buffer if not auto-indexed
         if (this.indexBufferHandle != 0 && !this.autoIndexed) {
-            VitraNativeRenderer.deleteBuffer((int) this.indexBufferHandle);
+            VitraD3D11Renderer.deleteBuffer((int) this.indexBufferHandle);
             this.indexBufferHandle = 0;
         }
 
@@ -173,8 +173,8 @@ public class VBO {
         // Create new DirectX 11 index buffer
         // Use GL_ELEMENT_ARRAY_BUFFER constant (34963) for index buffers
         int bufferId = generateBufferId();
-        VitraNativeRenderer.bindBuffer(34963, bufferId); // GL_ELEMENT_ARRAY_BUFFER
-        VitraNativeRenderer.bufferData(34963, data, 0x88E4); // GL_STREAM_DRAW
+        VitraD3D11Renderer.bindBuffer(34963, bufferId); // GL_ELEMENT_ARRAY_BUFFER
+        VitraD3D11Renderer.bufferData(34963, data, 0x88E4); // GL_STREAM_DRAW
 
         this.indexBufferHandle = bufferId;
         this.autoIndexed = false;
@@ -196,12 +196,12 @@ public class VBO {
         RenderSystem.setShader(() -> shaderInstance);
 
         // Apply matrices
-        VitraNativeRenderer.setModelViewMatrix(matrixToFloatArray(modelView));
-        VitraNativeRenderer.setProjectionMatrix(matrixToFloatArray(projection));
+        VitraD3D11Renderer.setModelViewMatrix(matrixToFloatArray(modelView));
+        VitraD3D11Renderer.setProjectionMatrix(matrixToFloatArray(projection));
 
         // Set primitive topology
         int glMode = this.mode.asGLMode;
-        VitraNativeRenderer.setPrimitiveTopology(glMode);
+        VitraD3D11Renderer.setPrimitiveTopology(glMode);
 
         // Apply shader uniforms
         shaderInstance.setDefaultUniforms(VertexFormat.Mode.QUADS, modelView, projection,
@@ -214,11 +214,11 @@ public class VBO {
         // Draw
         if (this.indexBufferHandle != 0) {
             // Indexed draw
-            VitraNativeRenderer.drawWithVertexFormat(this.vertexBufferHandle, this.indexBufferHandle,
+            VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, this.indexBufferHandle,
                 0, 0, this.indexCount, 1, vertexFormatDesc);
         } else {
             // Non-indexed draw
-            VitraNativeRenderer.drawWithVertexFormat(this.vertexBufferHandle, 0,
+            VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, 0,
                 0, 0, this.vertexCount, 1, vertexFormatDesc);
         }
 
@@ -239,10 +239,10 @@ public class VBO {
 
         // Draw using current shader state
         if (this.indexBufferHandle != 0) {
-            VitraNativeRenderer.drawWithVertexFormat(this.vertexBufferHandle, this.indexBufferHandle,
+            VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, this.indexBufferHandle,
                 0, 0, this.indexCount, 1, vertexFormatDesc);
         } else {
-            VitraNativeRenderer.drawWithVertexFormat(this.vertexBufferHandle, 0,
+            VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, 0,
                 0, 0, this.vertexCount, 1, vertexFormatDesc);
         }
 
@@ -260,13 +260,13 @@ public class VBO {
 
         // Free vertex buffer
         if (this.vertexBufferHandle != 0) {
-            VitraNativeRenderer.deleteBuffer((int) this.vertexBufferHandle);
+            VitraD3D11Renderer.deleteBuffer((int) this.vertexBufferHandle);
             this.vertexBufferHandle = 0;
         }
 
         // Free index buffer (if not auto-indexed)
         if (this.indexBufferHandle != 0 && !this.autoIndexed) {
-            VitraNativeRenderer.deleteBuffer((int) this.indexBufferHandle);
+            VitraD3D11Renderer.deleteBuffer((int) this.indexBufferHandle);
             this.indexBufferHandle = 0;
         }
 
@@ -372,14 +372,14 @@ public class VBO {
         private void resize(int newCapacity) {
             // Free old buffer
             if (this.bufferHandle != 0) {
-                VitraNativeRenderer.deleteBuffer((int) this.bufferHandle);
+                VitraD3D11Renderer.deleteBuffer((int) this.bufferHandle);
             }
 
             // Create new larger buffer
             ByteBuffer indexData = generateIndexData(newCapacity);
             int bufferId = generateBufferId();
-            VitraNativeRenderer.bindBuffer(34963, bufferId); // GL_ELEMENT_ARRAY_BUFFER
-            VitraNativeRenderer.bufferData(34963, indexData, 0x88E4); // GL_STREAM_DRAW
+            VitraD3D11Renderer.bindBuffer(34963, bufferId); // GL_ELEMENT_ARRAY_BUFFER
+            VitraD3D11Renderer.bufferData(34963, indexData, 0x88E4); // GL_STREAM_DRAW
 
             this.bufferHandle = bufferId;
             this.capacity = newCapacity;

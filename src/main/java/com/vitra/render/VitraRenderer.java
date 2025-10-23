@@ -3,7 +3,7 @@ package com.vitra.render;
 import com.vitra.config.RendererType;
 import com.vitra.config.VitraConfig;
 import com.vitra.core.VitraCore;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import com.vitra.render.jni.VitraD3D12Renderer;
 import com.vitra.render.jni.D3D11ShaderManager;
 import com.vitra.render.jni.D3D11BufferManager;
@@ -140,7 +140,7 @@ public class VitraRenderer extends AbstractRenderer {
                 }
 
                 // Initialize debug system before DirectX initialization
-                VitraNativeRenderer.initializeDebug(debugMode, verboseMode);
+                VitraD3D11Renderer.initializeDebug(debugMode, verboseMode);
 
                 // Initialize OpenGL interceptor to redirect OpenGL calls to DirectX
                 GLInterceptor.initialize();
@@ -157,7 +157,7 @@ public class VitraRenderer extends AbstractRenderer {
                 logger.info("GLFW window: 0x{}, Win32 HWND: 0x{}",
                     Long.toHexString(windowHandle), Long.toHexString(nativeWindowHandle));
 
-                boolean success = VitraNativeRenderer.initializeDirectXSafe(nativeWindowHandle, 1920, 1080, debugMode, useWarp);
+                boolean success = VitraD3D11Renderer.initializeDirectXSafe(nativeWindowHandle, 1920, 1080, debugMode, useWarp);
                 if (success) {
                     logger.info("Native DirectX 11 initialized successfully (debug={})", debugMode);
 
@@ -176,9 +176,9 @@ public class VitraRenderer extends AbstractRenderer {
 
                     // CRITICAL FIX: Ensure default shader pipeline is bound immediately after initialization
                     // This prevents black screen by ensuring shaders are available for first draw calls
-                    long defaultPipeline = VitraNativeRenderer.getDefaultShaderPipeline();
+                    long defaultPipeline = VitraD3D11Renderer.getDefaultShaderPipeline();
                     if (defaultPipeline != 0) {
-                        VitraNativeRenderer.setShaderPipeline(defaultPipeline);
+                        VitraD3D11Renderer.setShaderPipeline(defaultPipeline);
                         logger.info("Default shader pipeline bound: handle=0x{}", Long.toHexString(defaultPipeline));
                     } else {
                         logger.error("Failed to get default shader pipeline handle - this will cause black screen!");
@@ -246,7 +246,7 @@ public class VitraRenderer extends AbstractRenderer {
             logger.info("OpenGL interceptor shutdown");
 
             // Shutdown native renderer safely with debug cleanup
-            VitraNativeRenderer.shutdownSafe();
+            VitraD3D11Renderer.shutdownSafe();
             logger.info("Native DirectX 11 shutdown completed");
 
         } catch (Exception e) {
@@ -311,8 +311,8 @@ public class VitraRenderer extends AbstractRenderer {
             activeRenderer.endFrame();
 
             // Process debug messages for DirectX 11
-            if (getRendererType() == RendererType.DIRECTX11 && VitraNativeRenderer.isDebugEnabled()) {
-                VitraNativeRenderer.processDebugMessages();
+            if (getRendererType() == RendererType.DIRECTX11 && VitraD3D11Renderer.isDebugEnabled()) {
+                VitraD3D11Renderer.processDebugMessages();
             }
             // Process debug messages for DirectX 12
             else if (getRendererType() == RendererType.DIRECTX12 && d3d12Renderer != null) {
@@ -428,9 +428,9 @@ public class VitraRenderer extends AbstractRenderer {
         stats.append("Verbose Logging: ").append(config != null ? config.isVerboseLogging() : false).append("\n");
 
         // Include debug stats if available
-        if (VitraNativeRenderer.isDebugEnabled()) {
+        if (VitraD3D11Renderer.isDebugEnabled()) {
             stats.append("\n--- Debug System ---\n");
-            stats.append(VitraNativeRenderer.getDebugStats());
+            stats.append(VitraD3D11Renderer.getDebugStats());
         }
 
         // Include component stats
@@ -449,21 +449,21 @@ public class VitraRenderer extends AbstractRenderer {
 
     // Debug-specific methods
     public void processDebugMessages() {
-        VitraNativeRenderer.processDebugMessages();
+        VitraD3D11Renderer.processDebugMessages();
     }
 
     public boolean isDebugAvailable() {
-        return VitraNativeRenderer.isDebugEnabled();
+        return VitraD3D11Renderer.isDebugEnabled();
     }
 
     // Feature access methods
     @Override
-    public VitraRenderer getDirectX11Renderer() {
+    public VitraRenderer getD3D11Renderer() {
         return (getRendererType() == RendererType.DIRECTX11) ? this : null;
     }
 
     @Override
-    public com.vitra.render.jni.VitraD3D12Renderer getDirectX12Renderer() {
+    public com.vitra.render.jni.VitraD3D12Renderer getD3D12Renderer() {
         return (getRendererType() == RendererType.DIRECTX12) ? d3d12Renderer : null;
     }
 
@@ -499,7 +499,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (isFullyInitialized()) {
             // Use device info to get a handle for verification
             // This doesn't return the actual device handle but provides a way to verify initialization
-            return VitraNativeRenderer.isInitialized() ? 0x12345678L : 0L;
+            return VitraD3D11Renderer.isInitialized() ? 0x12345678L : 0L;
         }
         return 0L;
     }
@@ -526,7 +526,7 @@ public class VitraRenderer extends AbstractRenderer {
 
     public void waitForIdle() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.waitForIdle();
+            VitraD3D11Renderer.waitForIdle();
         }
     }
 
@@ -566,7 +566,7 @@ public class VitraRenderer extends AbstractRenderer {
             // Extract primitive mode from mode object and vertex count from format
             int primitiveMode = getPrimitiveModeFromObject(mode);
             int vertexSize = getVertexSizeFromFormat(format);
-            VitraNativeRenderer.drawMesh(vertexBuffer, indexBuffer, vertexCount, 0, primitiveMode, vertexSize);
+            VitraD3D11Renderer.drawMesh(vertexBuffer, indexBuffer, vertexCount, 0, primitiveMode, vertexSize);
         }
     }
 
@@ -589,14 +589,14 @@ public class VitraRenderer extends AbstractRenderer {
     // Window and display methods
     public void setVsync(boolean vsync) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.setVsync(vsync);
+            VitraD3D11Renderer.setVsync(vsync);
             System.out.println("[Vitra] Vsync " + (vsync ? "enabled" : "disabled"));
         }
     }
 
     public void presentFrame() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.presentFrame();
+            VitraD3D11Renderer.presentFrame();
         }
     }
 
@@ -605,38 +605,38 @@ public class VitraRenderer extends AbstractRenderer {
     // GUI Optimization Methods
     public void optimizeCrosshairRendering() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeCrosshairRendering();
+            VitraD3D11Renderer.optimizeCrosshairRendering();
         }
     }
 
     public void beginTextBatch() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.beginTextBatch();
+            VitraD3D11Renderer.beginTextBatch();
         }
     }
 
     public void endTextBatch() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.endTextBatch();
+            VitraD3D11Renderer.endTextBatch();
         }
     }
 
     // Screen Optimization Methods
     public void optimizeScreenBackground() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeScreenBackground(0); // 0 = default screen type
+            VitraD3D11Renderer.optimizeScreenBackground(0); // 0 = default screen type
         }
     }
 
     public void optimizeDirtBackground(int vOffset) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeDirtBackground(vOffset);
+            VitraD3D11Renderer.optimizeDirtBackground(vOffset);
         }
     }
 
     public void optimizeTooltipRendering(int lineCount) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeTooltipRendering(lineCount);
+            VitraD3D11Renderer.optimizeTooltipRendering(lineCount);
         }
     }
 
@@ -644,7 +644,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (isFullyInitialized()) {
             // Combine x and y into a single slot ID (or use just x as slot ID)
             int slotId = x + y * 100; // Simple combination
-            VitraNativeRenderer.optimizeSlotRendering(slotId);
+            VitraD3D11Renderer.optimizeSlotRendering(slotId);
         }
     }
 
@@ -652,87 +652,87 @@ public class VitraRenderer extends AbstractRenderer {
         if (isFullyInitialized()) {
             // Combine x and y into a single slot ID
             int slotId = x + y * 100; // Simple combination
-            VitraNativeRenderer.optimizeSlotHighlight(slotId);
+            VitraD3D11Renderer.optimizeSlotHighlight(slotId);
         }
     }
 
     public void optimizeContainerLabels() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeContainerLabels(0); // 0 = default label ID
+            VitraD3D11Renderer.optimizeContainerLabels(0); // 0 = default label ID
         }
     }
 
     public void optimizeContainerBackground() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeContainerBackground(0); // 0 = default container ID
+            VitraD3D11Renderer.optimizeContainerBackground(0); // 0 = default container ID
         }
     }
 
     public void optimizePanoramaRendering() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizePanoramaRendering(0); // 0 = default panorama ID
+            VitraD3D11Renderer.optimizePanoramaRendering(0); // 0 = default panorama ID
         }
     }
 
     public void optimizeLogoRendering() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeLogoRendering(64); // 64 = default logo size
+            VitraD3D11Renderer.optimizeLogoRendering(64); // 64 = default logo size
         }
     }
 
     public void optimizeButtonRendering() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeButtonRendering(0); // 0 = default button ID
+            VitraD3D11Renderer.optimizeButtonRendering(0); // 0 = default button ID
         }
     }
 
     public void optimizeFadingBackground(int alpha) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeFadingBackground(alpha);
+            VitraD3D11Renderer.optimizeFadingBackground(alpha);
         }
     }
 
     // Utility Methods
     public void prepareRenderContext() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.prepareRenderContext();
+            VitraD3D11Renderer.prepareRenderContext();
         }
     }
 
     public void cleanupRenderContext() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.cleanupRenderContext();
+            VitraD3D11Renderer.cleanupRenderContext();
         }
     }
 
     public int getOptimalFramerateLimit() {
         if (isFullyInitialized()) {
-            return VitraNativeRenderer.getOptimalFramerateLimit();
+            return VitraD3D11Renderer.getOptimalFramerateLimit();
         }
         return 0;
     }
 
     public void handleDisplayResize() {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.handleDisplayResize(1920, 1080); // Default dimensions, will be updated by actual resize events
+            VitraD3D11Renderer.handleDisplayResize(1920, 1080); // Default dimensions, will be updated by actual resize events
         }
     }
 
     public void setWindowActiveState(boolean active) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.setWindowActiveState(active);
+            VitraD3D11Renderer.setWindowActiveState(active);
         }
     }
 
     public static boolean isDirectX11Initialized() {
-        return VitraNativeRenderer.isInitialized();
+        return VitraD3D11Renderer.isInitialized();
     }
 
     // Shader Helper Methods
     public void precompileShaderForDirectX11(Object shader) {
         if (isFullyInitialized()) {
             String shaderSource = shader.toString();
-            VitraNativeRenderer.precompileShaderForDirectX11(shaderSource, 0); // 0 = vertex shader
+            VitraD3D11Renderer.precompileShaderForDirectX11(shaderSource, 0); // 0 = vertex shader
         }
     }
 
@@ -740,7 +740,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (isFullyInitialized()) {
             // Convert shader to byte array for compatibility check
             byte[] shaderData = shader.toString().getBytes();
-            return VitraNativeRenderer.isShaderDirectX11Compatible(shaderData);
+            return VitraD3D11Renderer.isShaderDirectX11Compatible(shaderData);
         }
         return false;
     }
@@ -748,7 +748,7 @@ public class VitraRenderer extends AbstractRenderer {
     public Object getOptimizedDirectX11Shader(Object original) {
         if (isFullyInitialized()) {
             String shaderName = original.toString();
-            long handle = VitraNativeRenderer.getOptimizedDirectX11Shader(shaderName);
+            long handle = VitraD3D11Renderer.getOptimizedDirectX11Shader(shaderName);
             return handle != 0 ? handle : original;
         }
         return original;
@@ -759,7 +759,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (isFullyInitialized()) {
             float[] mat1 = convertToFloatArray(matrix1);
             float[] mat2 = convertToFloatArray(matrix2);
-            float[] result = VitraNativeRenderer.optimizeMatrixMultiplication(mat1, mat2);
+            float[] result = VitraD3D11Renderer.optimizeMatrixMultiplication(mat1, mat2);
             // Optionally store the result back if the matrices are mutable
         }
     }
@@ -767,7 +767,7 @@ public class VitraRenderer extends AbstractRenderer {
     public void optimizeMatrixInversion(Object matrix) {
         if (isFullyInitialized()) {
             float[] mat = convertToFloatArray(matrix);
-            float[] result = VitraNativeRenderer.optimizeMatrixInversion(mat);
+            float[] result = VitraD3D11Renderer.optimizeMatrixInversion(mat);
             // Optionally store the result back if the matrix is mutable
         }
     }
@@ -775,39 +775,39 @@ public class VitraRenderer extends AbstractRenderer {
     public void optimizeMatrixTranspose(Object matrix) {
         if (isFullyInitialized()) {
             float[] mat = convertToFloatArray(matrix);
-            float[] result = VitraNativeRenderer.optimizeMatrixTranspose(mat);
+            float[] result = VitraD3D11Renderer.optimizeMatrixTranspose(mat);
             // Optionally store the result back if the matrix is mutable
         }
     }
 
     public void adjustOrthographicProjection(float left, float right, float bottom, float top, float zNear, float zFar) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.adjustOrthographicProjection(left, right, bottom, top, zNear, zFar);
+            VitraD3D11Renderer.adjustOrthographicProjection(left, right, bottom, top, zNear, zFar);
         }
     }
 
     public void adjustPerspectiveProjection(float fovy, float aspect, float zNear, float zFar) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.adjustPerspectiveProjection(fovy, aspect, zNear, zFar);
+            VitraD3D11Renderer.adjustPerspectiveProjection(fovy, aspect, zNear, zFar);
         }
     }
 
     public void optimizeTranslationMatrix(float x, float y, float z) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeTranslationMatrix(x, y, z);
+            VitraD3D11Renderer.optimizeTranslationMatrix(x, y, z);
         }
     }
 
     public void optimizeScaleMatrix(float x, float y, float z) {
         if (isFullyInitialized()) {
-            VitraNativeRenderer.optimizeScaleMatrix(x, y, z);
+            VitraD3D11Renderer.optimizeScaleMatrix(x, y, z);
         }
     }
 
     public void optimizeRotationMatrix(float angle, float x, float y, float z) {
         if (isFullyInitialized()) {
             float[] axis = {x, y, z};
-            float[] result = VitraNativeRenderer.optimizeRotationMatrix(angle, axis);
+            float[] result = VitraD3D11Renderer.optimizeRotationMatrix(angle, axis);
             // Optionally store the result back if needed
         }
     }
@@ -815,7 +815,7 @@ public class VitraRenderer extends AbstractRenderer {
     public boolean isMatrixDirectX11Optimized(Object matrix) {
         if (isFullyInitialized()) {
             float[] mat = convertToFloatArray(matrix);
-            return VitraNativeRenderer.isMatrixDirectX11Optimized(mat);
+            return VitraD3D11Renderer.isMatrixDirectX11Optimized(mat);
         }
         return false;
     }
@@ -964,7 +964,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.setViewport(x, y, width, height, 0.0f, 1.0f);
         } else {
-            VitraNativeRenderer.setViewport(x, y, width, height);
+            VitraD3D11Renderer.setViewport(x, y, width, height);
         }
     }
 
@@ -973,7 +973,7 @@ public class VitraRenderer extends AbstractRenderer {
             // DirectX 12 scissor - would need implementation
             logger.debug("DirectX 12 scissor not yet implemented");
         } else {
-            VitraNativeRenderer.setScissor(x, y, width, height);
+            VitraD3D11Renderer.setScissor(x, y, width, height);
         }
     }
 
@@ -981,7 +981,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 resetScissor not yet implemented");
         } else {
-            VitraNativeRenderer.resetScissor();
+            VitraD3D11Renderer.resetScissor();
         }
     }
 
@@ -989,7 +989,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 blend state handled via PSO");
         } else {
-            VitraNativeRenderer.enableBlend();
+            VitraD3D11Renderer.enableBlend();
         }
     }
 
@@ -997,7 +997,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 blend state handled via PSO");
         } else {
-            VitraNativeRenderer.disableBlend();
+            VitraD3D11Renderer.disableBlend();
         }
     }
 
@@ -1005,7 +1005,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 blend func handled via PSO");
         } else {
-            VitraNativeRenderer.blendFunc(sfactor, dfactor);
+            VitraD3D11Renderer.blendFunc(sfactor, dfactor);
         }
     }
 
@@ -1013,7 +1013,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 blend func handled via PSO");
         } else {
-            VitraNativeRenderer.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+            VitraD3D11Renderer.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
         }
     }
 
@@ -1021,7 +1021,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 blend equation handled via PSO");
         } else {
-            VitraNativeRenderer.blendEquation(mode);
+            VitraD3D11Renderer.blendEquation(mode);
         }
     }
 
@@ -1029,7 +1029,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 cull state handled via PSO");
         } else {
-            VitraNativeRenderer.enableCull();
+            VitraD3D11Renderer.enableCull();
         }
     }
 
@@ -1037,7 +1037,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 cull state handled via PSO");
         } else {
-            VitraNativeRenderer.disableCull();
+            VitraD3D11Renderer.disableCull();
         }
     }
 
@@ -1045,7 +1045,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 depth test handled via PSO");
         } else {
-            VitraNativeRenderer.enableDepthTest();
+            VitraD3D11Renderer.enableDepthTest();
         }
     }
 
@@ -1053,7 +1053,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 depth test handled via PSO");
         } else {
-            VitraNativeRenderer.disableDepthTest();
+            VitraD3D11Renderer.disableDepthTest();
         }
     }
 
@@ -1061,7 +1061,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 depth mask handled via PSO");
         } else {
-            VitraNativeRenderer.depthMask(flag);
+            VitraD3D11Renderer.depthMask(flag);
         }
     }
 
@@ -1069,7 +1069,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 depth func handled via PSO");
         } else {
-            VitraNativeRenderer.setDepthFunc(func);
+            VitraD3D11Renderer.setDepthFunc(func);
         }
     }
 
@@ -1077,7 +1077,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 color mask handled via PSO");
         } else {
-            VitraNativeRenderer.colorMask(red, green, blue, alpha);
+            VitraD3D11Renderer.colorMask(red, green, blue, alpha);
         }
     }
 
@@ -1085,7 +1085,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 polygon offset handled via rasterizer state");
         } else {
-            VitraNativeRenderer.polygonOffset(factor, units);
+            VitraD3D11Renderer.polygonOffset(factor, units);
         }
     }
 
@@ -1093,7 +1093,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 polygon offset handled via rasterizer state");
         } else {
-            VitraNativeRenderer.enablePolygonOffset();
+            VitraD3D11Renderer.enablePolygonOffset();
         }
     }
 
@@ -1101,7 +1101,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 polygon offset handled via rasterizer state");
         } else {
-            VitraNativeRenderer.disablePolygonOffset();
+            VitraD3D11Renderer.disablePolygonOffset();
         }
     }
 
@@ -1109,7 +1109,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 logic op not commonly used");
         } else {
-            VitraNativeRenderer.logicOp(opcode);
+            VitraD3D11Renderer.logicOp(opcode);
         }
     }
 
@@ -1117,7 +1117,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 logic op not commonly used");
         } else {
-            VitraNativeRenderer.enableColorLogicOp();
+            VitraD3D11Renderer.enableColorLogicOp();
         }
     }
 
@@ -1125,7 +1125,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 logic op not commonly used");
         } else {
-            VitraNativeRenderer.disableColorLogicOp();
+            VitraD3D11Renderer.disableColorLogicOp();
         }
     }
 
@@ -1133,17 +1133,17 @@ public class VitraRenderer extends AbstractRenderer {
     public void bindTexture(int textureId) {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             // Use D3D11GlTexture mapping system (works for both DX11 and DX12)
-            com.vitra.render.dx11.D3D11GlTexture.bindTexture(textureId);
+            com.vitra.render.d3d11.D3D11GlTexture.bindTexture(textureId);
         } else {
-            com.vitra.render.dx11.D3D11GlTexture.bindTexture(textureId);
+            com.vitra.render.d3d11.D3D11GlTexture.bindTexture(textureId);
         }
     }
 
     public void deleteTexture(int textureId) {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
-            com.vitra.render.dx11.D3D11GlTexture.deleteTexture(textureId);
+            com.vitra.render.d3d11.D3D11GlTexture.deleteTexture(textureId);
         } else {
-            VitraNativeRenderer.deleteTexture(textureId);
+            VitraD3D11Renderer.deleteTexture(textureId);
         }
     }
 
@@ -1151,7 +1151,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 texture parameters handled during texture creation");
         } else {
-            VitraNativeRenderer.texParameteri(target, pname, param);
+            VitraD3D11Renderer.texParameteri(target, pname, param);
         }
     }
 
@@ -1159,7 +1159,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 pixel store not needed");
         } else {
-            VitraNativeRenderer.pixelStore(pname, param);
+            VitraD3D11Renderer.pixelStore(pname, param);
         }
     }
 
@@ -1168,7 +1168,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.setShaderColor(r, g, b, a);
         } else {
-            VitraNativeRenderer.setShaderColor(r, g, b, a);
+            VitraD3D11Renderer.setShaderColor(r, g, b, a);
         }
     }
 
@@ -1181,7 +1181,7 @@ public class VitraRenderer extends AbstractRenderer {
                 matrix[12], matrix[13], matrix[14], matrix[15]
             );
         } else {
-            VitraNativeRenderer.setProjectionMatrix(matrix);
+            VitraD3D11Renderer.setProjectionMatrix(matrix);
         }
     }
 
@@ -1194,7 +1194,7 @@ public class VitraRenderer extends AbstractRenderer {
                 matrix[12], matrix[13], matrix[14], matrix[15]
             );
         } else {
-            VitraNativeRenderer.setTextureMatrix(matrix);
+            VitraD3D11Renderer.setTextureMatrix(matrix);
         }
     }
 
@@ -1203,7 +1203,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 topology set via PSO or draw call");
         } else {
-            VitraNativeRenderer.setPrimitiveTopology(mode);
+            VitraD3D11Renderer.setPrimitiveTopology(mode);
         }
     }
 
@@ -1212,7 +1212,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 framebuffer binding handled differently");
         } else {
-            VitraNativeRenderer.bindFramebuffer(target, framebuffer);
+            VitraD3D11Renderer.bindFramebuffer(target, framebuffer);
         }
     }
 
@@ -1220,7 +1220,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.recreateSwapChain();
         } else {
-            VitraNativeRenderer.recreateSwapChain();
+            VitraD3D11Renderer.recreateSwapChain();
         }
     }
 
@@ -1229,7 +1229,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             return "DirectX 12 Ultimate Renderer";
         } else {
-            return VitraNativeRenderer.getDeviceInfo();
+            return VitraD3D11Renderer.getDeviceInfo();
         }
     }
 
@@ -1237,7 +1237,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             return com.vitra.render.jni.VitraD3D12Native.getMaxTextureSize();
         } else {
-            return VitraNativeRenderer.getMaxTextureSize();
+            return VitraD3D11Renderer.getMaxTextureSize();
         }
     }
 
@@ -1246,7 +1246,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.clear(r, g, b, a);
         } else {
-            VitraNativeRenderer.setClearColor(r, g, b, a);
+            VitraD3D11Renderer.setClearColor(r, g, b, a);
         }
     }
 
@@ -1258,7 +1258,7 @@ public class VitraRenderer extends AbstractRenderer {
             if (clearColor) com.vitra.render.jni.VitraD3D12Native.clear(0, 0, 0, 0);
             if (clearDepth) com.vitra.render.jni.VitraD3D12Native.clearDepthBuffer(1.0f);
         } else {
-            VitraNativeRenderer.clear(mask);
+            VitraD3D11Renderer.clear(mask);
         }
     }
 
@@ -1266,7 +1266,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.clearDepthBuffer(depth);
         } else {
-            VitraNativeRenderer.clearDepth(depth);
+            VitraD3D11Renderer.clearDepth(depth);
         }
     }
 
@@ -1274,7 +1274,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 polygon mode handled via rasterizer state");
         } else {
-            VitraNativeRenderer.setPolygonMode(mode);
+            VitraD3D11Renderer.setPolygonMode(mode);
         }
     }
 
@@ -1282,7 +1282,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 texture parameters handled during texture creation");
         } else {
-            VitraNativeRenderer.setTextureParameterf(target, pname, param);
+            VitraD3D11Renderer.setTextureParameterf(target, pname, param);
         }
     }
 
@@ -1290,7 +1290,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             return 0; // DirectX 12 doesn't have direct equivalent
         } else {
-            return VitraNativeRenderer.getTexLevelParameter(target, level, pname);
+            return VitraD3D11Renderer.getTexLevelParameter(target, level, pname);
         }
     }
 
@@ -1298,7 +1298,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 framebuffer handled via render targets");
         } else {
-            VitraNativeRenderer.framebufferTexture2D(target, attachment, textarget, texture, level);
+            VitraD3D11Renderer.framebufferTexture2D(target, attachment, textarget, texture, level);
         }
     }
 
@@ -1306,7 +1306,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 renderbuffer handled via textures");
         } else {
-            VitraNativeRenderer.bindRenderbuffer(target, renderbuffer);
+            VitraD3D11Renderer.bindRenderbuffer(target, renderbuffer);
         }
     }
 
@@ -1314,7 +1314,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 framebuffer renderbuffer handled via render targets");
         } else {
-            VitraNativeRenderer.framebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
+            VitraD3D11Renderer.framebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
         }
     }
 
@@ -1322,7 +1322,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 renderbuffer storage handled via textures");
         } else {
-            VitraNativeRenderer.renderbufferStorage(target, internalformat, width, height);
+            VitraD3D11Renderer.renderbufferStorage(target, internalformat, width, height);
         }
     }
 
@@ -1330,7 +1330,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             return 0x8CD5; // GL_FRAMEBUFFER_COMPLETE
         } else {
-            return VitraNativeRenderer.checkFramebufferStatus(framebuffer, target);
+            return VitraD3D11Renderer.checkFramebufferStatus(framebuffer, target);
         }
     }
 
@@ -1338,7 +1338,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 program binding handled via PSO");
         } else {
-            VitraNativeRenderer.useProgram(program);
+            VitraD3D11Renderer.useProgram(program);
         }
     }
 
@@ -1346,7 +1346,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 program deletion handled via PSO cleanup");
         } else {
-            VitraNativeRenderer.deleteProgram(program);
+            VitraD3D11Renderer.deleteProgram(program);
         }
     }
 
@@ -1358,7 +1358,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 texture unit selection via descriptor table");
         } else {
-            VitraNativeRenderer.activeTexture(texture);
+            VitraD3D11Renderer.activeTexture(texture);
         }
     }
 
@@ -1366,7 +1366,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 buffer binding via command list");
         } else {
-            VitraNativeRenderer.bindBuffer(target, buffer);
+            VitraD3D11Renderer.bindBuffer(target, buffer);
         }
     }
 
@@ -1374,7 +1374,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 buffer data upload via staging");
         } else {
-            VitraNativeRenderer.bufferData(target, data, usage);
+            VitraD3D11Renderer.bufferData(target, data, usage);
         }
     }
 
@@ -1382,7 +1382,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.releaseManagedResource(buffer);
         } else {
-            VitraNativeRenderer.deleteBuffer(buffer);
+            VitraD3D11Renderer.deleteBuffer(buffer);
         }
     }
 
@@ -1392,7 +1392,7 @@ public class VitraRenderer extends AbstractRenderer {
             long handle = com.vitra.render.jni.VitraD3D12Native.mapBuffer(target);
             return null; // TODO: implement proper ByteBuffer wrapping
         } else {
-            return VitraNativeRenderer.mapBuffer(target, access, length);
+            return VitraD3D11Renderer.mapBuffer(target, access, length);
         }
     }
 
@@ -1400,7 +1400,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.unmapBuffer(target);
         } else {
-            VitraNativeRenderer.unmapBuffer(target);
+            VitraD3D11Renderer.unmapBuffer(target);
         }
     }
 
@@ -1410,7 +1410,7 @@ public class VitraRenderer extends AbstractRenderer {
             if (data != null) pixels.get(data);
             com.vitra.render.jni.VitraD3D12Native.setTextureData(target, width, height, format, data);
         } else {
-            VitraNativeRenderer.texImage2D(target, level, internalformat, width, height, border, format, type, pixels);
+            VitraD3D11Renderer.texImage2D(target, level, internalformat, width, height, border, format, type, pixels);
         }
     }
 
@@ -1422,7 +1422,7 @@ public class VitraRenderer extends AbstractRenderer {
             com.vitra.render.jni.VitraD3D12Native.setTextureData(target, width, height, format, data);
         } else {
             long address = pixels != null ? org.lwjgl.system.MemoryUtil.memAddress(pixels) : 0;
-            VitraNativeRenderer.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, address);
+            VitraD3D11Renderer.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, address);
         }
     }
 
@@ -1430,7 +1430,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             return com.vitra.render.jni.VitraD3D12Native.createManagedUploadBuffer(size);
         } else {
-            return VitraNativeRenderer.createConstantBuffer(size);
+            return VitraD3D11Renderer.createConstantBuffer(size);
         }
     }
 
@@ -1438,7 +1438,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 UBO upload via descriptor table");
         } else {
-            VitraNativeRenderer.uploadAndBindUBOs();
+            VitraD3D11Renderer.uploadAndBindUBOs();
         }
     }
 
@@ -1446,7 +1446,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.releaseManagedResource(handle);
         } else {
-            VitraNativeRenderer.destroyResource(handle);
+            VitraD3D11Renderer.destroyResource(handle);
         }
     }
 
@@ -1454,7 +1454,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.setViewport(x, y, width, height, 0.0f, 1.0f);
         } else {
-            VitraNativeRenderer.setScissorRect(x, y, width, height);
+            VitraD3D11Renderer.setScissorRect(x, y, width, height);
         }
     }
 
@@ -1463,7 +1463,7 @@ public class VitraRenderer extends AbstractRenderer {
             com.vitra.render.jni.VitraD3D12Native.setRasterizerState(fillMode, cullMode, frontCounterClockwise,
                 0, 0.0f, 0.0f, true, false, false, 0, false);
         } else {
-            VitraNativeRenderer.setRasterizerState(fillMode, cullMode, frontCounterClockwise);
+            VitraD3D11Renderer.setRasterizerState(fillMode, cullMode, frontCounterClockwise);
         }
     }
 
@@ -1471,7 +1471,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             return com.vitra.render.jni.VitraD3D12Native.createShader(bytecode, type);
         } else {
-            return VitraNativeRenderer.createGLProgramShader(bytecode, length, type);
+            return VitraD3D11Renderer.createGLProgramShader(bytecode, length, type);
         }
     }
 
@@ -1480,7 +1480,7 @@ public class VitraRenderer extends AbstractRenderer {
             logger.debug("DirectX 12 PSO creation from shaders");
             return com.vitra.render.jni.VitraD3D12Native.getDefaultShaderPipeline();
         } else {
-            return VitraNativeRenderer.createShaderPipeline(vertexShader, pixelShader);
+            return VitraD3D11Renderer.createShaderPipeline(vertexShader, pixelShader);
         }
     }
 
@@ -1488,7 +1488,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.setShaderPipeline(pipelineHandle);
         } else {
-            VitraNativeRenderer.setShaderPipeline(pipelineHandle);
+            VitraD3D11Renderer.setShaderPipeline(pipelineHandle);
         }
     }
 
@@ -1497,7 +1497,7 @@ public class VitraRenderer extends AbstractRenderer {
             logger.debug("DirectX 12 texture ID generation");
             return (int) System.nanoTime(); // Temporary ID generation
         } else {
-            return VitraNativeRenderer.generateGLTextureId();
+            return VitraD3D11Renderer.generateGLTextureId();
         }
     }
 
@@ -1506,7 +1506,7 @@ public class VitraRenderer extends AbstractRenderer {
             logger.debug("DirectX 12 texture parameter query");
             return 0;
         } else {
-            return VitraNativeRenderer.getTextureParameter(target, pname);
+            return VitraD3D11Renderer.getTextureParameter(target, pname);
         }
     }
 
@@ -1515,7 +1515,7 @@ public class VitraRenderer extends AbstractRenderer {
             logger.debug("DirectX 12 texture level parameter query");
             return 0;
         } else {
-            return VitraNativeRenderer.getTextureLevelParameter(target, level, pname);
+            return VitraD3D11Renderer.getTextureLevelParameter(target, level, pname);
         }
     }
 
@@ -1523,7 +1523,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 pixel store (no-op)");
         } else {
-            VitraNativeRenderer.setPixelStore(pname, param);
+            VitraD3D11Renderer.setPixelStore(pname, param);
         }
     }
 
@@ -1531,7 +1531,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 texture readback");
         } else {
-            VitraNativeRenderer.glGetTexImage(tex, level, format, type, pixels);
+            VitraD3D11Renderer.glGetTexImage(tex, level, format, type, pixels);
         }
     }
 
@@ -1539,7 +1539,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 texture readback");
         } else {
-            VitraNativeRenderer.glGetTexImage(tex, level, format, type, pixels);
+            VitraD3D11Renderer.glGetTexImage(tex, level, format, type, pixels);
         }
     }
 
@@ -1547,7 +1547,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 texture readback");
         } else {
-            VitraNativeRenderer.glGetTexImage(tex, level, format, type, pixels);
+            VitraD3D11Renderer.glGetTexImage(tex, level, format, type, pixels);
         }
     }
 
@@ -1555,7 +1555,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             logger.debug("DirectX 12 texture sub-image update (from address)");
         } else {
-            VitraNativeRenderer.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, pixels);
+            VitraD3D11Renderer.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, pixels);
         }
     }
 
@@ -1563,7 +1563,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.setShaderLightDirection(index, x, y, z);
         } else {
-            VitraNativeRenderer.setShaderLightDirection(index, x, y, z);
+            VitraD3D11Renderer.setShaderLightDirection(index, x, y, z);
         }
     }
 
@@ -1571,7 +1571,7 @@ public class VitraRenderer extends AbstractRenderer {
         if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
             com.vitra.render.jni.VitraD3D12Native.setShaderFogColor(r, g, b);
         } else {
-            VitraNativeRenderer.setShaderFogColor(r, g, b, a);
+            VitraD3D11Renderer.setShaderFogColor(r, g, b, a);
         }
     }
 
@@ -1580,7 +1580,7 @@ public class VitraRenderer extends AbstractRenderer {
             logger.debug("DirectX 12 transform matrices");
             // DX12 would handle matrices differently
         } else {
-            VitraNativeRenderer.setTransformMatrices(mvpArray, mvArray, projArray);
+            VitraD3D11Renderer.setTransformMatrices(mvpArray, mvArray, projArray);
         }
     }
 }

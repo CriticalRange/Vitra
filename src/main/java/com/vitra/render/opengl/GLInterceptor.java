@@ -1,6 +1,6 @@
 package com.vitra.render.opengl;
 
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import com.vitra.debug.VitraDebugUtils;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
@@ -116,7 +116,7 @@ public class GLInterceptor {
             resources.put(textureId, resource);
 
             // Create corresponding DirectX resource
-            long directXHandle = VitraNativeRenderer.createTextureFromData(null, 1, 1, 0);
+            long directXHandle = VitraD3D11Renderer.createTextureFromData(null, 1, 1, 0);
 
             // Map texture ID to DirectX handle for MAbstractTexture integration
             textureToDirectXHandle.put(textureId, directXHandle);
@@ -141,11 +141,11 @@ public class GLInterceptor {
         interceptedCalls++;
         currentState.setBoundTexture(target, texture);
 
-        // Use Dx11Texture system for texture binding (VulkanMod pattern)
+        // Use D3D11Texture system for texture binding (VulkanMod pattern)
         // This handles texture ID -> DirectX resource mapping internally
-        com.vitra.render.Dx11Texture.bindTexture(texture);
+        com.vitra.render.D3D11Texture.bindTexture(texture);
 
-        LOGGER.debug("GLInterceptor: Bound texture ID {} via Dx11Texture system", texture);
+        LOGGER.debug("GLInterceptor: Bound texture ID {} via D3D11Texture system", texture);
 
         translatedCalls++;
     }
@@ -168,7 +168,7 @@ public class GLInterceptor {
             if (resource != null) {
                 // Create DirectX texture with the specified data
                 if (pixels != null) {
-                    VitraNativeRenderer.createTextureFromData(pixels.array(), width, height, format);
+                    VitraD3D11Renderer.createTextureFromData(pixels.array(), width, height, format);
                 }
             }
         }
@@ -270,7 +270,7 @@ public class GLInterceptor {
             if (resource != null) {
                 // Create DirectX buffer with the data
                 if (data != null && data.hasArray()) {
-                    VitraNativeRenderer.createVertexBuffer(data.array(), (int) size, 0);
+                    VitraD3D11Renderer.createVertexBuffer(data.array(), (int) size, 0);
                 }
             }
         }
@@ -283,7 +283,7 @@ public class GLInterceptor {
      */
     private static void ensureFrameStarted() {
         if (!frameStarted.get() && isActive()) {
-            VitraNativeRenderer.beginFrame();
+            VitraD3D11Renderer.beginFrame();
             frameStarted.set(true);
         }
     }
@@ -303,7 +303,7 @@ public class GLInterceptor {
 
         // Translate to DirectX draw call
         long vertexBuffer = getCurrentVertexBuffer();
-        VitraNativeRenderer.draw(vertexBuffer, 0, 0, first, count, 1);
+        VitraD3D11Renderer.draw(vertexBuffer, 0, 0, first, count, 1);
 
         translatedCalls++;
     }
@@ -325,7 +325,7 @@ public class GLInterceptor {
         long vertexBuffer = getCurrentVertexBuffer();
         long indexBuffer = getCurrentIndexBuffer();
 
-        VitraNativeRenderer.draw(vertexBuffer, indexBuffer, 0, 0, count, 1);
+        VitraD3D11Renderer.draw(vertexBuffer, indexBuffer, 0, 0, count, 1);
 
         translatedCalls++;
     }
@@ -365,7 +365,7 @@ public class GLInterceptor {
 
         interceptedCalls++;
 
-        VitraNativeRenderer.setViewport(x, y, width, height);
+        VitraD3D11Renderer.setViewport(x, y, width, height);
         currentState.setViewport(x, y, width, height);
 
         translatedCalls++;
@@ -381,7 +381,7 @@ public class GLInterceptor {
 
         interceptedCalls++;
 
-        VitraNativeRenderer.setScissorRect(x, y, width, height);
+        VitraD3D11Renderer.setScissorRect(x, y, width, height);
 
         translatedCalls++;
     }
@@ -406,7 +406,7 @@ public class GLInterceptor {
         LOGGER.debug("glClearColor: r={}, g={}, b={}, a={}", r, g, b, a);
 
         // Forward clear color to DirectX
-        VitraNativeRenderer.setClearColor(r, g, b, a);
+        VitraD3D11Renderer.setClearColor(r, g, b, a);
         translatedCalls++;
     }
 
@@ -424,10 +424,10 @@ public class GLInterceptor {
 
         // Use new clear implementation: set color first, then clear with mask
         // Set the clear color that was previously set via glClearColor
-        VitraNativeRenderer.setClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+        VitraD3D11Renderer.setClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
 
         // Now call clear with the mask - it will use the color we just set
-        VitraNativeRenderer.clear(mask);
+        VitraD3D11Renderer.clear(mask);
 
         LOGGER.debug("  -> Cleared with mask 0x{}, color=[{}, {}, {}, {}]",
             Integer.toHexString(mask), clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
@@ -453,7 +453,7 @@ public class GLInterceptor {
         LOGGER.debug("glUniform4f: location={}, values=[{}, {}, {}, {}]", location, v0, v1, v2, v3);
 
         // Forward uniform to DirectX constant buffer
-        VitraNativeRenderer.setUniform4f(location, v0, v1, v2, v3);
+        VitraD3D11Renderer.setUniform4f(location, v0, v1, v2, v3);
         translatedCalls++;
     }
 
@@ -475,7 +475,7 @@ public class GLInterceptor {
             float[] matrix = new float[Math.min(16, value.remaining())];
             value.get(matrix);
             value.rewind();
-            VitraNativeRenderer.setUniformMatrix4f(location, matrix, transpose);
+            VitraD3D11Renderer.setUniformMatrix4f(location, matrix, transpose);
         }
 
         translatedCalls++;
@@ -495,7 +495,7 @@ public class GLInterceptor {
         LOGGER.debug("glUniform1i: location={}, value={}", location, v0);
 
         // Forward integer uniform to DirectX
-        VitraNativeRenderer.setUniform1i(location, v0);
+        VitraD3D11Renderer.setUniform1i(location, v0);
         translatedCalls++;
     }
 
@@ -512,7 +512,7 @@ public class GLInterceptor {
         LOGGER.debug("glUniform1f: location={}, value={}", location, v0);
 
         // Forward float uniform to DirectX
-        VitraNativeRenderer.setUniform1f(location, v0);
+        VitraD3D11Renderer.setUniform1f(location, v0);
         translatedCalls++;
     }
 
@@ -530,7 +530,7 @@ public class GLInterceptor {
         LOGGER.debug("glUseProgram: program={}", program);
 
         // Forward program selection to DirectX
-        VitraNativeRenderer.useProgram(program);
+        VitraD3D11Renderer.useProgram(program);
         translatedCalls++;
     }
 
@@ -554,7 +554,7 @@ public class GLInterceptor {
         resources.put(textureId, resource);
 
         // Create corresponding DirectX resource
-        long directXHandle = VitraNativeRenderer.createTextureFromData(null, 1, 1, 0);
+        long directXHandle = VitraD3D11Renderer.createTextureFromData(null, 1, 1, 0);
 
         translatedCalls++;
         return textureId;
@@ -611,7 +611,7 @@ public class GLInterceptor {
         LOGGER.debug("glTexParameteri: target={}, pname={}, param={}", target, pname, param);
 
         // Forward texture parameter to DirectX
-        VitraNativeRenderer.setTextureParameter(target, pname, param);
+        VitraD3D11Renderer.setTextureParameter(target, pname, param);
         translatedCalls++;
     }
 
@@ -627,7 +627,7 @@ public class GLInterceptor {
         LOGGER.debug("glTexParameterf: target={}, pname={}, param={}", target, pname, param);
 
         // Forward texture parameter to DirectX
-        VitraNativeRenderer.setTextureParameterf(target, pname, param);
+        VitraD3D11Renderer.setTextureParameterf(target, pname, param);
         translatedCalls++;
     }
 
@@ -640,7 +640,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        int result = VitraNativeRenderer.getTextureParameter(target, pname);
+        int result = VitraD3D11Renderer.getTextureParameter(target, pname);
         translatedCalls++;
         return result;
     }
@@ -654,7 +654,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        int result = VitraNativeRenderer.getTextureLevelParameter(target, level, pname);
+        int result = VitraD3D11Renderer.getTextureLevelParameter(target, level, pname);
         translatedCalls++;
         return result;
     }
@@ -671,7 +671,7 @@ public class GLInterceptor {
         LOGGER.debug("glPixelStorei: pname={}, param={}", pname, param);
 
         // Forward pixel storage mode to DirectX
-        VitraNativeRenderer.setPixelStore(pname, param);
+        VitraD3D11Renderer.setPixelStore(pname, param);
         translatedCalls++;
     }
 
@@ -699,7 +699,7 @@ public class GLInterceptor {
         interceptedCalls++;
         GLResource resource = resources.remove(texture);
         if (resource != null) {
-            VitraNativeRenderer.destroyResource(resource.getDirectXHandle());
+            VitraD3D11Renderer.destroyResource(resource.getDirectXHandle());
         }
         translatedCalls++;
     }
@@ -717,7 +717,7 @@ public class GLInterceptor {
             int texture = textures.get();
             GLResource resource = resources.remove(texture);
             if (resource != null) {
-                VitraNativeRenderer.destroyResource(resource.getDirectXHandle());
+                VitraD3D11Renderer.destroyResource(resource.getDirectXHandle());
             }
         }
         textures.rewind();
@@ -733,7 +733,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setLineWidth(width);
+        VitraD3D11Renderer.setLineWidth(width);
         translatedCalls++;
     }
 
@@ -746,7 +746,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setDepthMask(flag);
+        VitraD3D11Renderer.setDepthMask(flag);
         translatedCalls++;
     }
 
@@ -759,7 +759,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setPolygonOffset(factor, units);
+        VitraD3D11Renderer.setPolygonOffset(factor, units);
         translatedCalls++;
     }
 
@@ -772,7 +772,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setBlendFunc(sfactor, dfactor);
+        VitraD3D11Renderer.setBlendFunc(sfactor, dfactor);
         translatedCalls++;
     }
 
@@ -803,7 +803,7 @@ public class GLInterceptor {
         // Handle common integer queries
         switch (pname) {
             case GL11.GL_MAX_TEXTURE_SIZE:
-                result = VitraNativeRenderer.getMaxTextureSize();
+                result = VitraD3D11Renderer.getMaxTextureSize();
                 break;
             default:
                 result = 0;
@@ -821,7 +821,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // Return no error for DirectX 11
+        // Return no error for D3D11
         translatedCalls++;
         return 0;
     }
@@ -835,7 +835,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.finish();
+        VitraD3D11Renderer.finish();
         translatedCalls++;
     }
 
@@ -848,7 +848,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setHint(target, hint);
+        VitraD3D11Renderer.setHint(target, hint);
         translatedCalls++;
     }
 
@@ -861,7 +861,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
+        VitraD3D11Renderer.copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
         translatedCalls++;
     }
 
@@ -874,7 +874,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement active texture tracking for DirectX 11
+        // TODO: Implement active texture tracking for D3D11
         translatedCalls++;
     }
 
@@ -887,7 +887,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement front face tracking for DirectX 11
+        // TODO: Implement front face tracking for D3D11
         translatedCalls++;
     }
 
@@ -900,7 +900,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement cull face tracking for DirectX 11
+        // TODO: Implement cull face tracking for D3D11
         translatedCalls++;
     }
 
@@ -913,7 +913,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement depth function tracking for DirectX 11
+        // TODO: Implement depth function tracking for D3D11
         translatedCalls++;
     }
 
@@ -926,7 +926,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement point size tracking for DirectX 11
+        // TODO: Implement point size tracking for D3D11
         translatedCalls++;
     }
 
@@ -939,7 +939,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement color mask tracking for DirectX 11
+        // TODO: Implement color mask tracking for D3D11
         translatedCalls++;
     }
 
@@ -952,7 +952,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement blend func separate tracking for DirectX 11
+        // TODO: Implement blend func separate tracking for D3D11
         translatedCalls++;
     }
 
@@ -976,7 +976,7 @@ public class GLInterceptor {
                 break;
             case GL11.GL_MAX_TEXTURE_SIZE:
                 if (data.remaining() >= 1) {
-                    data.put(0, VitraNativeRenderer.getMaxTextureSize());
+                    data.put(0, VitraD3D11Renderer.getMaxTextureSize());
                 }
                 break;
             default:
@@ -1037,7 +1037,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement flush for DirectX 11
+        // TODO: Implement flush for D3D11
         translatedCalls++;
     }
 
@@ -1104,7 +1104,7 @@ public class GLInterceptor {
         interceptedCalls++;
         GLResource resource = resources.remove(buffer);
         if (resource != null) {
-            VitraNativeRenderer.destroyResource(resource.getDirectXHandle());
+            VitraD3D11Renderer.destroyResource(resource.getDirectXHandle());
         }
         translatedCalls++;
     }
@@ -1119,7 +1119,7 @@ public class GLInterceptor {
             int buffer = buffers.get();
             GLResource resource = resources.remove(buffer);
             if (resource != null) {
-                VitraNativeRenderer.destroyResource(resource.getDirectXHandle());
+                VitraD3D11Renderer.destroyResource(resource.getDirectXHandle());
             }
         }
         buffers.rewind();
@@ -1138,7 +1138,7 @@ public class GLInterceptor {
             GLResource resource = resources.get(bufferId);
             if (resource != null) {
                 // Map using native handle, need to estimate size (default to 64KB)
-                ByteBuffer result = VitraNativeRenderer.mapBuffer(resource.getDirectXHandle(), 65536, access);
+                ByteBuffer result = VitraD3D11Renderer.mapBuffer(resource.getDirectXHandle(), 65536, access);
                 translatedCalls++;
                 return result;
             }
@@ -1162,7 +1162,7 @@ public class GLInterceptor {
             GLResource resource = resources.get(bufferId);
             if (resource != null) {
                 // Map using native handle with specified length
-                ByteBuffer result = VitraNativeRenderer.mapBuffer(resource.getDirectXHandle(), (int) length, access);
+                ByteBuffer result = VitraD3D11Renderer.mapBuffer(resource.getDirectXHandle(), (int) length, access);
                 translatedCalls++;
                 return result;
             }
@@ -1182,7 +1182,7 @@ public class GLInterceptor {
         if (bufferId != 0) {
             GLResource resource = resources.get(bufferId);
             if (resource != null) {
-                VitraNativeRenderer.unmapBuffer(resource.getDirectXHandle());
+                VitraD3D11Renderer.unmapBuffer(resource.getDirectXHandle());
                 translatedCalls++;
                 return true;
             }
@@ -1230,7 +1230,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setUniform2f(location, v0, v1);
+        VitraD3D11Renderer.setUniform2f(location, v0, v1);
         translatedCalls++;
     }
 
@@ -1240,7 +1240,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setUniform3f(location, v0, v1, v2);
+        VitraD3D11Renderer.setUniform3f(location, v0, v1, v2);
         translatedCalls++;
     }
 
@@ -1291,7 +1291,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement uniform location resolution for DirectX 11
+        // TODO: Implement uniform location resolution for D3D11
         translatedCalls++;
         return -1;
     }
@@ -1302,7 +1302,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement uniform location resolution for DirectX 11
+        // TODO: Implement uniform location resolution for D3D11
         translatedCalls++;
         return -1;
     }
@@ -1313,7 +1313,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement attribute location resolution for DirectX 11
+        // TODO: Implement attribute location resolution for D3D11
         translatedCalls++;
         return -1;
     }
@@ -1324,7 +1324,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement attribute location resolution for DirectX 11
+        // TODO: Implement attribute location resolution for D3D11
         translatedCalls++;
         return -1;
     }
@@ -1335,7 +1335,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.enableVertexAttribArray(index);
+        VitraD3D11Renderer.enableVertexAttribArray(index);
         translatedCalls++;
     }
 
@@ -1345,7 +1345,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.disableVertexAttribArray(index);
+        VitraD3D11Renderer.disableVertexAttribArray(index);
         translatedCalls++;
     }
 
@@ -1355,7 +1355,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement vertex attribute pointer for DirectX 11
+        // TODO: Implement vertex attribute pointer for D3D11
         translatedCalls++;
     }
 
@@ -1365,7 +1365,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement vertex attribute pointer for DirectX 11
+        // TODO: Implement vertex attribute pointer for D3D11
         translatedCalls++;
     }
 
@@ -1375,7 +1375,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // TODO: Implement vertex attribute I pointer for DirectX 11
+        // TODO: Implement vertex attribute I pointer for D3D11
         translatedCalls++;
     }
 
@@ -1410,7 +1410,7 @@ public class GLInterceptor {
 
         interceptedCalls++;
         // Convert CharSequence to string and forward to DirectX
-        VitraNativeRenderer.shaderSource(shader, string.toString());
+        VitraD3D11Renderer.shaderSource(shader, string.toString());
         translatedCalls++;
     }
 
@@ -1430,7 +1430,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.compileShader(shader);
+        VitraD3D11Renderer.compileShader(shader);
         translatedCalls++;
     }
 
@@ -1440,8 +1440,8 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        // VULKANMOD APPROACH: Direct OpenGL → DirectX 11 program creation
-        int result = VitraNativeRenderer.createProgram();
+        // VULKANMOD APPROACH: Direct OpenGL → D3D11 program creation
+        int result = VitraD3D11Renderer.createProgram();
         translatedCalls++;
         return result;
     }
@@ -1452,7 +1452,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.attachShader(program, shader);
+        VitraD3D11Renderer.attachShader(program, shader);
         translatedCalls++;
     }
 
@@ -1462,7 +1462,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.linkProgram(program);
+        VitraD3D11Renderer.linkProgram(program);
         translatedCalls++;
     }
 
@@ -1472,7 +1472,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.validateProgram(program);
+        VitraD3D11Renderer.validateProgram(program);
         translatedCalls++;
     }
 
@@ -1482,7 +1482,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.deleteShader(shader);
+        VitraD3D11Renderer.deleteShader(shader);
         translatedCalls++;
     }
 
@@ -1492,7 +1492,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.deleteProgram(program);
+        VitraD3D11Renderer.deleteProgram(program);
         translatedCalls++;
     }
 
@@ -1586,7 +1586,7 @@ public class GLInterceptor {
         Long directXHandle = textureToDirectXHandle.remove(textureId);
         if (directXHandle != null) {
             directXHandleToTextureId.remove(directXHandle);
-            VitraNativeRenderer.destroyResource(directXHandle);
+            VitraD3D11Renderer.destroyResource(directXHandle);
         }
 
         LOGGER.debug("GLInterceptor: Unregistered MAbstractTexture ID {}", textureId);
@@ -1700,7 +1700,7 @@ public class GLInterceptor {
         java.util.concurrent.atomic.AtomicInteger cleaned = new java.util.concurrent.atomic.AtomicInteger(0);
         textureToDirectXHandle.entrySet().removeIf(entry -> {
             long directXHandle = entry.getValue();
-            if (directXHandle == 0 || !VitraNativeRenderer.isTextureValid((int)directXHandle)) {
+            if (directXHandle == 0 || !VitraD3D11Renderer.isTextureValid((int)directXHandle)) {
                 directXHandleToTextureId.remove(directXHandle);
                 cleaned.incrementAndGet();
                 return true;
@@ -1730,7 +1730,7 @@ public class GLInterceptor {
     /**
      * Register a texture (alias for MAbstractTexture compatibility)
      * @param textureId OpenGL texture ID
-     * @param directXHandle DirectX 11 handle
+     * @param directXHandle D3D11 handle
      */
     public static void registerTexture(int textureId, long directXHandle) {
         registerMAbstractTexture(textureId, directXHandle);
@@ -1739,7 +1739,7 @@ public class GLInterceptor {
     /**
      * Get DirectX handle for a texture ID (alias for getDirectXHandleForTexture)
      * @param textureId OpenGL texture ID
-     * @return DirectX 11 handle or null if not found
+     * @return D3D11 handle or null if not found
      */
     public static Long getDirectXHandle(int textureId) {
         Long directXHandle = textureToDirectXHandle.get(textureId);
@@ -1770,7 +1770,7 @@ public class GLInterceptor {
 
     /**
      * Get or create OpenGL texture ID for DirectX handle (for RenderTargetMixin)
-     * @param directXHandle DirectX 11 texture handle
+     * @param directXHandle D3D11 texture handle
      * @return OpenGL texture ID
      */
     public static int getOrCreateGlTextureId(long directXHandle) {
@@ -1806,7 +1806,7 @@ public class GLInterceptor {
      * @return true if ready for use
      */
     public static boolean isAvailable() {
-        return isActive() && VitraNativeRenderer.isInitialized();
+        return isActive() && VitraD3D11Renderer.isInitialized();
     }
 
     /**
@@ -1820,7 +1820,7 @@ public class GLInterceptor {
         int orphanedCount = 0;
         for (Map.Entry<Integer, Long> entry : textureToDirectXHandle.entrySet()) {
             long directXHandle = entry.getValue();
-            if (directXHandle == 0 || !VitraNativeRenderer.isTextureValid((int)directXHandle)) {
+            if (directXHandle == 0 || !VitraD3D11Renderer.isTextureValid((int)directXHandle)) {
                 orphanedCount++;
             }
         }
@@ -1851,14 +1851,14 @@ public class GLInterceptor {
 
             // Clean up MAbstractTexture mappings
             for (Long directXHandle : textureToDirectXHandle.values()) {
-                VitraNativeRenderer.destroyResource(directXHandle);
+                VitraD3D11Renderer.destroyResource(directXHandle);
             }
             textureToDirectXHandle.clear();
             directXHandleToTextureId.clear();
 
             // Clean up tracked resources
             for (GLResource resource : resources.values()) {
-                VitraNativeRenderer.destroyResource(resource.getDirectXHandle());
+                VitraD3D11Renderer.destroyResource(resource.getDirectXHandle());
             }
             resources.clear();
 
@@ -1883,7 +1883,7 @@ public class GLInterceptor {
         GLResource(long glId, Type type) {
             this.glId = glId;
             this.type = type;
-            this.directXHandle = VitraNativeRenderer.createVertexBuffer(null, 0, 0); // Placeholder
+            this.directXHandle = VitraD3D11Renderer.createVertexBuffer(null, 0, 0); // Placeholder
             this.creationTime = System.currentTimeMillis();
         }
 
@@ -1906,7 +1906,7 @@ public class GLInterceptor {
     private static int boundIndexType = 0;
 
     /**
-     * Extract native DirectX 11 handle from GpuBuffer
+     * Extract native D3D11 handle from GpuBuffer
      */
     private static long extractNativeHandle(Object gpuBuffer) {
         if (gpuBuffer == null) {
@@ -1964,13 +1964,13 @@ public class GLInterceptor {
         LOGGER.debug("  -> Vertex buffer handle: 0x{}, Index buffer handle: 0x{}",
             Long.toHexString(vertexBufferHandle), Long.toHexString(indexBufferHandle));
 
-        // Forward to DirectX 11 with CORRECT parameters
+        // Forward to D3D11 with CORRECT parameters
         if (indexBufferHandle != 0) {
             // Indexed draw call - pass baseVertex, firstIndex, count, instanceCount
-            VitraNativeRenderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, count, instanceCount);
+            VitraD3D11Renderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, count, instanceCount);
         } else {
             // Non-indexed draw call - pass firstIndex as offset
-            VitraNativeRenderer.draw(vertexBufferHandle, 0, 0, firstIndex, count, instanceCount);
+            VitraD3D11Renderer.draw(vertexBufferHandle, 0, 0, firstIndex, count, instanceCount);
         }
 
         translatedCalls++;
@@ -1992,7 +1992,7 @@ public class GLInterceptor {
 
         long indexBufferHandle = extractNativeHandle(indexBuffer);
 
-        // Iterate through draw objects and forward each to DirectX 11
+        // Iterate through draw objects and forward each to D3D11
         if (drawObjects != null) {
             for (Object drawObj : drawObjects) {
                 try {
@@ -2014,8 +2014,8 @@ public class GLInterceptor {
                         Long.toHexString(vertexBufferHandle), Long.toHexString(indexBufferHandle),
                         baseVertex, firstIndex, indexCount);
 
-                    // Forward this draw call to DirectX 11 with CORRECT parameters
-                    VitraNativeRenderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, indexCount, 1);
+                    // Forward this draw call to D3D11 with CORRECT parameters
+                    VitraD3D11Renderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, indexCount, 1);
 
                 } catch (Exception e) {
                     LOGGER.error("Error extracting draw parameters from batched draw object", e);
@@ -2046,7 +2046,7 @@ public class GLInterceptor {
         LOGGER.debug("  -> Vertex buffer handle: 0x{}", Long.toHexString(vertexBufferHandle));
 
         // Non-indexed draw - pass offset as firstIndex
-        VitraNativeRenderer.draw(vertexBufferHandle, 0, 0, offset, count, 1);
+        VitraD3D11Renderer.draw(vertexBufferHandle, 0, 0, offset, count, 1);
 
         translatedCalls++;
     }
@@ -2074,7 +2074,7 @@ public class GLInterceptor {
             Long.toHexString(vertexBufferHandle), Long.toHexString(indexBufferHandle));
 
         // Indexed draw with CORRECT parameters
-        VitraNativeRenderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, count, instanceCount);
+        VitraD3D11Renderer.draw(vertexBufferHandle, indexBufferHandle, baseVertex, firstIndex, count, instanceCount);
 
         translatedCalls++;
     }
@@ -2101,7 +2101,7 @@ public class GLInterceptor {
             resources.put((int) resourceId, resource);
 
             // Create corresponding DirectX framebuffer resource
-            VitraNativeRenderer.createFramebuffer((int) resourceId);
+            VitraD3D11Renderer.createFramebuffer((int) resourceId);
         }
 
         framebuffers.rewind();
@@ -2122,7 +2122,7 @@ public class GLInterceptor {
         if (framebuffer != 0) {
             GLResource resource = resources.get(framebuffer);
             if (resource != null) {
-                VitraNativeRenderer.bindFramebuffer(resource.getDirectXHandle(), target);
+                VitraD3D11Renderer.bindFramebuffer(resource.getDirectXHandle(), target);
             }
         }
 
@@ -2143,7 +2143,7 @@ public class GLInterceptor {
         GLResource texResource = resources.get(texture);
 
         if (fbResource != null && texResource != null) {
-            VitraNativeRenderer.framebufferTexture2D(
+            VitraD3D11Renderer.framebufferTexture2D(
                 fbResource.getDirectXHandle(), target, attachment, textarget,
                 texResource.getDirectXHandle(), level
             );
@@ -2166,7 +2166,7 @@ public class GLInterceptor {
         GLResource rbResource = resources.get(renderbuffer);
 
         if (fbResource != null && rbResource != null) {
-            VitraNativeRenderer.framebufferRenderbuffer(
+            VitraD3D11Renderer.framebufferRenderbuffer(
                 fbResource.getDirectXHandle(), target, attachment, renderbuffertarget,
                 rbResource.getDirectXHandle()
             );
@@ -2189,7 +2189,7 @@ public class GLInterceptor {
         if (boundFramebuffer != 0) {
             GLResource resource = resources.get(boundFramebuffer);
             if (resource != null) {
-                int result = VitraNativeRenderer.checkFramebufferStatus(resource.getDirectXHandle(), target);
+                int result = VitraD3D11Renderer.checkFramebufferStatus(resource.getDirectXHandle(), target);
                 translatedCalls++;
                 return result;
             }
@@ -2213,7 +2213,7 @@ public class GLInterceptor {
             int framebuffer = framebuffers.get();
             GLResource resource = resources.remove(framebuffer);
             if (resource != null) {
-                VitraNativeRenderer.destroyFramebuffer(resource.getDirectXHandle());
+                VitraD3D11Renderer.destroyFramebuffer(resource.getDirectXHandle());
             }
         }
         framebuffers.rewind();
@@ -2239,7 +2239,7 @@ public class GLInterceptor {
             resources.put((int) resourceId, resource);
 
             // Create corresponding DirectX renderbuffer resource
-            VitraNativeRenderer.createRenderbuffer((int) resourceId);
+            VitraD3D11Renderer.createRenderbuffer((int) resourceId);
         }
 
         renderbuffers.rewind();
@@ -2260,7 +2260,7 @@ public class GLInterceptor {
         if (renderbuffer != 0) {
             GLResource resource = resources.get(renderbuffer);
             if (resource != null) {
-                VitraNativeRenderer.bindRenderbuffer(resource.getDirectXHandle(), target);
+                VitraD3D11Renderer.bindRenderbuffer(resource.getDirectXHandle(), target);
             }
         }
 
@@ -2281,7 +2281,7 @@ public class GLInterceptor {
         if (boundRenderbuffer != 0) {
             GLResource resource = resources.get(boundRenderbuffer);
             if (resource != null) {
-                VitraNativeRenderer.renderbufferStorage(
+                VitraD3D11Renderer.renderbufferStorage(
                     resource.getDirectXHandle(), target, internalformat, width, height
                 );
             }
@@ -2304,7 +2304,7 @@ public class GLInterceptor {
             int renderbuffer = renderbuffers.get();
             GLResource resource = resources.remove(renderbuffer);
             if (resource != null) {
-                VitraNativeRenderer.destroyRenderbuffer(resource.getDirectXHandle());
+                VitraD3D11Renderer.destroyRenderbuffer(resource.getDirectXHandle());
             }
         }
         renderbuffers.rewind();
@@ -2330,7 +2330,7 @@ public class GLInterceptor {
             resources.put((int) resourceId, resource);
 
             // Create corresponding DirectX vertex array resource
-            VitraNativeRenderer.createVertexArray((int) resourceId);
+            VitraD3D11Renderer.createVertexArray((int) resourceId);
         }
 
         arrays.rewind();
@@ -2351,7 +2351,7 @@ public class GLInterceptor {
         if (array != 0) {
             GLResource resource = resources.get(array);
             if (resource != null) {
-                VitraNativeRenderer.bindVertexArray(resource.getDirectXHandle());
+                VitraD3D11Renderer.bindVertexArray(resource.getDirectXHandle());
             }
         }
 
@@ -2372,7 +2372,7 @@ public class GLInterceptor {
             int array = arrays.get();
             GLResource resource = resources.remove(array);
             if (resource != null) {
-                VitraNativeRenderer.destroyVertexArray(resource.getDirectXHandle());
+                VitraD3D11Renderer.destroyVertexArray(resource.getDirectXHandle());
             }
         }
         arrays.rewind();
@@ -2389,7 +2389,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setBlendEquation(mode, mode);
+        VitraD3D11Renderer.setBlendEquation(mode, mode);
         translatedCalls++;
     }
 
@@ -2402,7 +2402,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setBlendEquation(modeRGB, modeAlpha);
+        VitraD3D11Renderer.setBlendEquation(modeRGB, modeAlpha);
         translatedCalls++;
     }
 
@@ -2420,7 +2420,7 @@ public class GLInterceptor {
         bufs.get(buffers);
         bufs.rewind();
 
-        VitraNativeRenderer.setDrawBuffers(buffers);
+        VitraD3D11Renderer.setDrawBuffers(buffers);
         translatedCalls++;
     }
 
@@ -2433,7 +2433,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setStencilOpSeparate(face, sfail, dpfail, dppass);
+        VitraD3D11Renderer.setStencilOpSeparate(face, sfail, dpfail, dppass);
         translatedCalls++;
     }
 
@@ -2446,7 +2446,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setStencilFuncSeparate(face, func, ref, mask);
+        VitraD3D11Renderer.setStencilFuncSeparate(face, func, ref, mask);
         translatedCalls++;
     }
 
@@ -2459,7 +2459,7 @@ public class GLInterceptor {
         }
 
         interceptedCalls++;
-        VitraNativeRenderer.setStencilMaskSeparate(face, mask);
+        VitraD3D11Renderer.setStencilMaskSeparate(face, mask);
         translatedCalls++;
     }
 
@@ -2485,8 +2485,8 @@ public class GLInterceptor {
             vertexBufferSlots.remove(slot);
         }
 
-        // Note: We don't need to explicitly bind in DirectX 11 since draw() will use the handle directly
-        // DirectX 11 uses PSO (Pipeline State Objects) that bundle vertex buffers with draw calls
+        // Note: We don't need to explicitly bind in D3D11 since draw() will use the handle directly
+        // D3D11 uses PSO (Pipeline State Objects) that bundle vertex buffers with draw calls
 
         translatedCalls++;
     }
@@ -2510,8 +2510,8 @@ public class GLInterceptor {
         boundIndexBuffer = gpuBuffer;
         boundIndexType = indexType;
 
-        // Note: We don't need to explicitly bind in DirectX 11 since draw() will use the handle directly
-        // DirectX 11 IASetIndexBuffer is called internally by the native draw() method
+        // Note: We don't need to explicitly bind in D3D11 since draw() will use the handle directly
+        // D3D11 IASetIndexBuffer is called internally by the native draw() method
 
         translatedCalls++;
     }

@@ -1,6 +1,6 @@
 package com.vitra.debug;
 
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,14 +18,14 @@ public class MatrixDebugHelper {
      * Call this before any draw calls to set a working projection matrix.
      */
     public static void forceOrthographicProjection(int windowWidth, int windowHeight) {
-        if (!VitraNativeRenderer.isInitialized()) {
+        if (!VitraD3D11Renderer.isInitialized()) {
             return;
         }
 
         // Set orthographic projection for 2D screen space (0,0) to (width,height)
         // left=0, right=width, bottom=height, top=0 (Y-down coordinate system)
         // near=-1000, far=3000 (standard Minecraft depth range for GUI)
-        VitraNativeRenderer.setOrthographicProjection(
+        VitraD3D11Renderer.setOrthographicProjection(
             0.0f,                    // left
             (float)windowWidth,      // right
             (float)windowHeight,     // bottom

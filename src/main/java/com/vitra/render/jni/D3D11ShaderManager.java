@@ -38,7 +38,7 @@ public class D3D11ShaderManager extends AbstractShaderManager {
         try {
             // Construct resource path for compiled shaders
             // Format: /shaders/compiled/<name>_vs.cso or /shaders/compiled/<name>_ps.cso
-            String shaderTypeExt = (type == VitraNativeRenderer.SHADER_TYPE_VERTEX) ? "vs" : "ps";
+            String shaderTypeExt = (type == VitraD3D11Renderer.SHADER_TYPE_VERTEX) ? "vs" : "ps";
             String resourcePath = "/shaders/compiled/" + name + "_" + shaderTypeExt + ".cso";
 
             InputStream is = getClass().getResourceAsStream(resourcePath);
@@ -62,11 +62,11 @@ public class D3D11ShaderManager extends AbstractShaderManager {
                 return 0;
             }
 
-            long handle = VitraNativeRenderer.createGLProgramShader(bytecode, bytecode.length, type);
+            long handle = VitraD3D11Renderer.createGLProgramShader(bytecode, bytecode.length, type);
             if (handle != 0) {
                 shaderCache.put(cacheKey, handle);
                 logger.debug("Loaded {} shader: {} (handle: 0x{}, size: {} bytes)",
-                    type == VitraNativeRenderer.SHADER_TYPE_VERTEX ? "vertex" : "pixel",
+                    type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "vertex" : "pixel",
                     name, Long.toHexString(handle), bytecode.length);
             } else {
                 logger.error("Failed to create DirectX shader from bytecode: {}", name);
@@ -93,19 +93,19 @@ public class D3D11ShaderManager extends AbstractShaderManager {
         }
 
         // Load vertex shader (e.g., position_vs.cso)
-        long vertexShader = loadShader(name, VitraNativeRenderer.SHADER_TYPE_VERTEX);
+        long vertexShader = loadShader(name, VitraD3D11Renderer.SHADER_TYPE_VERTEX);
         if (vertexShader == 0) {
             logger.error("Failed to load vertex shader for pipeline: {}", name);
             return 0;
         }
 
         // Load pixel shader (e.g., position_ps.cso)
-        long pixelShader = loadShader(name, VitraNativeRenderer.SHADER_TYPE_PIXEL);
+        long pixelShader = loadShader(name, VitraD3D11Renderer.SHADER_TYPE_PIXEL);
         if (pixelShader == 0) {
             logger.warn("Failed to load pixel shader for pipeline: {}, using vertex only", name);
         }
 
-        long pipeline = VitraNativeRenderer.createShaderPipeline(vertexShader, pixelShader);
+        long pipeline = VitraD3D11Renderer.createShaderPipeline(vertexShader, pixelShader);
         if (pipeline != 0) {
             pipelineCache.put(name, pipeline);
             logger.info("Created shader pipeline: {} (VS: 0x{}, PS: 0x{}, Pipeline: 0x{})",
@@ -201,13 +201,13 @@ public class D3D11ShaderManager extends AbstractShaderManager {
     public void clearCache() {
         // Destroy all pipelines
         for (Long pipeline : pipelineCache.values()) {
-            VitraNativeRenderer.destroyResource(pipeline);
+            VitraD3D11Renderer.destroyResource(pipeline);
         }
         pipelineCache.clear();
 
         // Destroy all shaders
         for (Long shader : shaderCache.values()) {
-            VitraNativeRenderer.destroyResource(shader);
+            VitraD3D11Renderer.destroyResource(shader);
         }
         shaderCache.clear();
 

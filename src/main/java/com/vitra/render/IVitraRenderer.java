@@ -5,7 +5,7 @@ import com.vitra.config.RendererType;
 
 /**
  * Unified renderer interface for Vitra
- * Supports both DirectX 11 and DirectX 12 Ultimate backends
+ * Supports both D3D11 and D3D12 Ultimate backends
  */
 public interface IVitraRenderer {
 
@@ -138,14 +138,14 @@ public interface IVitraRenderer {
     // Feature access for advanced usage
 
     /**
-     * Get DirectX 11 specific renderer (if available)
+     * Get D3D11 specific renderer (if available)
      */
-    VitraRenderer getDirectX11Renderer();
+    VitraRenderer getD3D11Renderer();
 
     /**
-     * Get DirectX 12 specific renderer (if available)
+     * Get D3D12 specific renderer (if available)
      */
-    com.vitra.render.jni.VitraD3D12Renderer getDirectX12Renderer();
+    com.vitra.render.jni.VitraD3D12Renderer getD3D12Renderer();
 
     /**
      * Get shader manager for this renderer

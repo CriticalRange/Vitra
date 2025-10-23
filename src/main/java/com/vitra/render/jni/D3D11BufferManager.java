@@ -1,5 +1,6 @@
 package com.vitra.render.jni;
 
+import com.vitra.render.constants.RenderConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,8 +33,7 @@ public class D3D11BufferManager extends AbstractBufferManager {
         }
     }
 
-    public static final int BUFFER_TYPE_VERTEX = 0;
-    public static final int BUFFER_TYPE_INDEX = 1;
+    // Using centralized constants from RenderConstants
 
     /**
      * Create a vertex buffer
@@ -47,9 +47,9 @@ public class D3D11BufferManager extends AbstractBufferManager {
         byte[] dataArray = new byte[data.remaining()];
         data.get(dataArray);
 
-        long handle = VitraNativeRenderer.createVertexBuffer(dataArray, dataArray.length, stride);
+        long handle = VitraD3D11Renderer.createVertexBuffer(dataArray, dataArray.length, stride);
         if (handle != 0) {
-            vertexBuffers.put(handle, new BufferInfo(handle, dataArray.length, stride, BUFFER_TYPE_VERTEX));
+            vertexBuffers.put(handle, new BufferInfo(handle, dataArray.length, stride, RenderConstants.BufferType.VERTEX));
             logger.debug("Created vertex buffer: handle=0x{}, size={}, stride={}",
                 Long.toHexString(handle), dataArray.length, stride);
         } else {
@@ -71,10 +71,10 @@ public class D3D11BufferManager extends AbstractBufferManager {
         byte[] dataArray = new byte[data.remaining()];
         data.get(dataArray);
 
-        int format = use32Bit ? VitraNativeRenderer.INDEX_FORMAT_32_BIT : VitraNativeRenderer.INDEX_FORMAT_16_BIT;
-        long handle = VitraNativeRenderer.createIndexBuffer(dataArray, dataArray.length, format);
+        int format = use32Bit ? VitraD3D11Renderer.INDEX_FORMAT_32_BIT : VitraD3D11Renderer.INDEX_FORMAT_16_BIT;
+        long handle = VitraD3D11Renderer.createIndexBuffer(dataArray, dataArray.length, format);
         if (handle != 0) {
-            indexBuffers.put(handle, new BufferInfo(handle, dataArray.length, 0, BUFFER_TYPE_INDEX));
+            indexBuffers.put(handle, new BufferInfo(handle, dataArray.length, 0, RenderConstants.BufferType.INDEX));
             logger.debug("Created index buffer: handle=0x{}, size={}, format={}",
                 Long.toHexString(handle), dataArray.length, use32Bit ? "32-bit" : "16-bit");
         } else {
@@ -96,9 +96,9 @@ public class D3D11BufferManager extends AbstractBufferManager {
         }
 
         if (info != null) {
-            VitraNativeRenderer.destroyResource(handle);
+            VitraD3D11Renderer.destroyResource(handle);
             logger.debug("Destroyed buffer: handle=0x{}, type={}",
-                Long.toHexString(handle), info.type == BUFFER_TYPE_VERTEX ? "vertex" : "index");
+                Long.toHexString(handle), info.type == RenderConstants.BufferType.VERTEX ? "vertex" : "index");
         }
     }
 
@@ -168,13 +168,13 @@ public class D3D11BufferManager extends AbstractBufferManager {
     public void clearAll() {
         // Destroy all vertex buffers
         for (long handle : vertexBuffers.keySet()) {
-            VitraNativeRenderer.destroyResource(handle);
+            VitraD3D11Renderer.destroyResource(handle);
         }
         vertexBuffers.clear();
 
         // Destroy all index buffers
         for (long handle : indexBuffers.keySet()) {
-            VitraNativeRenderer.destroyResource(handle);
+            VitraD3D11Renderer.destroyResource(handle);
         }
         indexBuffers.clear();
 

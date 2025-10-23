@@ -1,5 +1,6 @@
 package com.vitra.render.jni;
 
+import com.vitra.render.constants.RenderConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,14 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * DirectX 12 Ultimate buffer manager with support for ray tracing acceleration structures
  */
 public class D3D12BufferManager extends AbstractBufferManager {
-    // Buffer type constants
-    public static final int BUFFER_TYPE_VERTEX = 1;
-    public static final int BUFFER_TYPE_INDEX = 2;
-    public static final int BUFFER_TYPE_CONSTANT = 3;
-    public static final int BUFFER_TYPE_STRUCTURED = 4;
-    public static final int BUFFER_TYPE_RAYTRACING_TLAS = 5;
-    public static final int BUFFER_TYPE_RAYTRACING_BLAS = 6;
-    public static final int BUFFER_TYPE_VRS_MAP = 7;
+    // Using centralized constants from RenderConstants
 
     // Resource tracking
     private final Map<Long, BufferInfo> bufferRegistry = new ConcurrentHashMap<>();
@@ -61,7 +55,7 @@ public class D3D12BufferManager extends AbstractBufferManager {
             totalMemoryUsed += size;
             bufferCount++;
 
-            if (type == BUFFER_TYPE_RAYTRACING_TLAS || type == BUFFER_TYPE_RAYTRACING_BLAS) {
+            if (type == RenderConstants.D3D12BufferType.RAYTRACING_TLAS || type == RenderConstants.D3D12BufferType.RAYTRACING_BLAS) {
                 rayTracingBuffersCount++;
             }
 
@@ -75,21 +69,21 @@ public class D3D12BufferManager extends AbstractBufferManager {
     }
 
     public long createVertexBuffer(long size, boolean gpuOnly) {
-        return createBuffer(BUFFER_TYPE_VERTEX, size, gpuOnly);
+        return createBuffer(RenderConstants.D3D12BufferType.VERTEX, size, gpuOnly);
     }
 
     public long createIndexBuffer(long size, boolean gpuOnly) {
-        return createBuffer(BUFFER_TYPE_INDEX, size, gpuOnly);
+        return createBuffer(RenderConstants.D3D12BufferType.INDEX, size, gpuOnly);
     }
 
     public long createConstantBuffer(long size, boolean gpuOnly) {
         // Constant buffers must be 256-byte aligned in DirectX 12
         long alignedSize = (size + 255) & ~255;
-        return createBuffer(BUFFER_TYPE_CONSTANT, alignedSize, gpuOnly);
+        return createBuffer(RenderConstants.D3D12BufferType.CONSTANT, alignedSize, gpuOnly);
     }
 
     public long createStructuredBuffer(long elementSize, long elementCount, boolean gpuOnly) {
-        return createBuffer(BUFFER_TYPE_STRUCTURED, elementSize * elementCount, gpuOnly);
+        return createBuffer(RenderConstants.D3D12BufferType.STRUCTURED, elementSize * elementCount, gpuOnly);
     }
 
     // Buffer creation with initial data
@@ -104,7 +98,7 @@ public class D3D12BufferManager extends AbstractBufferManager {
             totalMemoryUsed += data.length;
             bufferCount++;
 
-            if (type == BUFFER_TYPE_RAYTRACING_TLAS || type == BUFFER_TYPE_RAYTRACING_BLAS) {
+            if (type == RenderConstants.D3D12BufferType.RAYTRACING_TLAS || type == RenderConstants.D3D12BufferType.RAYTRACING_BLAS) {
                 rayTracingBuffersCount++;
             }
 
@@ -122,7 +116,7 @@ public class D3D12BufferManager extends AbstractBufferManager {
         long blasHandle = nativeCreateBottomLevelAccelerationStructure(vertexBuffer, indexBuffer, vertexCount, indexCount);
 
         if (blasHandle != 0L) {
-            BufferInfo info = new BufferInfo(nextBufferId.getAndIncrement(), BUFFER_TYPE_RAYTRACING_BLAS, 0, true);
+            BufferInfo info = new BufferInfo(nextBufferId.getAndIncrement(), RenderConstants.D3D12BufferType.RAYTRACING_BLAS, 0, true);
             bufferRegistry.put(blasHandle, info);
             rayTracingBuffersCount++;
             bufferCount++;
@@ -144,7 +138,7 @@ public class D3D12BufferManager extends AbstractBufferManager {
         long tlasHandle = nativeCreateTopLevelAccelerationStructure(blasHandles, instanceTransforms);
 
         if (tlasHandle != 0L) {
-            BufferInfo info = new BufferInfo(nextBufferId.getAndIncrement(), BUFFER_TYPE_RAYTRACING_TLAS, 0, true);
+            BufferInfo info = new BufferInfo(nextBufferId.getAndIncrement(), RenderConstants.D3D12BufferType.RAYTRACING_TLAS, 0, true);
             bufferRegistry.put(tlasHandle, info);
             rayTracingBuffersCount++;
             bufferCount++;
@@ -164,7 +158,7 @@ public class D3D12BufferManager extends AbstractBufferManager {
         int vrsHeight = Math.max(1, height / 8);
         long size = vrsWidth * vrsHeight; // 1 byte per tile
 
-        return createBuffer(BUFFER_TYPE_VRS_MAP, size, true);
+        return createBuffer(RenderConstants.D3D12BufferType.VRS_MAP, size, true);
     }
 
     // Buffer operations
@@ -207,7 +201,7 @@ public class D3D12BufferManager extends AbstractBufferManager {
             totalMemoryUsed -= info.size;
             bufferCount--;
 
-            if (info.type == BUFFER_TYPE_RAYTRACING_TLAS || info.type == BUFFER_TYPE_RAYTRACING_BLAS) {
+            if (info.type == RenderConstants.D3D12BufferType.RAYTRACING_TLAS || info.type == RenderConstants.D3D12BufferType.RAYTRACING_BLAS) {
                 rayTracingBuffersCount--;
             }
 
@@ -234,7 +228,7 @@ public class D3D12BufferManager extends AbstractBufferManager {
         }
 
         BufferInfo info = bufferRegistry.get(asHandle);
-        if (info.type != BUFFER_TYPE_RAYTRACING_TLAS && info.type != BUFFER_TYPE_RAYTRACING_BLAS) {
+        if (info.type != RenderConstants.D3D12BufferType.RAYTRACING_TLAS && info.type != RenderConstants.D3D12BufferType.RAYTRACING_BLAS) {
             return false;
         }
 
@@ -300,13 +294,13 @@ public class D3D12BufferManager extends AbstractBufferManager {
     // Helper methods
     private String getBufferTypeName(int type) {
         switch (type) {
-            case BUFFER_TYPE_VERTEX: return "Vertex";
-            case BUFFER_TYPE_INDEX: return "Index";
-            case BUFFER_TYPE_CONSTANT: return "Constant";
-            case BUFFER_TYPE_STRUCTURED: return "Structured";
-            case BUFFER_TYPE_RAYTRACING_TLAS: return "RT-TLAS";
-            case BUFFER_TYPE_RAYTRACING_BLAS: return "RT-BLAS";
-            case BUFFER_TYPE_VRS_MAP: return "VRS-Map";
+            case RenderConstants.D3D12BufferType.VERTEX: return "Vertex";
+            case RenderConstants.D3D12BufferType.INDEX: return "Index";
+            case RenderConstants.D3D12BufferType.CONSTANT: return "Constant";
+            case RenderConstants.D3D12BufferType.STRUCTURED: return "Structured";
+            case RenderConstants.D3D12BufferType.RAYTRACING_TLAS: return "RT-TLAS";
+            case RenderConstants.D3D12BufferType.RAYTRACING_BLAS: return "RT-BLAS";
+            case RenderConstants.D3D12BufferType.VRS_MAP: return "VRS-Map";
             default: return "Unknown";
         }
     }

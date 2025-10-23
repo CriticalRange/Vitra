@@ -2,7 +2,7 @@ package com.vitra.mixin.render.target;
 
 import com.mojang.blaze3d.pipeline.MainTarget;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.vitra.render.jni.VitraNativeRenderer;
+import com.vitra.render.jni.VitraD3D11Renderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -45,10 +45,10 @@ public class MainTargetMixin extends RenderTarget {
     public void bindWrite(boolean updateViewport) {
         try {
             // Bind DirectX 11 back buffer as render target
-            VitraNativeRenderer.bindMainRenderTarget();
+            VitraD3D11Renderer.bindMainRenderTarget();
 
             if (updateViewport) {
-                VitraNativeRenderer.setViewport(0, 0, this.width, this.height);
+                VitraD3D11Renderer.setViewport(0, 0, this.width, this.height);
             }
         } catch (Exception e) {
             LOGGER.error("Failed to bind main render target", e);
@@ -63,7 +63,7 @@ public class MainTargetMixin extends RenderTarget {
     public void bindRead() {
         try {
             // Bind DirectX 11 back buffer texture for reading
-            VitraNativeRenderer.bindMainRenderTargetTexture();
+            VitraD3D11Renderer.bindMainRenderTargetTexture();
         } catch (Exception e) {
             LOGGER.error("Failed to bind main render target texture", e);
         }
@@ -76,7 +76,7 @@ public class MainTargetMixin extends RenderTarget {
     @Override
     public int getColorTextureId() {
         try {
-            return VitraNativeRenderer.getMainColorTextureId();
+            return VitraD3D11Renderer.getMainColorTextureId();
         } catch (Exception e) {
             LOGGER.error("Failed to get main color texture ID", e);
             return 0;
