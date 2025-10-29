@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 
 /**
- * DirectX 11 Mipmap Generator Mixin
+ * DirectX Mipmap Generator Mixin
  *
  * Based on VulkanMod's MipmapGeneratorM.
  * Improves mipmap generation by fixing artifacts on textures with transparent backgrounds.
@@ -20,7 +20,7 @@ import org.spongepowered.asm.mixin.Shadow;
  * - Add average background color to transparent pixels
  * - Direct memory access for performance
  *
- * DirectX 11 benefits:
+ * DirectX benefits:
  * - Better texture quality with improved mipmap chain
  * - Reduced visual artifacts on transparent textures (e.g., leaves, grass)
  * - Gamma-correct downsampling for accurate color representation
@@ -39,12 +39,12 @@ public abstract class MipmapGeneratorMixin {
      * @reason Add an average background color to textures that have transparent backgrounds
      * to fix mipmap artifacts
      *
-     * DirectX 11 mipmap generation:
+     * DirectX mipmap generation:
      * 1. Detect transparent pixels in base texture
      * 2. Calculate average opaque color
      * 3. Fill transparent backgrounds with average color (keeps alpha)
      * 4. Generate mipmap chain with gamma-correct blending
-     * 5. Upload mipmap chain to DirectX 11 texture
+     * 5. Upload mipmap chain to DirectX texture
      */
     @SuppressWarnings("UnreachableCode")
     @Overwrite

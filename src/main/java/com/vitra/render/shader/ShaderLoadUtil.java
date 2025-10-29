@@ -75,9 +75,23 @@ public class ShaderLoadUtil {
      * @return Shader source code as string
      */
     public static String loadShaderSource(ResourceProvider resourceProvider, ResourceLocation resourceLocation) {
+        // Try classpath loading first (VulkanMod approach) - works in dev and production
+        String classpathPath = "/assets/" + resourceLocation.getNamespace() + "/" + resourceLocation.getPath();
+
+        try (InputStream stream = ShaderLoadUtil.class.getResourceAsStream(classpathPath)) {
+            if (stream != null) {
+                LOGGER.debug("Loaded shader from classpath: {}", classpathPath);
+                return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        } catch (Exception e) {
+            LOGGER.debug("Failed to load from classpath: {}", classpathPath, e);
+        }
+
+        // Fallback to ResourceProvider (for resource packs)
         try {
             Resource resource = resourceProvider.getResourceOrThrow(resourceLocation);
             try (InputStream inputStream = resource.open()) {
+                LOGGER.debug("Loaded shader from ResourceProvider: {}", resourceLocation);
                 return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
             }
         } catch (Exception e) {

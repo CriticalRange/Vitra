@@ -2,7 +2,7 @@ package com.vitra.mixin.texture.image;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.vitra.render.texture.VitraTextureFactory;
+import com.vitra.render.D3D11Texture;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,14 +15,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.nio.ByteBuffer;
 
 /**
- * CRITICAL DirectX 11 NativeImage Upload Mixin
+ * CRITICAL DirectX NativeImage Upload Mixin
  *
  * This is THE most important mixin for font and texture loading.
  * Based on VulkanMod's MNativeImage pattern.
  *
  * Key responsibilities:
  * - Cache ByteBuffer wrapper in constructor (zero-copy pattern)
- * - Intercept _upload() method for DirectX 11 texture uploads
+ * - Intercept _upload() method for DirectX texture uploads
  * - Handle unpackSkipRows/unpackSkipPixels parameters for font textures
  * - Prevent heap corruption from invalid memory access
  */
@@ -69,7 +69,7 @@ public abstract class MNativeImage {
     }
 
     /**
-     * CRITICAL: Overwrite _upload() method to use renderer-agnostic texture system
+     * CRITICAL: Overwrite _upload() method to use D3D11 texture system
      *
      * This is THE final interception point for ALL texture uploads including:
      * - Font textures (the ones causing crashes)
@@ -78,22 +78,31 @@ public abstract class MNativeImage {
      * - Mipmap textures
      *
      * @author Vitra (based on VulkanMod pattern)
-     * @reason Replace OpenGL texture upload with renderer-agnostic texture system
+     * @reason Replace OpenGL texture upload with D3D11 texture system
      */
+    private static int uploadCount = 0;
+
     @Overwrite
     private void _upload(int level, int xOffset, int yOffset, int unpackSkipPixels, int unpackSkipRows,
                         int widthIn, int heightIn, boolean blur, boolean clamp, boolean mipmap, boolean autoClose) {
         RenderSystem.assertOnRenderThreadOrInit();
 
-        // CRITICAL: Set OpenGL unpack parameters BEFORE upload
-        // These are used by texSubImage2D to calculate proper offsets
-        VitraTextureFactory.pixelStorei(0x0CF3, unpackSkipRows);   // GL_UNPACK_SKIP_ROWS
-        VitraTextureFactory.pixelStorei(0x0CF4, unpackSkipPixels); // GL_UNPACK_SKIP_PIXELS
-        VitraTextureFactory.pixelStorei(0x0CF2, this.getWidth());  // GL_UNPACK_ROW_LENGTH = image width
+        // DEBUG: Log first 20 uploads
+        if (uploadCount < 20) {
+            System.out.println("[NATIVE_IMAGE_UPLOAD " + uploadCount + "] size=" + widthIn + "x" + heightIn +
+                ", level=" + level + ", offset=" + xOffset + "," + yOffset);
+            uploadCount++;
+        }
 
-        // Upload texture using renderer-agnostic factory
+        // CRITICAL: Set OpenGL unpack parameters BEFORE upload (VulkanMod pattern)
+        // These are used by texSubImage2D to calculate proper offsets
+        D3D11Texture.pixelStorei(0x0CF3, unpackSkipRows);   // GL_UNPACK_SKIP_ROWS
+        D3D11Texture.pixelStorei(0x0CF4, unpackSkipPixels); // GL_UNPACK_SKIP_PIXELS
+        D3D11Texture.pixelStorei(0x0CF2, this.getWidth());  // GL_UNPACK_ROW_LENGTH = image width
+
+        // Upload texture using D3D11Texture directly (VulkanMod pattern)
         // texImage2D will call texSubImage2D internally, which uses the unpack parameters
-        VitraTextureFactory.texImage2D(
+        D3D11Texture.texImage2D(
             0x0DE1,          // GL_TEXTURE_2D
             level,
             this.format.glFormat(),  // Internal format (RGBA, RGB, etc.)
@@ -105,13 +114,13 @@ public abstract class MNativeImage {
             this.buffer      // ByteBuffer with pixel data
         );
 
-        // Reset unpack parameters to defaults after upload
-        VitraTextureFactory.pixelStorei(0x0CF3, 0);  // GL_UNPACK_SKIP_ROWS = 0
-        VitraTextureFactory.pixelStorei(0x0CF4, 0);  // GL_UNPACK_SKIP_PIXELS = 0
-        VitraTextureFactory.pixelStorei(0x0CF2, 0);  // GL_UNPACK_ROW_LENGTH = 0
+        // Reset unpack parameters to defaults after upload (VulkanMod pattern)
+        D3D11Texture.pixelStorei(0x0CF3, 0);  // GL_UNPACK_SKIP_ROWS = 0
+        D3D11Texture.pixelStorei(0x0CF4, 0);  // GL_UNPACK_SKIP_PIXELS = 0
+        D3D11Texture.pixelStorei(0x0CF2, 0);  // GL_UNPACK_ROW_LENGTH = 0
 
         // Handle texture parameters (blur/clamp/mipmap) if needed
-        // TODO: Implement updateTextureSampler in texture implementations
+        // TODO: Implement updateTextureSampler in D3D11Texture
 
         if (autoClose) {
             this.close();

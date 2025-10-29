@@ -16,7 +16,7 @@ public class GL20Mixin {
 
     /**
      * @author Vitra
-     * @reason Prevent OpenGL calls - handled by DirectX 11 via GlStateManagerM
+     * @reason Prevent OpenGL calls - handled by DirectX via GlStateManagerM
      */
     @Overwrite(remap = false)
     public static void glEnableVertexAttribArray(@NativeType("GLuint") int index) {
@@ -25,7 +25,7 @@ public class GL20Mixin {
 
     /**
      * @author Vitra
-     * @reason Prevent OpenGL calls - handled by DirectX 11 via GlStateManagerM
+     * @reason Prevent OpenGL calls - handled by DirectX via GlStateManagerM
      */
     @Overwrite(remap = false)
     public static void glDisableVertexAttribArray(@NativeType("GLuint") int index) {
@@ -34,7 +34,7 @@ public class GL20Mixin {
 
     /**
      * @author Vitra
-     * @reason Prevent OpenGL calls - handled by DirectX 11 via GlStateManagerM
+     * @reason Prevent OpenGL calls - handled by DirectX via GlStateManagerM
      */
     @Overwrite(remap = false)
     public static void glVertexAttribPointer(@NativeType("GLuint") int index, @NativeType("GLint") int size, @NativeType("GLenum") int type, @NativeType("GLboolean") boolean normalized, @NativeType("GLsizei") int stride, @NativeType("void const *") ByteBuffer pointer) {
@@ -43,7 +43,7 @@ public class GL20Mixin {
 
     /**
      * @author Vitra
-     * @reason Prevent OpenGL calls - handled by DirectX 11 via GlStateManagerM
+     * @reason Prevent OpenGL calls - handled by DirectX via GlStateManagerM
      */
     @Overwrite(remap = false)
     public static void glVertexAttribPointer(@NativeType("GLuint") int index, @NativeType("GLint") int size, @NativeType("GLenum") int type, @NativeType("GLboolean") boolean normalized, @NativeType("GLsizei") int stride, @NativeType("void const *") long pointer) {
@@ -52,7 +52,7 @@ public class GL20Mixin {
 
     /**
      * @author Vitra
-     * @reason Prevent OpenGL calls - handled by DirectX 11 via GlStateManagerM
+     * @reason Prevent OpenGL calls - handled by DirectX via GlStateManagerM
      */
     @Overwrite(remap = false)
     public static void glVertexAttribPointer(@NativeType("GLuint") int index, @NativeType("GLint") int size, @NativeType("GLenum") int type, @NativeType("GLboolean") boolean normalized, @NativeType("GLsizei") int stride, @NativeType("void const *") IntBuffer pointer) {
@@ -61,7 +61,7 @@ public class GL20Mixin {
 
     /**
      * @author Vitra
-     * @reason Prevent OpenGL calls - handled by DirectX 11 via GlStateManagerM
+     * @reason Prevent OpenGL calls - handled by DirectX via GlStateManagerM
      */
     @Overwrite(remap = false)
     public static void glVertexAttribPointer(@NativeType("GLuint") int index, @NativeType("GLint") int size, @NativeType("GLenum") int type, @NativeType("GLboolean") boolean normalized, @NativeType("GLsizei") int stride, @NativeType("void const *") FloatBuffer pointer) {

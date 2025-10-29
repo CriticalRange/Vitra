@@ -350,19 +350,8 @@ static void cleanupTextureManager() {
 
 static void cleanupMemoryManager() {
 #if VITRA_D3D12MA_AVAILABLE
-    // Release D3D12MA allocator and pools
-    if (g_d3d12.uploadPool) {
-        g_d3d12.uploadPool->Release();
-        g_d3d12.uploadPool = nullptr;
-    }
-    if (g_d3d12.readbackPool) {
-        g_d3d12.readbackPool->Release();
-        g_d3d12.readbackPool = nullptr;
-    }
-    if (g_d3d12.allocator) {
-        g_d3d12.allocator->Release();
-        g_d3d12.allocator = nullptr;
-    }
+    // Use the comprehensive shutdown function to avoid pool leaks
+    shutdownD3D12MA();
 #endif
 }
 
@@ -4748,6 +4737,60 @@ extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Native_set
         }
     } catch (const std::exception& e) {
         std::cerr << "Exception in setViewport: " << e.what() << std::endl;
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Native_setScissorRect(JNIEnv* env, jclass clazz, jint x, jint y, jint width, jint height) {
+    try {
+        D3D12_RECT scissorRect = {};
+        scissorRect.left = x;
+        scissorRect.top = y;
+        scissorRect.right = x + width;
+        scissorRect.bottom = y + height;
+
+        if (g_d3d12.commandList) {
+            g_d3d12.commandList->RSSetScissorRects(1, &scissorRect);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in setScissorRect: " << e.what() << std::endl;
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D12Native_setPrimitiveTopology(JNIEnv* env, jclass clazz, jint topology) {
+    try {
+        // Map OpenGL/generic topology to D3D12_PRIMITIVE_TOPOLOGY
+        // GL_POINTS = 0 -> D3D_PRIMITIVE_TOPOLOGY_POINTLIST = 1
+        // GL_LINES = 1 -> D3D_PRIMITIVE_TOPOLOGY_LINELIST = 2
+        // GL_TRIANGLES = 4 -> D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST = 4
+        D3D_PRIMITIVE_TOPOLOGY d3d12Topology;
+
+        switch (topology) {
+            case 0: // GL_POINTS
+                d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+                break;
+            case 1: // GL_LINES
+                d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+                break;
+            case 2: // GL_LINE_STRIP
+                d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+                break;
+            case 4: // GL_TRIANGLES
+                d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+                break;
+            case 5: // GL_TRIANGLE_STRIP
+                d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+                break;
+            default:
+                // Default to triangle list (most common)
+                d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+                break;
+        }
+
+        if (g_d3d12.commandList) {
+            g_d3d12.commandList->IASetPrimitiveTopology(d3d12Topology);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in setPrimitiveTopology: " << e.what() << std::endl;
     }
 }
 

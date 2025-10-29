@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * DirectX 11 shader manager that replaces BGFX shader loading
+ * DirectX shader manager that replaces BGFX shader loading
  */
 public class D3D11ShaderManager extends AbstractShaderManager {
     private final Map<String, Long> shaderCache = new ConcurrentHashMap<>();
@@ -21,9 +21,9 @@ public class D3D11ShaderManager extends AbstractShaderManager {
     }
 
     /**
-     * Load a shader from compiled HLSL bytecode (.cso files)
+     * Load a shader using runtime HLSL compilation from GLSL source
      *
-     * @param name Shader name (e.g., "position", "position_color")
+     * @param name Shader name (e.g., "position", "position_color", "gui")
      * @param type Shader type (SHADER_TYPE_VERTEX or SHADER_TYPE_PIXEL)
      * @return Shader handle, or 0 on failure
      */
@@ -36,46 +36,48 @@ public class D3D11ShaderManager extends AbstractShaderManager {
         }
 
         try {
-            // Construct resource path for compiled shaders
-            // Format: /shaders/compiled/<name>_vs.cso or /shaders/compiled/<name>_ps.cso
-            String shaderTypeExt = (type == VitraD3D11Renderer.SHADER_TYPE_VERTEX) ? "vs" : "ps";
-            String resourcePath = "/shaders/compiled/" + name + "_" + shaderTypeExt + ".cso";
+            // NEW: Load HLSL source and compile at runtime (NO MORE .cso files!)
+            // Path: /assets/vitra/shaders/hlsl/<name>.vsh or .fsh
+            String shaderTypeExt = (type == VitraD3D11Renderer.SHADER_TYPE_VERTEX) ? ".vsh" : ".fsh";
+            String resourcePath = "/assets/vitra/shaders/hlsl/" + name + shaderTypeExt;
 
             InputStream is = getClass().getResourceAsStream(resourcePath);
 
             if (is == null) {
                 // FALLBACK: Try to use position_tex_color as default shader (VulkanMod pattern)
                 if (!name.equals("position_tex_color")) {
-                    logger.warn("Shader not found: {}, falling back to position_tex_color shader", resourcePath);
+                    logger.warn("Shader source not found: {}, falling back to position_tex_color shader", resourcePath);
                     return loadShader("position_tex_color", type);
                 }
 
-                logger.error("Compiled shader not found: {}", resourcePath);
+                logger.error("Shader source not found: {}", resourcePath);
                 return 0;
             }
 
-            byte[] bytecode = is.readAllBytes();
+            String hlslSource = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
             is.close();
 
-            if (bytecode.length == 0) {
-                logger.error("Empty shader bytecode: {}", resourcePath);
+            if (hlslSource.isEmpty()) {
+                logger.error("Empty shader source: {}", resourcePath);
                 return 0;
             }
 
-            long handle = VitraD3D11Renderer.createGLProgramShader(bytecode, bytecode.length, type);
+            // Compile HLSL at runtime using D3DCompile
+            long handle = VitraD3D11Renderer.precompileShaderForDirectX11(hlslSource, type);
+
             if (handle != 0) {
                 shaderCache.put(cacheKey, handle);
-                logger.debug("Loaded {} shader: {} (handle: 0x{}, size: {} bytes)",
+                logger.info("Compiled {} shader at runtime: {} (handle: 0x{}, source: {} chars)",
                     type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "vertex" : "pixel",
-                    name, Long.toHexString(handle), bytecode.length);
+                    name, Long.toHexString(handle), hlslSource.length());
             } else {
-                logger.error("Failed to create DirectX shader from bytecode: {}", name);
+                logger.error("Failed to compile DirectX shader from HLSL source: {}", name);
             }
 
             return handle;
 
         } catch (IOException e) {
-            logger.error("Failed to load compiled shader: {}", name, e);
+            logger.error("Failed to load shader source: {}", name, e);
             return 0;
         }
     }
@@ -132,7 +134,7 @@ public class D3D11ShaderManager extends AbstractShaderManager {
      * Total: 36 shader pairs (72 compiled binaries)
      */
     public void preloadShaders() {
-        logger.info("Preloading ALL Minecraft DirectX 11 shaders...");
+        logger.info("Preloading ALL Minecraft DirectX shaders...");
 
         // ALL 36 Minecraft 1.21.1 core shaders
         String[] allShaders = {
@@ -216,6 +218,6 @@ public class D3D11ShaderManager extends AbstractShaderManager {
 
     @Override
     public String getRendererType() {
-        return "DirectX 11";
+        return "DirectX";
     }
 }

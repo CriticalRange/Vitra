@@ -271,6 +271,15 @@ public class VitraD3D11Renderer {
     public static native void drawWithVertexFormat(long vertexBuffer, long indexBuffer, int baseVertex, int firstIndex, int vertexOrIndexCount, int instanceCount, int[] vertexFormatDesc);
 
     /**
+     * Set input layout from vertex format for the given vertex shader.
+     * This should be called when binding a pipeline to ensure the input layout matches the vertex format.
+     * CRITICAL FIX: This prevents "TEXCOORD linkage error" when draw() is called without vertex format.
+     * @param vertexShaderHandle - Handle to the vertex shader
+     * @param vertexFormatDesc - Vertex format descriptor array [elementCount, usage1, type1, count1, offset1, ...]
+     */
+    public static native void setInputLayoutFromVertexFormat(long vertexShaderHandle, int[] vertexFormatDesc);
+
+    /**
      * Check if the native renderer is initialized
      */
     public static native boolean isInitialized();
@@ -580,7 +589,7 @@ public class VitraD3D11Renderer {
      * @param debugName - Debug name for the shader (for error messages)
      * @return Shader handle, or 0 on failure
      */
-    public static native long compileShader(byte[] source, int sourceLength, String target, String debugName);
+    public static native long compileShaderBYTEARRAY(byte[] source, int sourceLength, String target, String debugName);
 
     /**
      * Compile HLSL shader from file.
@@ -591,6 +600,15 @@ public class VitraD3D11Renderer {
      * @return Shader handle, or 0 on failure
      */
     public static native long compileShaderFromFile(String filePath, String target, String debugName);
+
+    /**
+     * Get bytecode from compiled shader blob handle.
+     * Returns the bytecode bytes for a shader blob that was compiled with compileShader().
+     *
+     * @param blobHandle - Blob handle returned by compileShader
+     * @return Shader bytecode bytes, or null if blob not found
+     */
+    public static native byte[] getBlobBytecode(long blobHandle);
 
     /**
      * Create shader from precompiled bytecode.
@@ -1753,12 +1771,8 @@ public class VitraD3D11Renderer {
      */
     public static native long createFramebuffer(int framebufferId);
 
-    /**
-     * Bind framebuffer
-     * @param framebufferHandle - Framebuffer handle
-     * @param target - Framebuffer target (GL_FRAMEBUFFER, etc.)
-     */
-    public static native void bindFramebuffer(long framebufferHandle, int target);
+    // REMOVED: Conflicting overload causes Java to call wrong method
+    // Use bindFramebuffer(int target, int framebuffer) instead (line 3213)
 
     /**
      * Attach texture to framebuffer
@@ -3193,6 +3207,30 @@ public class VitraD3D11Renderer {
      * Bind framebuffer (int ID version)
      */
     public static native void bindFramebuffer(int target, int framebuffer);
+
+    /**
+     * Create or resize framebuffer textures (color + depth)
+     * @param framebufferId The framebuffer ID
+     * @param width Framebuffer width
+     * @param height Framebuffer height
+     * @param hasColor Whether to create color attachment
+     * @param hasDepth Whether to create depth attachment
+     * @return true if successful, false otherwise
+     */
+    public static native boolean createFramebufferTextures(int framebufferId, int width, int height, boolean hasColor, boolean hasDepth);
+
+    /**
+     * Destroy framebuffer and free resources
+     * @param framebufferId The framebuffer ID to destroy
+     */
+    public static native void destroyFramebuffer(int framebufferId);
+
+    /**
+     * Bind framebuffer texture for reading
+     * @param framebufferId The framebuffer ID
+     * @param textureUnit The texture unit to bind to
+     */
+    public static native void bindFramebufferTexture(int framebufferId, int textureUnit);
 
     /**
      * Bind renderbuffer (int ID version)

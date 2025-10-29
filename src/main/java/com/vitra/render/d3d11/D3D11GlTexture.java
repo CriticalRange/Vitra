@@ -10,13 +10,13 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 
 /**
- * DirectX 11 OpenGL Texture Wrapper
+ * DirectX OpenGL Texture Wrapper
  *
- * Maps OpenGL texture IDs to DirectX 11 texture handles.
+ * Maps OpenGL texture IDs to DirectX texture handles.
  * Based on VulkanMod's VkGlTexture pattern.
  *
  * Architecture:
- * - OpenGL texture ID (int) → DirectX 11 texture handle (long)
+ * - OpenGL texture ID (int) → DirectX texture handle (long)
  * - Tracks active texture slot (GL_TEXTURE0-15)
  * - Manages texture binding to shader resource views
  * - Handles texture creation, upload, and deletion
@@ -72,22 +72,23 @@ public class D3D11GlTexture {
         boundTextureIds[activeTextureSlot] = textureId;
 
         if (textureId == 0) {
-            // Unbind texture (bind null)
-            VitraD3D11Renderer.bindTexture(activeTextureSlot, 0L);
-            LOGGER.debug("Unbound texture from slot {}", activeTextureSlot);
+            // CRITICAL FIX: In DirectX, ignore glBindTexture(0) - keep last texture bound
+            // OpenGL unbinds with glBindTexture(0), but DirectX draws fail with NULL textures
+            // VulkanMod does the same - they ignore texture unbinding
+            LOGGER.debug("Ignoring texture unbind for slot {} (keeping last texture bound)", activeTextureSlot);
             return;
         }
 
-        // Get DirectX 11 texture handle
+        // Get DirectX texture handle
         long d3d11Handle = textureHandles.get(textureId);
 
         if (d3d11Handle == 0L) {
             // Texture not yet created in DirectX - this is normal, glTexImage2D will create it
-            LOGGER.debug("Texture ID {} not yet uploaded to DirectX 11 (slot {})", textureId, activeTextureSlot);
+            LOGGER.debug("Texture ID {} not yet uploaded to DirectX (slot {})", textureId, activeTextureSlot);
             return;
         }
 
-        // Bind DirectX 11 texture to shader resource view slot
+        // Bind DirectX texture to shader resource view slot
         VitraD3D11Renderer.bindTexture(activeTextureSlot, d3d11Handle);
         LOGGER.debug("Bound texture {} (D3D11 handle: 0x{}) to slot {}",
             textureId, Long.toHexString(d3d11Handle), activeTextureSlot);
@@ -125,14 +126,14 @@ public class D3D11GlTexture {
     }
 
     /**
-     * Get the DirectX 11 handle for an OpenGL texture ID
+     * Get the DirectX handle for an OpenGL texture ID
      */
     public static long getD3D11Handle(int textureId) {
         return textureHandles.get(textureId);
     }
 
     /**
-     * Create or update a DirectX 11 texture from pixel data
+     * Create or update a DirectX texture from pixel data
      * Called from GlStateManagerM after glTexImage2D
      *
      * @param textureId OpenGL texture ID
@@ -163,16 +164,30 @@ public class D3D11GlTexture {
                 VitraD3D11Renderer.releaseTexture(existingHandle);
             }
 
-            // Convert OpenGL format to DirectX 11 format
+            // Convert OpenGL format to DirectX format
             int dxgiFormat = convertToDXGIFormat(internalFormat, format, type);
 
-            // Create DirectX 11 texture
+            // Create DirectX texture
             long d3d11Handle;
             if (pixels != null && pixels.remaining() > 0) {
-                // Create with initial data
+                // Extract pixel data
                 byte[] pixelData = new byte[pixels.remaining()];
                 pixels.get(pixelData);
                 pixels.rewind();
+
+                // CRITICAL: Convert RGBA → BGRA if using BGRA format (VulkanMod pattern)
+                // DirectX uses BGRA natively on Windows for optimal performance
+                final int DXGI_FORMAT_B8G8R8A8_UNORM = 87;
+                final int GL_RGBA = 0x1908;
+                final int GL_RGB = 0x1907;
+
+                if (dxgiFormat == DXGI_FORMAT_B8G8R8A8_UNORM &&
+                    (format == GL_RGBA || format == GL_RGB)) {
+                    // Swap R and B channels in-place
+                    convertRGBAtoBGRAInPlace(pixelData);
+                    LOGGER.debug("Converted RGBA→BGRA for texture {} ({}x{})",
+                        textureId, width, height);
+                }
 
                 d3d11Handle = VitraD3D11Renderer.createTextureFromData(
                     pixelData, width, height, dxgiFormat
@@ -185,14 +200,14 @@ public class D3D11GlTexture {
             }
 
             if (d3d11Handle == 0L) {
-                LOGGER.error("Failed to create DirectX 11 texture for ID {}", textureId);
+                LOGGER.error("Failed to create DirectX texture for ID {}", textureId);
                 return;
             }
 
             // Store mapping
             textureHandles.put(textureId, d3d11Handle);
 
-            LOGGER.info("Created DirectX 11 texture: ID={}, size={}x{}, format=0x{}, handle=0x{}",
+            LOGGER.info("Created DirectX texture: ID={}, size={}x{}, format=0x{}, handle=0x{}",
                 textureId, width, height, Integer.toHexString(dxgiFormat), Long.toHexString(d3d11Handle));
 
             // Re-bind if this texture is currently bound
@@ -249,13 +264,25 @@ public class D3D11GlTexture {
             return;
         }
 
-        // Use proper subregion update with D3D11_BOX
+        // Extract pixel data
         byte[] pixelData = new byte[pixels.remaining()];
         pixels.get(pixelData);
         pixels.rewind();
 
-        // Convert format to DXGI format (need to determine from existing texture)
-        int dxgiFormat = 28; // DXGI_FORMAT_R8G8B8A8_UNORM (default)
+        // CRITICAL: Convert RGBA → BGRA if needed (VulkanMod pattern)
+        // Assume BGRA format for texSubImage2D (matches texImage2D behavior)
+        final int DXGI_FORMAT_B8G8R8A8_UNORM = 87;
+        final int GL_RGBA = 0x1908;
+        final int GL_RGB = 0x1907;
+
+        int dxgiFormat = DXGI_FORMAT_B8G8R8A8_UNORM;  // Default to BGRA
+
+        if (format == GL_RGBA || format == GL_RGB) {
+            // Convert RGBA → BGRA
+            convertRGBAtoBGRAInPlace(pixelData);
+            LOGGER.debug("Converted RGBA→BGRA for texSubImage2D texture {} subregion",
+                textureId);
+        }
 
         boolean success = VitraD3D11Renderer.updateTextureSubRegion(
             d3d11Handle, pixelData, xoffset, yoffset, width, height, dxgiFormat
@@ -325,15 +352,19 @@ public class D3D11GlTexture {
     /**
      * Convert OpenGL texture format to DXGI_FORMAT
      *
+     * CRITICAL FIX: Use BGRA format for optimal Windows/DirectX performance
+     * Follows VulkanMod's pattern - pixel data will be converted RGBA→BGRA
+     *
      * Common mappings:
-     * GL_RGBA8 → DXGI_FORMAT_R8G8B8A8_UNORM (28)
-     * GL_RGB8 → DXGI_FORMAT_R8G8B8A8_UNORM (28) - padded to RGBA
+     * GL_RGBA8 → DXGI_FORMAT_B8G8R8A8_UNORM (87) - BGRA, not RGBA!
+     * GL_RGB8 → DXGI_FORMAT_B8G8R8A8_UNORM (87) - padded to BGRA
      * GL_RED → DXGI_FORMAT_R8_UNORM (61)
      * GL_DEPTH_COMPONENT → DXGI_FORMAT_D24_UNORM_S8_UINT (45)
      */
     private static int convertToDXGIFormat(int internalFormat, int format, int type) {
         // DXGI_FORMAT enum values from d3dcommon.h
-        final int DXGI_FORMAT_R8G8B8A8_UNORM = 28;
+        final int DXGI_FORMAT_B8G8R8A8_UNORM = 87;  // BGRA - native to Windows
+        final int DXGI_FORMAT_R8G8B8A8_UNORM = 28;  // RGBA - for special cases
         final int DXGI_FORMAT_R8_UNORM = 61;
         final int DXGI_FORMAT_R16_UNORM = 56;
         final int DXGI_FORMAT_D24_UNORM_S8_UINT = 45;
@@ -346,15 +377,25 @@ public class D3D11GlTexture {
         final int GL_DEPTH_COMPONENT = 0x1902;
         final int GL_RGBA8 = 0x8058;
         final int GL_RGB8 = 0x8051;
+        final int GL_BGRA = 0x80E1;
+        final int GL_UNSIGNED_INT_8_8_8_8_REV = 0x8367;
+
+        // CRITICAL: Check for special reverse byte order format first
+        if (type == GL_UNSIGNED_INT_8_8_8_8_REV) {
+            // Special packed format - use RGBA, not BGRA (VulkanMod pattern)
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        }
 
         // Check internal format first
         switch (internalFormat) {
             case GL_RGBA8:
             case GL_RGBA:
-                return DXGI_FORMAT_R8G8B8A8_UNORM;
+                return DXGI_FORMAT_B8G8R8A8_UNORM;  // BGRA (VulkanMod pattern)
             case GL_RGB8:
             case GL_RGB:
-                return DXGI_FORMAT_R8G8B8A8_UNORM; // Pad to RGBA
+                return DXGI_FORMAT_B8G8R8A8_UNORM;  // Pad to BGRA
+            case GL_BGRA:
+                return DXGI_FORMAT_B8G8R8A8_UNORM;  // Already BGRA
             case GL_RED:
                 return DXGI_FORMAT_R8_UNORM;
             case GL_DEPTH_COMPONENT:
@@ -364,19 +405,78 @@ public class D3D11GlTexture {
         // Fallback to checking format parameter
         switch (format) {
             case GL_RGBA:
-                return DXGI_FORMAT_R8G8B8A8_UNORM;
+                return DXGI_FORMAT_B8G8R8A8_UNORM;  // BGRA (VulkanMod pattern)
             case GL_RGB:
-                return DXGI_FORMAT_R8G8B8A8_UNORM; // Pad to RGBA
+                return DXGI_FORMAT_B8G8R8A8_UNORM;  // Pad to BGRA
+            case GL_BGRA:
+                return DXGI_FORMAT_B8G8R8A8_UNORM;  // Already BGRA
             case GL_RED:
                 return DXGI_FORMAT_R8_UNORM;
             case GL_DEPTH_COMPONENT:
                 return DXGI_FORMAT_D24_UNORM_S8_UINT;
         }
 
-        // Default to RGBA8
-        LOGGER.warn("Unknown texture format: internalFormat=0x{}, format=0x{}, type=0x{} - defaulting to RGBA8",
+        // Default to BGRA8
+        LOGGER.warn("Unknown texture format: internalFormat=0x{}, format=0x{}, type=0x{} - defaulting to BGRA8",
             Integer.toHexString(internalFormat), Integer.toHexString(format), Integer.toHexString(type));
-        return DXGI_FORMAT_R8G8B8A8_UNORM;
+        return DXGI_FORMAT_B8G8R8A8_UNORM;
+    }
+
+    /**
+     * Convert RGBA buffer to BGRA buffer (swap R and B channels)
+     * Based on VulkanMod's GlUtil.BGRAtoRGBA_buffer pattern
+     *
+     * DEPRECATED: Use convertRGBAtoBGRAInPlace for better performance
+     */
+    private static ByteBuffer convertRGBAtoBGRA(ByteBuffer rgba) {
+        if (rgba == null || !rgba.hasRemaining()) {
+            return rgba;
+        }
+
+        int size = rgba.remaining();
+        ByteBuffer bgra = org.lwjgl.system.MemoryUtil.memAlloc(size);
+
+        // Save position and rewind to start
+        int originalPosition = rgba.position();
+        rgba.rewind();
+
+        // Convert RGBA → BGRA by swapping R and B channels
+        while (rgba.hasRemaining()) {
+            byte r = rgba.get();
+            byte g = rgba.get();
+            byte b = rgba.get();
+            byte a = rgba.get();
+
+            // Write as BGRA
+            bgra.put(b);
+            bgra.put(g);
+            bgra.put(r);
+            bgra.put(a);
+        }
+
+        bgra.flip();  // Prepare for reading
+        rgba.position(originalPosition);  // Restore original position
+
+        return bgra;
+    }
+
+    /**
+     * Convert RGBA to BGRA in-place by swapping R and B channels
+     * This is more efficient than allocating a new buffer
+     * Based on DirectXTex's format conversion pattern
+     */
+    private static void convertRGBAtoBGRAInPlace(byte[] pixels) {
+        if (pixels == null || pixels.length == 0) {
+            return;
+        }
+
+        // Swap R and B channels in-place (assumes 4 bytes per pixel)
+        for (int i = 0; i < pixels.length; i += 4) {
+            byte temp = pixels[i];     // Save R
+            pixels[i] = pixels[i + 2]; // R = B
+            pixels[i + 2] = temp;      // B = R
+            // G (i+1) and A (i+3) stay the same
+        }
     }
 
     /**

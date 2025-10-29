@@ -3,72 +3,87 @@ package com.vitra.mixin.texture;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.vitra.render.texture.IVitraTexture;
-import com.vitra.render.texture.VitraTextureFactory;
-import com.vitra.render.texture.D3D12Texture;
+import com.vitra.render.D3D11Texture;
 import org.lwjgl.opengl.GL30;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Unique;
 
 /**
  * Mixin to replace OpenGL texture operations with D3D11 equivalents.
- * Intercepts TextureUtil methods and redirects to D3D11Texture wrapper.
+ * Intercepts TextureUtil methods and redirects to D3D11Texture.
+ *
+ * Based on VulkanMod's MTextureUtil mixin.
  */
 @Mixin(TextureUtil.class)
 public class MTextureUtil {
 
     /**
-     * @author Vitra
-     * @reason Replace OpenGL texture generation with renderer-agnostic texture ID generation
+     * @author Vitra (adapted from VulkanMod)
+     * @reason Replace OpenGL texture generation with D3D11 texture ID generation
      */
     @Overwrite(remap = false)
     public static int generateTextureId() {
         RenderSystem.assertOnRenderThreadOrInit();
-        return VitraTextureFactory.genTextureId();
+        int id = D3D11Texture.genTextureId();
+
+        // DEBUG: Log first 20 generateTextureId calls
+        genTextureIdCount++;
+        if (genTextureIdCount <= 20) {
+            System.out.println("[GEN_TEXTURE_ID " + genTextureIdCount + "] Generated ID=" + id);
+        }
+
+        return id;
     }
 
+    private static int genTextureIdCount = 0;
+
     /**
-     * @author Vitra
-     * @reason Replace OpenGL texture preparation with renderer-agnostic texture creation
+     * @author Vitra (adapted from VulkanMod)
+     * @reason Replace OpenGL texture preparation with D3D11 texture creation
      */
     @Overwrite(remap = false)
     public static void prepareImage(NativeImage.InternalGlFormat internalGlFormat, int id, int mipLevels, int width, int height) {
         RenderSystem.assertOnRenderThreadOrInit();
-        VitraTextureFactory.bindTexture(id);
-        IVitraTexture texture = VitraTextureFactory.getTexture(id);
 
-        if (texture == null || texture.needsRecreation(mipLevels + 1, width, height)) {
-            if (texture != null) {
-                texture.destroy();
-            }
-
-            // Create texture with specified parameters using renderer-agnostic factory
-            // Note: For D3D12, texture will be created during upload()
-            // For D3D11, we need to create it explicitly
-            texture = VitraTextureFactory.getTexture(id);
-            if (texture != null) {
-                // Upload empty texture to initialize it with correct dimensions
-                byte[] emptyData = new byte[width * height * 4]; // RGBA
-                texture.upload(emptyData, width, height, convertFormat(internalGlFormat));
-            }
+        // DEBUG: Log first 20 prepareImage calls to trace texture ID flow
+        prepareImageCount++;
+        if (prepareImageCount <= 20) {
+            System.out.println("[PREPARE_IMAGE " + prepareImageCount + "] ID=" + id + ", size=" + width + "x" + height + ", mips=" + mipLevels);
         }
 
-        if (mipLevels > 0 && texture != null) {
-            // Set mipmap parameters
-            texture.setParameter(GL30.GL_TEXTURE_MAX_LEVEL, mipLevels);
-            texture.setParameter(GL30.GL_TEXTURE_MIN_LOD, 0);
-            texture.setParameter(GL30.GL_TEXTURE_MAX_LOD, mipLevels);
-            texture.setParameter(GL30.GL_TEXTURE_LOD_BIAS, 0);
+        // CRITICAL FIX (VulkanMod pattern): Bind texture by ID to ensure it's tracked
+        // This ensures the texture ID is associated with subsequent texImage2D calls
+        D3D11Texture.bindTexture(id);
+
+        // CRITICAL (VulkanMod pattern): Create texture here if needed
+        // VulkanMod creates textures in prepareImage, not lazily in texImage2D
+        // This ensures the texture exists before any upload operations
+        D3D11Texture texture = D3D11Texture.getBoundTexture();
+        if (texture == null) {
+            System.out.println("[PREPARE_IMAGE_ERROR] No bound texture after binding ID=" + id);
+            return;
+        }
+
+        // Convert GL format to DirectX format
+        int dxFormat = D3D11Texture.convertGlFormat(
+            internalGlFormat == NativeImage.InternalGlFormat.RGBA ? 0x1908 : 0x1903, // GL_RGBA : GL_RGB
+            0x1401 // GL_UNSIGNED_BYTE
+        );
+
+        // Create or recreate texture if dimensions or format changed
+        boolean needs = texture.needsRecreation(mipLevels, width, height);
+        if (prepareImageCount <= 20) {
+            System.out.println("[PREPARE_IMAGE_DEBUG] ID=" + id + ", needsRecreation=" + needs +
+                ", nativeHandle=" + texture.getNativeHandle());
+        }
+
+        if (needs) {
+            D3D11Texture.createTexture(id, width, height, mipLevels, dxFormat);
+            if (prepareImageCount <= 20) {
+                System.out.println("[PREPARE_IMAGE_CREATED] ID=" + id + ", nativeHandle=" + texture.getNativeHandle());
+            }
         }
     }
 
-    @Unique
-    private static int convertFormat(NativeImage.InternalGlFormat format) {
-        return switch (format) {
-            case RGBA -> D3D12Texture.FORMAT_RGBA8_UNORM;
-            case RED -> D3D12Texture.FORMAT_R8_UNORM;
-            default -> throw new IllegalArgumentException(String.format("Unexpected format: %s", format));
-        };
-    }
+    private static int prepareImageCount = 0;
 }

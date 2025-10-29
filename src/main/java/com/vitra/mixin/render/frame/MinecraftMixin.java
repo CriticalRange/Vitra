@@ -9,6 +9,9 @@ import net.minecraft.client.main.GameConfig;
 import com.vitra.core.VitraCore;
 import com.vitra.render.texture.SpriteUpdateUtil;
 import com.vitra.render.VitraRenderer;
+import com.vitra.render.IVitraRenderer;
+import com.vitra.VitraMod;
+import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,12 +31,23 @@ public class MinecraftMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/MinecraftMixin");
 
     // Helper to get renderer instance (with null-safety check)
+    // Returns null for D3D12 (which doesn't need GL compatibility layer)
+    @Nullable
     private static VitraRenderer getRenderer() {
-        VitraRenderer renderer = VitraRenderer.getInstance();
-        if (renderer == null) {
-            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        IVitraRenderer baseRenderer = VitraMod.getRenderer();
+        if (baseRenderer == null) {
+            // Not yet initialized - this is expected during early initialization
+            return null;
         }
-        return renderer;
+
+        // If it's already a VitraRenderer (D3D11), return it directly
+        if (baseRenderer instanceof VitraRenderer) {
+            return (VitraRenderer) baseRenderer;
+        }
+
+        // For D3D12, return null (D3D12 doesn't use GL compatibility layer)
+        // D3D12 handles rendering directly without going through GL emulation
+        return null;
     }
 
     @Shadow @Final public Options options;
@@ -71,11 +85,17 @@ public class MinecraftMixin {
 
             // Then call renderer beginFrame to set up rendering state (renderer-agnostic)
             // This clears the render target with the correct color, sets viewport, and binds default shaders
-            System.out.println("[JAVA] Calling getRenderer().beginFrame()...");
-            getRenderer().beginFrame();
-            System.out.println("[JAVA] getRenderer().beginFrame() returned");
-
-            LOGGER.trace("Renderer beginFrame() called for new frame");
+            // Only for D3D11 - D3D12 handles frame management internally
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                System.out.println("[JAVA] Calling renderer.beginFrame()...");
+                renderer.beginFrame();
+                System.out.println("[JAVA] renderer.beginFrame() returned");
+                LOGGER.trace("Renderer beginFrame() called for new frame");
+            } else {
+                // D3D12 or not initialized yet - no GL compatibility layer needed
+                LOGGER.trace("Skipping beginFrame() - using D3D12 or renderer not initialized");
+            }
 
         } catch (Exception e) {
             LOGGER.error("Failed to inject renderer beginFrame()", e);
@@ -101,25 +121,29 @@ public class MinecraftMixin {
 
     @Inject(method = "close", at = @At(value = "HEAD"))
     public void close(CallbackInfo ci) {
-        // Wait for DirectX 11 operations to complete
-        if (VitraRenderer.getRenderer() != null) {
-            VitraRenderer.getRenderer().waitForIdle();
+        // Wait for DirectX operations to complete
+        IVitraRenderer renderer = VitraMod.getRenderer();
+        if (renderer != null) {
+            renderer.waitForGpuCommands();
         }
     }
 
     @Inject(method = "close", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/VirtualScreen;close()V"))
     public void close2(CallbackInfo ci) {
-        // Clean up DirectX 11 resources
-        if (VitraRenderer.getRenderer() != null) {
-            VitraRenderer.getRenderer().cleanup();
+        // Clean up DirectX resources
+        IVitraRenderer renderer = VitraMod.getRenderer();
+        if (renderer != null) {
+            renderer.shutdown();
         }
     }
 
     @Inject(method = "resizeDisplay", at = @At("HEAD"))
     public void onResolutionChanged(CallbackInfo ci) {
-        // Schedule DirectX 11 swapchain update
-        if (VitraRenderer.getRenderer() != null) {
-            VitraRenderer.getRenderer().scheduleResize();
+        // Get window size and trigger resize on renderer
+        IVitraRenderer renderer = VitraMod.getRenderer();
+        if (renderer != null) {
+            Minecraft mc = (Minecraft)(Object)this;
+            renderer.resize(mc.getWindow().getWidth(), mc.getWindow().getHeight());
         }
     }
 

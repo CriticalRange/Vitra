@@ -16,15 +16,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * DirectX 11 Debug Screen Overlay Mixin
+ * DirectX Debug Screen Overlay Mixin
  *
- * Based on VulkanMod's DebugScreenOverlayM but adapted for DirectX 11.
- * Adds DirectX 11 specific information to Minecraft's F3 debug screen.
+ * Based on VulkanMod's DebugScreenOverlayM but adapted for DirectX.
+ * Adds DirectX specific information to Minecraft's F3 debug screen.
  *
  * Information displayed:
  * - Vitra mod version
- * - DirectX 11 device name (GPU)
- * - DirectX 11 driver version
+ * - DirectX device name (GPU)
+ * - DirectX driver version
  * - Native memory usage
  * - Device memory usage
  * - CPU information
@@ -47,7 +47,7 @@ public abstract class DebugScreenOverlayMixin {
     protected abstract List<String> getSystemInformation();
 
     /**
-     * Redirect system information list to include DirectX 11 details
+     * Redirect system information list to include DirectX details
      */
     @Redirect(method = "getSystemInformation",
               at = @At(value = "INVOKE",
@@ -72,12 +72,12 @@ public abstract class DebugScreenOverlayMixin {
             bytesToMegabytes(totalMemory)));
         strings.add(String.format("Off-heap: " + getOffHeapMemory() + "MB"));
 
-        // DirectX 11 specific information
+        // DirectX specific information
         strings.add("");
         strings.add("Vitra " + VitraMod.VERSION);
 
         try {
-            // Get DirectX 11 device information
+            // Get DirectX device information
             String deviceInfo = VitraD3D11Renderer.getDeviceInfo();
             if (deviceInfo != null && !deviceInfo.isEmpty()) {
                 String[] lines = deviceInfo.split("\n");
@@ -85,10 +85,10 @@ public abstract class DebugScreenOverlayMixin {
                     strings.add(line);
                 }
             } else {
-                strings.add("GPU: DirectX 11 (device info unavailable)");
+                strings.add("GPU: DirectX (device info unavailable)");
             }
         } catch (Exception e) {
-            strings.add("GPU: DirectX 11 (error retrieving info)");
+            strings.add("GPU: DirectX (error retrieving info)");
         }
 
         strings.add("");

@@ -17,16 +17,16 @@ public class VitraConfig {
     private final Path configPath;
 
     // Rendering Configuration
-    private RendererType rendererType = RendererType.DIRECTX11; // Default to DirectX 11 for stability
+    private RendererType rendererType = RendererType.DIRECTX11; // Default to DirectX for stability
     private boolean vsyncEnabled = true;
     private int maxFPS = 144;
 
-    // Debug Mode: Enables DirectX 11 debug layer (requires Windows Graphics Tools)
+    // Debug Mode: Enables DirectX debug layer (requires Windows Graphics Tools)
     // Shows native DirectX performance stats overlay in top-left corner
     // WARNING: Requires "Graphics Tools" optional feature installed on Windows 10+
     private boolean debugMode = false;
 
-    // Verbose Logging: Enables DirectX 11 trace-level logging (very detailed, impacts performance)
+    // Verbose Logging: Enables DirectX trace-level logging (very detailed, impacts performance)
     private boolean verboseLogging = false;
 
     // WARP Mode: Use Windows Advanced Rasterization Platform (CPU software renderer)
@@ -156,6 +156,10 @@ public class VitraConfig {
     private void loadFromProperties() {
         // Rendering settings
         rendererType = RendererType.valueOf(properties.getProperty("renderer.type", "DIRECTX11"));
+
+        // Set system property for MixinPlugin to conditionally disable GL compat mixins
+        System.setProperty("vitra.renderer", rendererType.name());
+
         vsyncEnabled = Boolean.parseBoolean(properties.getProperty("renderer.vsync", "true"));
         maxFPS = Integer.parseInt(properties.getProperty("renderer.maxFPS", "144"));
         debugMode = Boolean.parseBoolean(properties.getProperty("renderer.debug", "false"));

@@ -17,7 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Unified renderer for Vitra supporting both DirectX 11 and DirectX 12 backends
+ * Unified renderer for Vitra supporting both DirectX and DirectX 12 backends
  * Dynamically selects backend based on configuration
  * Uses native DirectX calls through JNI interface
  */
@@ -25,7 +25,7 @@ public class VitraRenderer extends AbstractRenderer {
     // Renderer backend instances
     private IVitraRenderer activeRenderer = null;
 
-    // DirectX 11 components
+    // DirectX components
     private D3D11ShaderManager shaderManager;
     private D3D11BufferManager bufferManager;
 
@@ -46,7 +46,7 @@ public class VitraRenderer extends AbstractRenderer {
     // Interface implementation methods
     @Override
     public void initialize() {
-        // Get renderer type from config or default to DirectX 11
+        // Get renderer type from config or default to DirectX
         RendererType rendererType = (config != null) ? config.getRendererType() : RendererType.DIRECTX11;
         initialize(rendererType);
     }
@@ -87,17 +87,17 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     /**
-     * Initialize DirectX 11 backend
+     * Initialize DirectX backend
      */
     private void initializeDirectX11Backend() {
-        logger.info("Initializing DirectX 11 backend");
-        activeRenderer = this; // Use this instance as DirectX 11 renderer
+        logger.info("Initializing DirectX backend");
+        activeRenderer = this; // Use this instance as DirectX renderer
 
-        // Initialize DirectX 11 components
+        // Initialize DirectX components
         shaderManager = new D3D11ShaderManager();
         bufferManager = new D3D11BufferManager();
 
-        logger.info("DirectX 11 backend components initialized");
+        logger.info("DirectX backend components initialized");
     }
 
     /**
@@ -122,7 +122,7 @@ public class VitraRenderer extends AbstractRenderer {
         this.windowHandle = windowHandle;
         logger.info("Vitra unified renderer window handle set: 0x{}", Long.toHexString(windowHandle));
 
-        // Actually initialize native DirectX 11 with the window handle
+        // Actually initialize native DirectX with the window handle
         if (windowHandle != 0L) {
             try {
                 // Get debug, verbose, and WARP mode from config
@@ -130,7 +130,7 @@ public class VitraRenderer extends AbstractRenderer {
                 boolean verboseMode = isVerboseMode();
                 boolean useWarp = isUseWarp();
 
-                logger.info("Initializing native DirectX 11 with debug={}, verbose={}, warp={}", debugMode, verboseMode, useWarp);
+                logger.info("Initializing native DirectX with debug={}, verbose={}, warp={}", debugMode, verboseMode, useWarp);
                 if (verboseMode) {
                     logger.warn("╔════════════════════════════════════════════════════════════╗");
                     logger.warn("║  VERBOSE LOGGING ENABLED - JNI will log EVERYTHING        ║");
@@ -159,7 +159,7 @@ public class VitraRenderer extends AbstractRenderer {
 
                 boolean success = VitraD3D11Renderer.initializeDirectXSafe(nativeWindowHandle, 1920, 1080, debugMode, useWarp);
                 if (success) {
-                    logger.info("Native DirectX 11 initialized successfully (debug={})", debugMode);
+                    logger.info("Native DirectX initialized successfully (debug={})", debugMode);
 
                     // Initialize uniform system (VulkanMod-style supplier-based architecture)
                     logger.info("Initializing uniform system...");
@@ -167,22 +167,20 @@ public class VitraRenderer extends AbstractRenderer {
                     logger.info("Uniform system initialized: vertex CB={}, fragment CB={}",
                         vertexConstantBuffer, fragmentConstantBuffer);
 
-                    // Preload shaders after initialization
-                    if (shaderManager != null) {
-                        logger.info("Preloading DirectX shaders...");
-                        shaderManager.preloadShaders();
-                        logger.info("Shader preloading completed: {}", shaderManager.getCacheStats());
-                    }
+                    // NOTE: Shader preloading disabled - we now use runtime HLSL compilation in ShaderInstanceMixin
+                    // The old .cso preload system conflicts with the new runtime compilation system
+                    // ShaderInstanceMixin handles all shader loading with shader variants at runtime
+                    // if (shaderManager != null) {
+                    //     logger.info("Preloading DirectX shaders...");
+                    //     shaderManager.preloadShaders();
+                    //     logger.info("Shader preloading completed: {}", shaderManager.getCacheStats());
+                    // }
+                    logger.info("Using runtime HLSL shader compilation (ShaderInstanceMixin) - no preloading needed");
 
-                    // CRITICAL FIX: Ensure default shader pipeline is bound immediately after initialization
-                    // This prevents black screen by ensuring shaders are available for first draw calls
-                    long defaultPipeline = VitraD3D11Renderer.getDefaultShaderPipeline();
-                    if (defaultPipeline != 0) {
-                        VitraD3D11Renderer.setShaderPipeline(defaultPipeline);
-                        logger.info("Default shader pipeline bound: handle=0x{}", Long.toHexString(defaultPipeline));
-                    } else {
-                        logger.error("Failed to get default shader pipeline handle - this will cause black screen!");
-                    }
+                    // REMOVED: Default shader pipeline binding (obsolete with VulkanMod pattern)
+                    // Shaders are now loaded by Minecraft and pipelines are created by ShaderInstanceMixin
+                    // Each shader creates its own pipeline with the correct vertex format
+                    logger.info("Native D3D11 initialized - shaders will be loaded by Minecraft");
 
                     // Load shaders after native initialization
                     if (core != null) {
@@ -194,11 +192,11 @@ public class VitraRenderer extends AbstractRenderer {
 
                     return true;
                 } else {
-                    logger.error("Native DirectX 11 initialization failed");
+                    logger.error("Native DirectX initialization failed");
                     return false;
                 }
             } catch (Exception e) {
-                logger.error("Exception during native DirectX 11 initialization", e);
+                logger.error("Exception during native DirectX initialization", e);
                 return false;
             }
         }
@@ -209,7 +207,7 @@ public class VitraRenderer extends AbstractRenderer {
     public void shutdown() {
         if (!initialized) return;
 
-        logger.info("Shutting down Vitra JNI DirectX 11 renderer...");
+        logger.info("Shutting down Vitra JNI DirectX renderer...");
 
         try {
             // Cleanup constant buffers
@@ -247,7 +245,7 @@ public class VitraRenderer extends AbstractRenderer {
 
             // Shutdown native renderer safely with debug cleanup
             VitraD3D11Renderer.shutdownSafe();
-            logger.info("Native DirectX 11 shutdown completed");
+            logger.info("Native DirectX shutdown completed");
 
         } catch (Exception e) {
             logger.error("Exception during shutdown", e);
@@ -262,9 +260,19 @@ public class VitraRenderer extends AbstractRenderer {
     public boolean isInitialized() {
         // Check if unified renderer is prepared and active renderer is initialized
         if (!initialized) return false;
+
+        // For D3D11, activeRenderer == this, so avoid infinite recursion
+        if (activeRenderer == this) {
+            // Return true if Java-side components are initialized
+            // Native initialization happens later in initializeWithWindowHandle()
+            return initialized;
+        }
+
+        // For D3D12, activeRenderer is a separate instance
         if (activeRenderer != null) {
             return activeRenderer.isInitialized();
         }
+
         return false;
     }
 
@@ -273,6 +281,14 @@ public class VitraRenderer extends AbstractRenderer {
      */
     public boolean isFullyInitialized() {
         if (!initialized || activeRenderer == null) return false;
+
+        // For D3D11, activeRenderer == this, so avoid infinite recursion
+        if (activeRenderer == this) {
+            // Check native DirectX 11 initialization and window handle
+            return initialized && VitraD3D11Renderer.isInitialized() && windowHandle != 0L;
+        }
+
+        // For D3D12, activeRenderer is a separate instance
         return activeRenderer.isInitialized() && windowHandle != 0L;
     }
 
@@ -284,40 +300,57 @@ public class VitraRenderer extends AbstractRenderer {
 
     @Override
     public void beginFrame() {
-        // Delegate to active renderer
-        if (activeRenderer != null && activeRenderer.isInitialized()) {
-            // Special handling for DirectX 11 specific features
-            if (getRendererType() == RendererType.DIRECTX11) {
-                // Handle pending resize
-                if (resizePending) {
-                    // Actual resize will be handled by resize() method
-                    resizePending = false;
-                }
+        if (activeRenderer == null || !activeRenderer.isInitialized()) return;
 
-                // Update constant buffers EVERY frame for DirectX 11
-                // DirectX 11 may unbind constant buffers during pipeline changes,
-                // so we need to rebind them every frame to be safe
-                uploadConstantBuffers();
-                uniformsDirty = false;
+        // Special handling for DirectX specific features
+        if (getRendererType() == RendererType.DIRECTX11) {
+            // Handle pending resize
+            if (resizePending) {
+                // Actual resize will be handled by resize() method
+                resizePending = false;
             }
 
+            // Update constant buffers EVERY frame for DirectX
+            // DirectX may unbind constant buffers during pipeline changes,
+            // so we need to rebind them every frame to be safe
+            uploadConstantBuffers();
+            uniformsDirty = false;
+        }
+
+        // For D3D11, activeRenderer == this, so call native directly
+        if (activeRenderer == this) {
+            if (isFullyInitialized()) {
+                VitraD3D11Renderer.beginFrame();
+            }
+        } else {
+            // For D3D12, delegate to active renderer
             activeRenderer.beginFrame();
         }
     }
 
     @Override
     public void endFrame() {
-        if (activeRenderer != null && activeRenderer.isInitialized()) {
-            activeRenderer.endFrame();
+        if (activeRenderer == null || !activeRenderer.isInitialized()) return;
 
-            // Process debug messages for DirectX 11
-            if (getRendererType() == RendererType.DIRECTX11 && VitraD3D11Renderer.isDebugEnabled()) {
-                VitraD3D11Renderer.processDebugMessages();
+        // For D3D11, activeRenderer == this, so call native directly
+        if (activeRenderer == this) {
+            if (isFullyInitialized()) {
+                VitraD3D11Renderer.endFrame();
+                // Present the frame to the screen
+                VitraD3D11Renderer.presentFrame();
             }
-            // Process debug messages for DirectX 12
-            else if (getRendererType() == RendererType.DIRECTX12 && d3d12Renderer != null) {
-                d3d12Renderer.processDebugMessages();
-            }
+        } else {
+            // For D3D12, delegate to active renderer
+            activeRenderer.endFrame();
+        }
+
+        // Process debug messages for DirectX
+        if (getRendererType() == RendererType.DIRECTX11 && VitraD3D11Renderer.isDebugEnabled()) {
+            VitraD3D11Renderer.processDebugMessages();
+        }
+        // Process debug messages for DirectX 12
+        else if (getRendererType() == RendererType.DIRECTX12 && d3d12Renderer != null) {
+            d3d12Renderer.processDebugMessages();
         }
     }
 
@@ -329,7 +362,16 @@ public class VitraRenderer extends AbstractRenderer {
 
     @Override
     public void resize(int width, int height) {
-        if (activeRenderer != null && activeRenderer.isInitialized()) {
+        if (activeRenderer == null || !activeRenderer.isInitialized()) return;
+
+        // For D3D11, activeRenderer == this, so call native directly
+        if (activeRenderer == this) {
+            if (isFullyInitialized()) {
+                VitraD3D11Renderer.resize(width, height);
+                logger.info("Renderer view resized to {}x{} (backend: {})", width, height, getRendererType());
+            }
+        } else {
+            // For D3D12, delegate to active renderer
             activeRenderer.resize(width, height);
             logger.info("Renderer view resized to {}x{} (backend: {})", width, height, getRendererType());
         }
@@ -337,7 +379,17 @@ public class VitraRenderer extends AbstractRenderer {
 
     @Override
     public void clear(float r, float g, float b, float a) {
-        if (activeRenderer != null && activeRenderer.isInitialized()) {
+        if (activeRenderer == null || !activeRenderer.isInitialized()) return;
+
+        // For D3D11, activeRenderer == this, so call native directly
+        if (activeRenderer == this) {
+            if (isFullyInitialized()) {
+                // D3D11 clear uses mask, so set clear color then clear
+                VitraD3D11Renderer.setClearColor(r, g, b, a);
+                VitraD3D11Renderer.clear(0x4100); // GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT
+            }
+        } else {
+            // For D3D12, delegate to active renderer
             activeRenderer.clear(r, g, b, a);
         }
     }
@@ -345,66 +397,67 @@ public class VitraRenderer extends AbstractRenderer {
     // Feature support delegates to active renderer
     @Override
     public boolean isRayTracingSupported() {
-        if (activeRenderer != null) {
-            return activeRenderer.isRayTracingSupported();
-        }
-        return false;
+        if (activeRenderer == null) return false;
+        // D3D11 doesn't support ray tracing
+        if (activeRenderer == this) return false;
+        return activeRenderer.isRayTracingSupported();
     }
 
     @Override
     public boolean isVariableRateShadingSupported() {
-        if (activeRenderer != null) {
-            return activeRenderer.isVariableRateShadingSupported();
-        }
-        return false;
+        if (activeRenderer == null) return false;
+        // D3D11 doesn't support variable rate shading
+        if (activeRenderer == this) return false;
+        return activeRenderer.isVariableRateShadingSupported();
     }
 
     @Override
     public boolean isMeshShadersSupported() {
-        if (activeRenderer != null) {
-            return activeRenderer.isMeshShadersSupported();
-        }
-        return false;
+        if (activeRenderer == null) return false;
+        // D3D11 doesn't support mesh shaders
+        if (activeRenderer == this) return false;
+        return activeRenderer.isMeshShadersSupported();
     }
 
     @Override
     public boolean isGpuDrivenRenderingSupported() {
-        if (activeRenderer != null) {
-            return activeRenderer.isGpuDrivenRenderingSupported();
-        }
-        return false;
+        if (activeRenderer == null) return false;
+        // D3D11 doesn't support GPU-driven rendering
+        if (activeRenderer == this) return false;
+        return activeRenderer.isGpuDrivenRenderingSupported();
     }
 
     // Performance metrics delegate to active renderer
     @Override
     public float getGpuUtilization() {
-        if (activeRenderer != null) {
-            return activeRenderer.getGpuUtilization();
-        }
-        return 0.0f;
+        if (activeRenderer == null) return 0.0f;
+        // D3D11 doesn't track GPU utilization
+        if (activeRenderer == this) return 0.0f;
+        return activeRenderer.getGpuUtilization();
     }
 
     @Override
     public long getFrameTime() {
-        if (activeRenderer != null) {
-            return activeRenderer.getFrameTime();
-        }
-        return 0L;
+        if (activeRenderer == null) return 0L;
+        // D3D11 doesn't track frame time
+        if (activeRenderer == this) return 0L;
+        return activeRenderer.getFrameTime();
     }
 
     @Override
     public int getDrawCallsPerFrame() {
-        if (activeRenderer != null) {
-            return activeRenderer.getDrawCallsPerFrame();
-        }
-        return 0;
+        if (activeRenderer == null) return 0;
+        // D3D11 doesn't track draw calls
+        if (activeRenderer == this) return 0;
+        return activeRenderer.getDrawCallsPerFrame();
     }
 
     @Override
     public void resetPerformanceCounters() {
-        if (activeRenderer != null) {
-            activeRenderer.resetPerformanceCounters();
-        }
+        if (activeRenderer == null) return;
+        // D3D11 doesn't have performance counters to reset
+        if (activeRenderer == this) return;
+        activeRenderer.resetPerformanceCounters();
     }
 
     @Override
@@ -414,13 +467,13 @@ public class VitraRenderer extends AbstractRenderer {
 
     @Override
     public void captureFrame(String filename) {
-        // Not implemented for DirectX 11
+        // Not implemented for DirectX
     }
 
     @Override
     public String getRendererStats() {
         StringBuilder stats = new StringBuilder();
-        stats.append("=== DirectX 11 Renderer Stats ===\n");
+        stats.append("=== DirectX Renderer Stats ===\n");
         stats.append("Prepared: ").append(isInitialized()).append("\n");
         stats.append("Fully Initialized: ").append(isFullyInitialized()).append("\n");
         stats.append("Window Handle: 0x").append(Long.toHexString(windowHandle)).append("\n");
@@ -469,21 +522,21 @@ public class VitraRenderer extends AbstractRenderer {
 
     @Override
     public Object getShaderManager() {
-        if (activeRenderer != null) {
-            return activeRenderer.getShaderManager();
-        }
-        return null;
+        if (activeRenderer == null) return null;
+        // For D3D11, return the shader manager directly
+        if (activeRenderer == this) return shaderManager;
+        return activeRenderer.getShaderManager();
     }
 
     @Override
     public Object getBufferManager() {
-        if (activeRenderer != null) {
-            return activeRenderer.getBufferManager();
-        }
-        return null;
+        if (activeRenderer == null) return null;
+        // For D3D11, return the buffer manager directly
+        if (activeRenderer == this) return bufferManager;
+        return activeRenderer.getBufferManager();
     }
 
-    // Getters for DirectX 11 components
+    // Getters for DirectX components
     public D3D11ShaderManager getD3D11ShaderManager() {
         return shaderManager;
     }
@@ -573,7 +626,13 @@ public class VitraRenderer extends AbstractRenderer {
     // Screen rendering methods
     @Override
     public void clearDepthBuffer() {
-        if (activeRenderer != null) {
+        if (activeRenderer == null) return;
+        // For D3D11, call native directly
+        if (activeRenderer == this) {
+            if (isFullyInitialized()) {
+                VitraD3D11Renderer.clearDepthBuffer(1.0f); // Clear to max depth
+            }
+        } else {
             activeRenderer.clearDepthBuffer();
         }
     }
@@ -581,7 +640,13 @@ public class VitraRenderer extends AbstractRenderer {
     // Screenshot and GPU synchronization methods
     @Override
     public void waitForGpuCommands() {
-        if (activeRenderer != null) {
+        if (activeRenderer == null) return;
+        // For D3D11, call native directly
+        if (activeRenderer == this) {
+            if (isFullyInitialized()) {
+                VitraD3D11Renderer.waitForIdle();
+            }
+        } else {
             activeRenderer.waitForGpuCommands();
         }
     }
@@ -847,7 +912,7 @@ public class VitraRenderer extends AbstractRenderer {
     /**
      * Initialize uniform system - creates UBO descriptors and GPU constant buffers
      *
-     * Called during DirectX 11 initialization after device creation.
+     * Called during DirectX initialization after device creation.
      * Sets up VulkanMod-style supplier-based uniform management.
      */
     private void initializeUniformSystem() {
@@ -956,12 +1021,12 @@ public class VitraRenderer extends AbstractRenderer {
 
     // ============================================================================
     // RENDERER-AGNOSTIC WRAPPER METHODS
-    // These methods delegate to the appropriate backend (DirectX 11 or 12)
+    // These methods delegate to the appropriate backend (DirectX or 12)
     // Mixins should call these instead of VitraNativeRenderer directly
     // ============================================================================
 
     public void setViewport(int x, int y, int width, int height) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setViewport(x, y, width, height, 0.0f, 1.0f);
         } else {
             VitraD3D11Renderer.setViewport(x, y, width, height);
@@ -969,7 +1034,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setScissor(int x, int y, int width, int height) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             // DirectX 12 scissor - would need implementation
             logger.debug("DirectX 12 scissor not yet implemented");
         } else {
@@ -978,7 +1043,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void resetScissor() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 resetScissor not yet implemented");
         } else {
             VitraD3D11Renderer.resetScissor();
@@ -986,7 +1051,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void enableBlend() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 blend state handled via PSO");
         } else {
             VitraD3D11Renderer.enableBlend();
@@ -994,7 +1059,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void disableBlend() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 blend state handled via PSO");
         } else {
             VitraD3D11Renderer.disableBlend();
@@ -1002,7 +1067,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void blendFunc(int sfactor, int dfactor) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 blend func handled via PSO");
         } else {
             VitraD3D11Renderer.blendFunc(sfactor, dfactor);
@@ -1010,7 +1075,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void blendFuncSeparate(int srcRGB, int dstRGB, int srcAlpha, int dstAlpha) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 blend func handled via PSO");
         } else {
             VitraD3D11Renderer.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
@@ -1018,7 +1083,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void blendEquation(int mode) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 blend equation handled via PSO");
         } else {
             VitraD3D11Renderer.blendEquation(mode);
@@ -1026,7 +1091,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void enableCull() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 cull state handled via PSO");
         } else {
             VitraD3D11Renderer.enableCull();
@@ -1034,7 +1099,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void disableCull() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 cull state handled via PSO");
         } else {
             VitraD3D11Renderer.disableCull();
@@ -1042,7 +1107,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void enableDepthTest() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 depth test handled via PSO");
         } else {
             VitraD3D11Renderer.enableDepthTest();
@@ -1050,7 +1115,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void disableDepthTest() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 depth test handled via PSO");
         } else {
             VitraD3D11Renderer.disableDepthTest();
@@ -1058,7 +1123,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void depthMask(boolean flag) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 depth mask handled via PSO");
         } else {
             VitraD3D11Renderer.depthMask(flag);
@@ -1066,15 +1131,15 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void depthFunc(int func) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 depth func handled via PSO");
         } else {
-            VitraD3D11Renderer.setDepthFunc(func);
+            VitraD3D11Renderer.depthFunc(func);
         }
     }
 
     public void colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 color mask handled via PSO");
         } else {
             VitraD3D11Renderer.colorMask(red, green, blue, alpha);
@@ -1082,7 +1147,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void polygonOffset(float factor, float units) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 polygon offset handled via rasterizer state");
         } else {
             VitraD3D11Renderer.polygonOffset(factor, units);
@@ -1090,7 +1155,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void enablePolygonOffset() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 polygon offset handled via rasterizer state");
         } else {
             VitraD3D11Renderer.enablePolygonOffset();
@@ -1098,7 +1163,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void disablePolygonOffset() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 polygon offset handled via rasterizer state");
         } else {
             VitraD3D11Renderer.disablePolygonOffset();
@@ -1106,7 +1171,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void logicOp(int opcode) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 logic op not commonly used");
         } else {
             VitraD3D11Renderer.logicOp(opcode);
@@ -1114,7 +1179,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void enableColorLogicOp() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 logic op not commonly used");
         } else {
             VitraD3D11Renderer.enableColorLogicOp();
@@ -1122,7 +1187,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void disableColorLogicOp() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 logic op not commonly used");
         } else {
             VitraD3D11Renderer.disableColorLogicOp();
@@ -1131,7 +1196,7 @@ public class VitraRenderer extends AbstractRenderer {
 
     // Texture methods
     public void bindTexture(int textureId) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             // Use D3D11GlTexture mapping system (works for both DX11 and DX12)
             com.vitra.render.d3d11.D3D11GlTexture.bindTexture(textureId);
         } else {
@@ -1140,7 +1205,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void deleteTexture(int textureId) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.d3d11.D3D11GlTexture.deleteTexture(textureId);
         } else {
             VitraD3D11Renderer.deleteTexture(textureId);
@@ -1148,7 +1213,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void texParameteri(int target, int pname, int param) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture parameters handled during texture creation");
         } else {
             VitraD3D11Renderer.texParameteri(target, pname, param);
@@ -1156,7 +1221,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void pixelStore(int pname, int param) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 pixel store not needed");
         } else {
             VitraD3D11Renderer.pixelStore(pname, param);
@@ -1165,7 +1230,12 @@ public class VitraRenderer extends AbstractRenderer {
 
     // Shader/uniform methods
     public void setShaderColor(float r, float g, float b, float a) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        // CRITICAL FIX: Update VRenderSystem buffer first (like VulkanMod does)
+        // This buffer is what gets uploaded to shaders via the uniform system
+        VRenderSystem.setShaderColor(r, g, b, a);
+
+        // Then optionally sync to native (currently stub, not needed for D3D11)
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setShaderColor(r, g, b, a);
         } else {
             VitraD3D11Renderer.setShaderColor(r, g, b, a);
@@ -1173,7 +1243,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setProjectionMatrix(float[] matrix) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setProjectionMatrix(
                 matrix[0], matrix[1], matrix[2], matrix[3],
                 matrix[4], matrix[5], matrix[6], matrix[7],
@@ -1186,7 +1256,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setTextureMatrix(float[] matrix) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setTextureMatrix(
                 matrix[0], matrix[1], matrix[2], matrix[3],
                 matrix[4], matrix[5], matrix[6], matrix[7],
@@ -1200,7 +1270,7 @@ public class VitraRenderer extends AbstractRenderer {
 
     // Drawing topology
     public void setPrimitiveTopology(int mode) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 topology set via PSO or draw call");
         } else {
             VitraD3D11Renderer.setPrimitiveTopology(mode);
@@ -1209,7 +1279,7 @@ public class VitraRenderer extends AbstractRenderer {
 
     // Framebuffer methods
     public void bindFramebuffer(int target, int framebuffer) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 framebuffer binding handled differently");
         } else {
             VitraD3D11Renderer.bindFramebuffer(target, framebuffer);
@@ -1217,7 +1287,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void recreateSwapChain() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.recreateSwapChain();
         } else {
             VitraD3D11Renderer.recreateSwapChain();
@@ -1226,7 +1296,7 @@ public class VitraRenderer extends AbstractRenderer {
 
     // Info/debug methods
     public String getDeviceInfo() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             return "DirectX 12 Ultimate Renderer";
         } else {
             return VitraD3D11Renderer.getDeviceInfo();
@@ -1234,7 +1304,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public int getMaxTextureSize() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             return com.vitra.render.jni.VitraD3D12Native.getMaxTextureSize();
         } else {
             return VitraD3D11Renderer.getMaxTextureSize();
@@ -1243,7 +1313,7 @@ public class VitraRenderer extends AbstractRenderer {
 
     // Additional methods needed by GlStateManagerM
     public void setClearColor(float r, float g, float b, float a) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.clear(r, g, b, a);
         } else {
             VitraD3D11Renderer.setClearColor(r, g, b, a);
@@ -1251,7 +1321,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void clear(int mask) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             // DirectX 12 clear based on mask bits
             boolean clearColor = (mask & 0x4000) != 0; // GL_COLOR_BUFFER_BIT
             boolean clearDepth = (mask & 0x0100) != 0; // GL_DEPTH_BUFFER_BIT
@@ -1263,15 +1333,24 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void clearDepth(float depth) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.clearDepthBuffer(depth);
         } else {
             VitraD3D11Renderer.clearDepth(depth);
         }
     }
 
+    /**
+     * VulkanMod-compatible clear method for clearing attachments (color/depth buffers)
+     * Used by ScreenMixin to clear depth buffer after blurred background
+     * @param mask GL_DEPTH_BUFFER_BIT (256) or GL_COLOR_BUFFER_BIT (0x4000) or both
+     */
+    public void clearAttachments(int mask) {
+        clear(mask);
+    }
+
     public void setPolygonMode(int mode) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 polygon mode handled via rasterizer state");
         } else {
             VitraD3D11Renderer.setPolygonMode(mode);
@@ -1279,7 +1358,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setTextureParameterf(int target, int pname, float param) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture parameters handled during texture creation");
         } else {
             VitraD3D11Renderer.setTextureParameterf(target, pname, param);
@@ -1287,7 +1366,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public int getTexLevelParameter(int target, int level, int pname) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             return 0; // DirectX 12 doesn't have direct equivalent
         } else {
             return VitraD3D11Renderer.getTexLevelParameter(target, level, pname);
@@ -1295,7 +1374,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void framebufferTexture2D(int target, int attachment, int textarget, int texture, int level) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 framebuffer handled via render targets");
         } else {
             VitraD3D11Renderer.framebufferTexture2D(target, attachment, textarget, texture, level);
@@ -1303,7 +1382,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void bindRenderbuffer(int target, int renderbuffer) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 renderbuffer handled via textures");
         } else {
             VitraD3D11Renderer.bindRenderbuffer(target, renderbuffer);
@@ -1311,7 +1390,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void framebufferRenderbuffer(int target, int attachment, int renderbuffertarget, int renderbuffer) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 framebuffer renderbuffer handled via render targets");
         } else {
             VitraD3D11Renderer.framebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
@@ -1319,7 +1398,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void renderbufferStorage(int target, int internalformat, int width, int height) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 renderbuffer storage handled via textures");
         } else {
             VitraD3D11Renderer.renderbufferStorage(target, internalformat, width, height);
@@ -1327,7 +1406,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public int checkFramebufferStatus(int framebuffer, int target) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             return 0x8CD5; // GL_FRAMEBUFFER_COMPLETE
         } else {
             return VitraD3D11Renderer.checkFramebufferStatus(framebuffer, target);
@@ -1335,7 +1414,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void useProgram(int program) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 program binding handled via PSO");
         } else {
             VitraD3D11Renderer.useProgram(program);
@@ -1343,7 +1422,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void deleteProgram(int program) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 program deletion handled via PSO cleanup");
         } else {
             VitraD3D11Renderer.deleteProgram(program);
@@ -1355,7 +1434,7 @@ public class VitraRenderer extends AbstractRenderer {
     // ============================================================================
 
     public void activeTexture(int texture) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture unit selection via descriptor table");
         } else {
             VitraD3D11Renderer.activeTexture(texture);
@@ -1363,7 +1442,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void bindBuffer(int target, int buffer) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 buffer binding via command list");
         } else {
             VitraD3D11Renderer.bindBuffer(target, buffer);
@@ -1371,7 +1450,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void bufferData(int target, java.nio.ByteBuffer data, int usage) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 buffer data upload via staging");
         } else {
             VitraD3D11Renderer.bufferData(target, data, usage);
@@ -1379,7 +1458,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void deleteBuffer(int buffer) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.releaseManagedResource(buffer);
         } else {
             VitraD3D11Renderer.deleteBuffer(buffer);
@@ -1387,7 +1466,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public java.nio.ByteBuffer mapBuffer(int target, int access, int length) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 buffer mapping via Map");
             long handle = com.vitra.render.jni.VitraD3D12Native.mapBuffer(target);
             return null; // TODO: implement proper ByteBuffer wrapping
@@ -1397,7 +1476,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void unmapBuffer(int target) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.unmapBuffer(target);
         } else {
             VitraD3D11Renderer.unmapBuffer(target);
@@ -1405,7 +1484,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void texImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, java.nio.ByteBuffer pixels) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             byte[] data = pixels != null ? new byte[pixels.remaining()] : null;
             if (data != null) pixels.get(data);
             com.vitra.render.jni.VitraD3D12Native.setTextureData(target, width, height, format, data);
@@ -1415,7 +1494,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void texSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, java.nio.ByteBuffer pixels) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture sub-image update");
             byte[] data = pixels != null ? new byte[pixels.remaining()] : null;
             if (data != null) pixels.get(data);
@@ -1427,7 +1506,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public long createConstantBuffer(int size) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             return com.vitra.render.jni.VitraD3D12Native.createManagedUploadBuffer(size);
         } else {
             return VitraD3D11Renderer.createConstantBuffer(size);
@@ -1435,7 +1514,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void uploadAndBindUBOs() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 UBO upload via descriptor table");
         } else {
             VitraD3D11Renderer.uploadAndBindUBOs();
@@ -1443,7 +1522,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void destroyResource(long handle) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.releaseManagedResource(handle);
         } else {
             VitraD3D11Renderer.destroyResource(handle);
@@ -1451,7 +1530,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setScissorRect(int x, int y, int width, int height) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setViewport(x, y, width, height, 0.0f, 1.0f);
         } else {
             VitraD3D11Renderer.setScissorRect(x, y, width, height);
@@ -1459,7 +1538,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setRasterizerState(int fillMode, int cullMode, boolean frontCounterClockwise) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setRasterizerState(fillMode, cullMode, frontCounterClockwise,
                 0, 0.0f, 0.0f, true, false, false, 0, false);
         } else {
@@ -1468,7 +1547,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public long createGLProgramShader(byte[] bytecode, int length, int type) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             return com.vitra.render.jni.VitraD3D12Native.createShader(bytecode, type);
         } else {
             return VitraD3D11Renderer.createGLProgramShader(bytecode, length, type);
@@ -1476,7 +1555,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public long createShaderPipeline(long vertexShader, long pixelShader) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 PSO creation from shaders");
             return com.vitra.render.jni.VitraD3D12Native.getDefaultShaderPipeline();
         } else {
@@ -1485,7 +1564,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setShaderPipeline(long pipelineHandle) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setShaderPipeline(pipelineHandle);
         } else {
             VitraD3D11Renderer.setShaderPipeline(pipelineHandle);
@@ -1493,7 +1572,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public int generateGLTextureId() {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture ID generation");
             return (int) System.nanoTime(); // Temporary ID generation
         } else {
@@ -1502,7 +1581,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public int getTextureParameter(int target, int pname) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture parameter query");
             return 0;
         } else {
@@ -1511,7 +1590,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public int getTextureLevelParameter(int target, int level, int pname) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture level parameter query");
             return 0;
         } else {
@@ -1520,7 +1599,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setPixelStore(int pname, int param) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 pixel store (no-op)");
         } else {
             VitraD3D11Renderer.setPixelStore(pname, param);
@@ -1528,7 +1607,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void glGetTexImage(int tex, int level, int format, int type, long pixels) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture readback");
         } else {
             VitraD3D11Renderer.glGetTexImage(tex, level, format, type, pixels);
@@ -1536,7 +1615,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void glGetTexImage(int tex, int level, int format, int type, java.nio.ByteBuffer pixels) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture readback");
         } else {
             VitraD3D11Renderer.glGetTexImage(tex, level, format, type, pixels);
@@ -1544,7 +1623,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void glGetTexImage(int tex, int level, int format, int type, java.nio.IntBuffer pixels) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture readback");
         } else {
             VitraD3D11Renderer.glGetTexImage(tex, level, format, type, pixels);
@@ -1552,7 +1631,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void texSubImage2D(int target, int level, int xOffset, int yOffset, int width, int height, int format, int type, long pixels) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 texture sub-image update (from address)");
         } else {
             VitraD3D11Renderer.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, pixels);
@@ -1560,7 +1639,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setShaderLightDirection(int index, float x, float y, float z) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setShaderLightDirection(index, x, y, z);
         } else {
             VitraD3D11Renderer.setShaderLightDirection(index, x, y, z);
@@ -1568,7 +1647,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setShaderFogColor(float r, float g, float b, float a) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             com.vitra.render.jni.VitraD3D12Native.setShaderFogColor(r, g, b);
         } else {
             VitraD3D11Renderer.setShaderFogColor(r, g, b, a);
@@ -1576,7 +1655,7 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     public void setTransformMatrices(float[] mvpArray, float[] mvArray, float[] projArray) {
-        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12_ULTIMATE) {
+        if (getRendererType() == RendererType.DIRECTX12 || getRendererType() == RendererType.DIRECTX12) {
             logger.debug("DirectX 12 transform matrices");
             // DX12 would handle matrices differently
         } else {

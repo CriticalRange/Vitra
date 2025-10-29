@@ -6,7 +6,7 @@ import com.vitra.render.shader.layout.Uniform;
 import java.util.List;
 
 /**
- * DirectX 11 Uniform Buffer Object (Constant Buffer)
+ * DirectX Uniform Buffer Object (Constant Buffer)
  *
  * Based on VulkanMod's UBO class - represents a single constant buffer binding.
  * Manages std140-aligned uniform layout and GPU buffer updates.
@@ -17,10 +17,10 @@ import java.util.List;
  * - Supplier-based lazy uniform evaluation
  * - Zero-copy GPU updates
  *
- * DirectX 11 mapping:
- * - Vulkan "descriptor set binding" → DirectX 11 "constant buffer slot" (b0, b1, b2, b3)
- * - Vulkan "dynamic offset" → DirectX 11 Map/Unmap with WRITE_DISCARD
- * - Vulkan "UBO" → DirectX 11 "cbuffer"
+ * DirectX mapping:
+ * - Vulkan "descriptor set binding" → DirectX "constant buffer slot" (b0, b1, b2, b3)
+ * - Vulkan "dynamic offset" → DirectX Map/Unmap with WRITE_DISCARD
+ * - Vulkan "UBO" → DirectX "cbuffer"
  *
  * HLSL usage:
  * ```hlsl
@@ -119,7 +119,7 @@ public class UBO extends AlignedStruct {
          * @return Constructed UBO
          */
         public UBO buildUBO(int binding, int stages) {
-            // Ensure minimum 16-byte alignment for DirectX 11
+            // Ensure minimum 16-byte alignment for DirectX
             int alignedSize = ((this.currentOffset + 15) / 16) * 16;
 
             return new UBO(binding, stages, alignedSize, this.uniforms);

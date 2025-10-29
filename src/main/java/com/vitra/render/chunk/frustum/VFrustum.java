@@ -5,7 +5,7 @@ import org.joml.Vector4f;
 import org.joml.Vector3f;
 
 /**
- * DirectX 11 Frustum Culling Implementation
+ * DirectX Frustum Culling Implementation
  * Provides efficient frustum culling for chunk rendering
  */
 public class VFrustum {
@@ -22,7 +22,7 @@ public class VFrustum {
 
     /**
      * Calculate frustum planes from view-projection matrix
-     * Uses DirectX 11 coordinate system (left-handed)
+     * Uses DirectX coordinate system (left-handed)
      */
     public void calculateFrustum(Matrix4f modelView, Matrix4f projection) {
         // Combine matrices to get view-projection matrix

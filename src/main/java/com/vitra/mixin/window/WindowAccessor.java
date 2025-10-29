@@ -6,10 +6,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * DirectX 11 Window Accessor Mixin
+ * DirectX Window Accessor Mixin
  *
  * Based on VulkanMod's WindowAccessor.
- * Provides access to Window's private fields for DirectX 11 initialization.
+ * Provides access to Window's private fields for DirectX initialization.
  *
  * Key responsibilities:
  * - Expose WindowEventHandler for event handling integration

@@ -5,20 +5,15 @@ package com.vitra.config;
  */
 public enum RendererType {
     /**
-     * DirectX 11 backend - Windows only
+     * DirectX backend - Windows only
      */
-    DIRECTX11("DirectX 11", true, false, false),
+    DIRECTX11("DirectX", true, false, false),
 
     /**
      * DirectX 12 backend - Windows 10+ only, more modern and stable
-     */
-    DIRECTX12("DirectX 12", true, false, false),
-
-    /**
-     * DirectX 12 Ultimate backend - Windows 10+ only with RTX support
      * Supports Ray Tracing, Variable Rate Shading, Mesh Shaders, Sampler Feedback
      */
-    DIRECTX12_ULTIMATE("DirectX 12 Ultimate", true, false, false);
+    DIRECTX12("DirectX 12", true, false, false);
 
     private final String displayName;
     private final boolean supportsWindows;
@@ -54,10 +49,7 @@ public enum RendererType {
      * Get the best available renderer for the current platform
      */
     public static RendererType getBestAvailable() {
-        // Prefer DirectX 12 Ultimate, fallback to DirectX 12, then DirectX 11
-        if (DIRECTX12_ULTIMATE.isSupported()) {
-            return DIRECTX12_ULTIMATE;
-        }
+        // Prefer DirectX 12, fallback to DirectX 11
         if (DIRECTX12.isSupported()) {
             return DIRECTX12;
         }

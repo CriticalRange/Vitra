@@ -8,14 +8,14 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * DirectX 11 System Report Crash Report Mixin
+ * DirectX System Report Crash Report Mixin
  *
- * Based on VulkanMod's SystemReportM but adapted for DirectX 11.
- * Adds DirectX 11 device information to Minecraft crash reports.
+ * Based on VulkanMod's SystemReportM but adapted for DirectX.
+ * Adds DirectX device information to Minecraft crash reports.
  *
  * Key responsibilities:
  * - Inject into SystemReport.appendToCrashReportString()
- * - Append DirectX 11 device details to crash report
+ * - Append DirectX device details to crash report
  * - Include GPU name, driver version, device capabilities
  * - Aid in crash diagnosis and bug reporting
  *
@@ -24,23 +24,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * -- Vitra Device Report --
  * GPU: NVIDIA GeForce RTX 3080
  * Driver: 31.0.15.4601
- * DirectX 11 Feature Level: 11.1
+ * DirectX Feature Level: 11.1
  * Video Memory: 10240 MB
  * ```
  *
- * This information is critical for diagnosing DirectX 11 specific issues
+ * This information is critical for diagnosing DirectX specific issues
  * and helps users provide better bug reports.
  */
 @Mixin(SystemReport.class)
 public class SystemReportMixin {
 
     /**
-     * Inject DirectX 11 device information into crash report
+     * Inject DirectX device information into crash report
      *
      * This injection point is at RETURN, meaning it appends information
      * after all default system information has been added.
      *
-     * The DirectX 11 device report includes:
+     * The DirectX device report includes:
      * - GPU vendor and model name
      * - Driver version
      * - DirectX feature level
@@ -55,7 +55,7 @@ public class SystemReportMixin {
         stringBuilder.append("\n\n -- Vitra Device Report --");
 
         try {
-            // Get DirectX 11 device information
+            // Get DirectX device information
             String deviceInfo = VitraD3D11Renderer.getDeviceInfo();
 
             if (deviceInfo != null && !deviceInfo.isEmpty()) {
@@ -65,14 +65,14 @@ public class SystemReportMixin {
                     stringBuilder.append("\n\t").append(line);
                 }
             } else {
-                stringBuilder.append("\n\tDirectX 11 device information unavailable");
+                stringBuilder.append("\n\tDirectX device information unavailable");
             }
 
             // Append debug statistics if available
             try {
                 String debugStats = VitraD3D11Renderer.getDebugStats();
                 if (debugStats != null && !debugStats.isEmpty()) {
-                    stringBuilder.append("\n\n\t-- DirectX 11 Debug Statistics --");
+                    stringBuilder.append("\n\n\t-- DirectX Debug Statistics --");
                     String[] statLines = debugStats.split("\n");
                     for (String line : statLines) {
                         stringBuilder.append("\n\t").append(line);
@@ -83,7 +83,7 @@ public class SystemReportMixin {
             }
 
         } catch (Exception e) {
-            stringBuilder.append("\n\tError retrieving DirectX 11 device info: ")
+            stringBuilder.append("\n\tError retrieving DirectX device info: ")
                          .append(e.getMessage());
         }
     }

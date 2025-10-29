@@ -5,7 +5,7 @@ import org.joml.Matrix4f;
 
 /**
  * Math utility functions for vertex transformation
- * Based on VulkanMod's approach but adapted for DirectX 11
+ * Based on VulkanMod's approach but adapted for DirectX
  */
 public class MathUtil {
 

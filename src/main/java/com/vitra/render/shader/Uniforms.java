@@ -8,7 +8,7 @@ import it.unimi.dsi.fastutil.objects.Object2ReferenceOpenHashMap;
 import java.util.function.Supplier;
 
 /**
- * DirectX 11 Uniform Supplier Registry
+ * DirectX Uniform Supplier Registry
  *
  * Based on VulkanMod's Uniforms class - maps uniform names to supplier functions.
  * Suppliers are lazily evaluated when constant buffers are updated, ensuring uniforms are always current.

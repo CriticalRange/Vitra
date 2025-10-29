@@ -7,16 +7,16 @@ import org.lwjgl.system.MemoryUtil;
 import java.nio.ByteBuffer;
 
 /**
- * DirectX 11 Constant Buffer Wrapper
+ * DirectX Constant Buffer Wrapper
  *
  * Manages GPU constant buffer allocation, mapping, and updates.
- * Wraps DirectX 11 ID3D11Buffer with D3D11_BIND_CONSTANT_BUFFER flag.
+ * Wraps DirectX ID3D11Buffer with D3D11_BIND_CONSTANT_BUFFER flag.
  *
  * Key features:
  * - Dynamic buffer updates via Map/Unmap (D3D11_MAP_WRITE_DISCARD)
  * - CPU-side staging buffer for zero-copy updates
  * - Automatic binding to shader stages (VS/PS)
- * - Alignment to 16-byte boundaries (DirectX 11 requirement)
+ * - Alignment to 16-byte boundaries (DirectX requirement)
  *
  * Usage:
  * 1. Create: D3D11ConstantBuffer cb = new D3D11ConstantBuffer(ubo)
@@ -29,7 +29,7 @@ public class D3D11ConstantBuffer {
     private final int stages;       // Shader stages (VERTEX | FRAGMENT)
     private final int size;         // Buffer size in bytes (16-byte aligned)
 
-    private long nativeHandle;      // DirectX 11 ID3D11Buffer handle
+    private long nativeHandle;      // DirectX ID3D11Buffer handle
     private ByteBuffer stagingBuffer;  // CPU-side buffer for updates
 
     /**
@@ -49,7 +49,7 @@ public class D3D11ConstantBuffer {
         this.nativeHandle = VitraD3D11Renderer.createConstantBuffer(this.size);
 
         if (this.nativeHandle == 0) {
-            throw new RuntimeException("Failed to create DirectX 11 constant buffer (binding=" + binding +
+            throw new RuntimeException("Failed to create DirectX constant buffer (binding=" + binding +
                 ", size=" + size + " bytes)");
         }
     }
@@ -126,14 +126,14 @@ public class D3D11ConstantBuffer {
     }
 
     /**
-     * Get native DirectX 11 buffer handle
+     * Get native DirectX buffer handle
      */
     public long getNativeHandle() {
         return nativeHandle;
     }
 
     /**
-     * Align size to 16-byte boundary (DirectX 11 requirement)
+     * Align size to 16-byte boundary (DirectX requirement)
      */
     private static int alignTo16(int size) {
         return ((size + 15) / 16) * 16;

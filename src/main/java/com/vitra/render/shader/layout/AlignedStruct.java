@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * DirectX 11 Constant Buffer Layout Manager (std140)
+ * DirectX Constant Buffer Layout Manager (std140)
  *
  * Based on VulkanMod's AlignedStruct - manages std140 layout alignment for constant buffer fields.
- * Ensures all uniform fields are properly aligned according to DirectX 11/HLSL std140 rules.
+ * Ensures all uniform fields are properly aligned according to DirectX/HLSL std140 rules.
  *
  * std140 Alignment Rules:
  * - Scalars (float/int): 4-byte aligned

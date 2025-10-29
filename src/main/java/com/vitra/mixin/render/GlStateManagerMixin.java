@@ -2,6 +2,8 @@ package com.vitra.mixin.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.vitra.VitraMod;
+import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.system.MemoryUtil;
@@ -18,16 +20,36 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class GlStateManagerMixin {
 
     // Helper to get renderer instance (with null-safety check)
+    // Returns null for D3D12 (which doesn't need GL compatibility layer)
+    @Nullable
     private static VitraRenderer getRenderer() {
-        VitraRenderer renderer = VitraRenderer.getInstance();
+        IVitraRenderer baseRenderer = VitraMod.getRenderer();
+        if (baseRenderer == null) {
+            // Not yet initialized - this is expected during early initialization
+            return null;
+        }
+
+        // If it's already a VitraRenderer (D3D11), return it directly
+        if (baseRenderer instanceof VitraRenderer) {
+            return (VitraRenderer) baseRenderer;
+        }
+
+        // For D3D12, return null (D3D12 doesn't use GL compatibility layer)
+        // D3D12 handles rendering directly without going through GL emulation
+        return null;
+    }
+
+    // Helper for methods that must have a renderer (throws if null)
+    private static VitraRenderer getRendererOrThrow() {
+        VitraRenderer renderer = getRenderer();
         if (renderer == null) {
-            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+            throw new IllegalStateException("VitraRenderer required but not available (D3D12 mode or not initialized)");
         }
         return renderer;
     }
 
     // ID counters for resource management
-    // Note: Texture IDs are managed by D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
+    // Note: Texture IDs are managed by D3D11Texture (matches VulkanMod's VkGlTexture pattern)
     private static final AtomicInteger framebufferIdCounter = new AtomicInteger(1);
     private static final AtomicInteger renderbufferIdCounter = new AtomicInteger(1);
     private static final AtomicInteger bufferIdCounter = new AtomicInteger(1);
@@ -41,14 +63,14 @@ public class GlStateManagerMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Use D3D11GlTexture system for texture binding
+     * @reason Use D3D11Texture system for texture binding
      */
     @Overwrite(remap = false)
     public static void _bindTexture(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
-        // CRITICAL: Bind through D3D11GlTexture to map OpenGL ID → DirectX handle
+        // CRITICAL: Bind through D3D11Texture to map OpenGL ID → DirectX handle
         // This is the fix for the yellow screen issue!
-        com.vitra.render.d3d11.D3D11GlTexture.bindTexture(i);
+        com.vitra.render.D3D11Texture.bindTexture(i);
     }
 
     /**
@@ -57,7 +79,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _disableBlend() {
         RenderSystem.assertOnRenderThread();
-        getRenderer().disableBlend();
+        VitraRenderer r = getRenderer(); if (r != null) r.disableBlend();
     }
 
     /**
@@ -66,7 +88,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _enableBlend() {
         RenderSystem.assertOnRenderThread();
-        getRenderer().enableBlend();
+        VitraRenderer r = getRenderer(); if (r != null) r.enableBlend();
     }
 
     /**
@@ -75,7 +97,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _blendFunc(int i, int j) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().blendFunc(i, j);
+        VitraRenderer r = getRenderer(); if (r != null) r.blendFunc(i, j);
     }
 
     /**
@@ -84,7 +106,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _blendFuncSeparate(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().blendFuncSeparate(i, j, k, l);
+        VitraRenderer r = getRenderer(); if (r != null) r.blendFuncSeparate(i, j, k, l);
     }
 
     /**
@@ -93,7 +115,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _blendEquation(int i) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().blendEquation(i);
+        VitraRenderer r = getRenderer(); if (r != null) r.blendEquation(i);
     }
 
     /**
@@ -101,7 +123,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite(remap = false)
     public static void _disableScissorTest() {
-        getRenderer().resetScissor();
+        VitraRenderer r = getRenderer(); if (r != null) r.resetScissor();
     }
 
     /**
@@ -117,7 +139,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite(remap = false)
     public static void _enableCull() {
-        getRenderer().enableCull();
+        VitraRenderer r = getRenderer(); if (r != null) r.enableCull();
     }
 
     /**
@@ -125,7 +147,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite(remap = false)
     public static void _disableCull() {
-        getRenderer().disableCull();
+        VitraRenderer r = getRenderer(); if (r != null) r.disableCull();
     }
 
     /**
@@ -133,15 +155,22 @@ public class GlStateManagerMixin {
      */
     @Redirect(method = "_viewport", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL11;glViewport(IIII)V"), remap = false)
     private static void _viewport(int x, int y, int width, int height) {
-        getRenderer().setViewport(x, y, width, height);
+        VitraRenderer r = getRenderer(); if (r != null) r.setViewport(x, y, width, height);
     }
+
+    // Debug counter for scissor logging
+    private static int scissorBoxCount = 0;
 
     /**
      * @author
      */
     @Overwrite(remap = false)
     public static void _scissorBox(int x, int y, int width, int height) {
-        getRenderer().setScissor(x, y, width, height);
+        // DEBUG: Log first 30 scissor calls to trace where 0x0 comes from
+        if (scissorBoxCount < 30) {
+            System.out.println("[JAVA_SCISSOR " + scissorBoxCount++ + "] _scissorBox(" + x + ", " + y + ", " + width + ", " + height + ")");
+        }
+        VitraRenderer r = getRenderer(); if (r != null) r.setScissor(x, y, width, height);
     }
 
     /**
@@ -154,57 +183,64 @@ public class GlStateManagerMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Use D3D11GlTexture system for proper texture management
+     * @reason Use renderer-aware GlTexture system for proper texture management
      */
     @Overwrite(remap = false)
     public static void _texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, @Nullable IntBuffer pixels) {
         RenderSystem.assertOnRenderThread();
 
-        // Get currently bound texture ID from D3D11GlTexture
-        int boundTextureId = com.vitra.render.d3d11.D3D11GlTexture.getBoundTexture(
-            com.vitra.render.d3d11.D3D11GlTexture.getActiveTextureSlot()
-        );
+        // Route to correct GlTexture system based on active renderer
+        IVitraRenderer baseRenderer = VitraMod.getRenderer();
+        if (baseRenderer == null) {
+            // Not initialized yet
+            return;
+        }
 
-        // Convert IntBuffer to ByteBuffer for D3D11GlTexture
+        // Convert IntBuffer to ByteBuffer
         ByteBuffer byteBuffer = pixels != null ? MemoryUtil.memByteBuffer(pixels) : null;
 
-        // Upload texture data to DirectX 11 (matches VulkanMod's VkGlTexture.texImage2D pattern)
-        com.vitra.render.d3d11.D3D11GlTexture.texImage2D(
-            boundTextureId, level, internalFormat, width, height, format, type, byteBuffer
-        );
+        if (baseRenderer instanceof VitraRenderer) {
+            // D3D11 path: Use D3D11Texture system
+            int boundTextureId = com.vitra.render.D3D11Texture.getBoundTexture(
+                com.vitra.render.D3D11Texture.getActiveTextureSlot()
+            );
+            com.vitra.render.D3D11Texture.texImage2D(
+                target, level, internalFormat, width, height, border, format, type, byteBuffer
+            );
+        } else {
+            // D3D12 path: Use D3D12GlTexture system
+            int boundTextureId = com.vitra.render.d3d12.D3D12GlTexture.getBoundTexture(
+                com.vitra.render.d3d12.D3D12GlTexture.getActiveTextureSlot()
+            );
+            com.vitra.render.d3d12.D3D12GlTexture.texImage2D(
+                boundTextureId, level, internalFormat, width, height, format, type, byteBuffer
+            );
+        }
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Use D3D11GlTexture system for proper texture management
+     * @reason Use D3D11Texture system for proper texture management
      */
     @Overwrite(remap = false)
     public static void _texSubImage2D(int target, int level, int offsetX, int offsetY, int width, int height, int format, int type, long pixels) {
         RenderSystem.assertOnRenderThread();
 
-        // Get currently bound texture ID from D3D11GlTexture
-        int boundTextureId = com.vitra.render.d3d11.D3D11GlTexture.getBoundTexture(
-            com.vitra.render.d3d11.D3D11GlTexture.getActiveTextureSlot()
-        );
-
-        // Convert long pointer to ByteBuffer
-        ByteBuffer byteBuffer = pixels != 0 ? MemoryUtil.memByteBuffer(pixels, width * height * 4) : null;
-
-        // Update texture subregion in DirectX 11 (matches VulkanMod's VkGlTexture.texSubImage2D pattern)
-        com.vitra.render.d3d11.D3D11GlTexture.texSubImage2D(
-            boundTextureId, level, offsetX, offsetY, width, height, format, type, byteBuffer
+        // Update texture subregion in DirectX (matches VulkanMod's VkGlTexture.texSubImage2D pattern)
+        com.vitra.render.D3D11Texture.texSubImage2D(
+            target, level, offsetX, offsetY, width, height, format, type, pixels
         );
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Use D3D11GlTexture to track active texture slot
+     * @reason Use D3D11Texture to track active texture slot
      */
     @Overwrite(remap = false)
     public static void _activeTexture(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
-        // Track active texture slot in D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
-        com.vitra.render.d3d11.D3D11GlTexture.activeTexture(i);
+        // Track active texture slot in D3D11Texture (matches VulkanMod's VkGlTexture pattern)
+        com.vitra.render.D3D11Texture.activeTexture(i);
     }
 
     /**
@@ -212,7 +248,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite(remap = false)
     public static void _texParameter(int i, int j, int k) {
-        getRenderer().texParameteri(i, j, k);
+        VitraRenderer r = getRenderer(); if (r != null) r.texParameteri(i, j, k);
     }
 
     /**
@@ -220,7 +256,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite(remap = false)
     public static void _texParameter(int i, int j, float k) {
-        getRenderer().setTextureParameterf(i, j, k);
+        VitraRenderer r = getRenderer(); if (r != null) r.setTextureParameterf(i, j, k);
     }
 
     /**
@@ -228,58 +264,59 @@ public class GlStateManagerMixin {
      */
     @Overwrite(remap = false)
     public static int _getTexLevelParameter(int i, int j, int k) {
-        return getRenderer().getTexLevelParameter(i, j, k);
+        VitraRenderer r = getRenderer();
+        return (r != null) ? r.getTexLevelParameter(i, j, k) : 0;
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Use D3D11GlTexture to track pixel store parameters for texture uploads
+     * @reason Use D3D11Texture to track pixel store parameters for texture uploads
      */
     @Overwrite(remap = false)
     public static void _pixelStore(int pname, int param) {
         RenderSystem.assertOnRenderThread();
 
-        // Track unpack parameters for D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
+        // Track unpack parameters for D3D11Texture (matches VulkanMod's VkGlTexture pattern)
         final int GL_UNPACK_ROW_LENGTH = 0x0CF2;
         final int GL_UNPACK_SKIP_ROWS = 0x0CF3;
         final int GL_UNPACK_SKIP_PIXELS = 0x0CF4;
 
         switch (pname) {
             case GL_UNPACK_ROW_LENGTH:
-                com.vitra.render.d3d11.D3D11GlTexture.setUnpackRowLength(param);
+                com.vitra.render.D3D11Texture.setUnpackRowLength(param);
                 break;
             case GL_UNPACK_SKIP_ROWS:
-                com.vitra.render.d3d11.D3D11GlTexture.setUnpackSkipRows(param);
+                com.vitra.render.D3D11Texture.setUnpackSkipRows(param);
                 break;
             case GL_UNPACK_SKIP_PIXELS:
-                com.vitra.render.d3d11.D3D11GlTexture.setUnpackSkipPixels(param);
+                com.vitra.render.D3D11Texture.setUnpackSkipPixels(param);
                 break;
         }
 
         // Also forward to native renderer for any other pixel store operations
-        getRenderer().pixelStore(pname, param);
+        VitraRenderer r = getRenderer(); if (r != null) r.pixelStore(pname, param);
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Use D3D11GlTexture to generate texture IDs
+     * @reason Use D3D11Texture to generate texture IDs
      */
     @Overwrite(remap = false)
     public static int _genTexture() {
         RenderSystem.assertOnRenderThreadOrInit();
-        // Generate texture ID through D3D11GlTexture (matches VulkanMod's VkGlTexture pattern)
-        return com.vitra.render.d3d11.D3D11GlTexture.genTextureId();
+        // Generate texture ID through D3D11Texture (matches VulkanMod's VkGlTexture pattern)
+        return com.vitra.render.D3D11Texture.genTextureId();
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Use D3D11GlTexture to delete textures and clean up DirectX resources
+     * @reason Use D3D11Texture to delete textures and clean up DirectX resources
      */
     @Overwrite(remap = false)
     public static void _deleteTexture(int i) {
         RenderSystem.assertOnRenderThread();
-        // Delete texture through D3D11GlTexture which handles DirectX cleanup (matches VulkanMod's VkGlTexture pattern)
-        com.vitra.render.d3d11.D3D11GlTexture.deleteTexture(i);
+        // Delete texture through D3D11Texture which handles DirectX cleanup (matches VulkanMod's VkGlTexture pattern)
+        com.vitra.render.D3D11Texture.deleteTexture(i);
     }
 
     /**
@@ -288,7 +325,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().colorMask(red, green, blue, alpha);
+        VitraRenderer r = getRenderer(); if (r != null) r.colorMask(red, green, blue, alpha);
     }
 
     /**
@@ -297,7 +334,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _polygonMode(int face, int mode) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().setPolygonMode(mode);
+        VitraRenderer r = getRenderer(); if (r != null) r.setPolygonMode(mode);
     }
 
     /**
@@ -306,7 +343,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _enablePolygonOffset() {
         RenderSystem.assertOnRenderThread();
-        getRenderer().enablePolygonOffset();
+        VitraRenderer r = getRenderer(); if (r != null) r.enablePolygonOffset();
     }
 
     /**
@@ -315,7 +352,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _disablePolygonOffset() {
         RenderSystem.assertOnRenderThread();
-        getRenderer().disablePolygonOffset();
+        VitraRenderer r = getRenderer(); if (r != null) r.disablePolygonOffset();
     }
 
     /**
@@ -324,7 +361,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _polygonOffset(float f, float g) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().polygonOffset(f, g);
+        VitraRenderer r = getRenderer(); if (r != null) r.polygonOffset(f, g);
     }
 
     /**
@@ -333,7 +370,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _enableColorLogicOp() {
         RenderSystem.assertOnRenderThread();
-        getRenderer().enableColorLogicOp();
+        VitraRenderer r = getRenderer(); if (r != null) r.enableColorLogicOp();
     }
 
     /**
@@ -342,7 +379,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _disableColorLogicOp() {
         RenderSystem.assertOnRenderThread();
-        getRenderer().disableColorLogicOp();
+        VitraRenderer r = getRenderer(); if (r != null) r.disableColorLogicOp();
     }
 
     /**
@@ -351,7 +388,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _logicOp(int i) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().logicOp(i);
+        VitraRenderer r = getRenderer(); if (r != null) r.logicOp(i);
     }
 
     /**
@@ -367,7 +404,7 @@ public class GlStateManagerMixin {
             clearColorCount++;
         }
 
-        getRenderer().setClearColor(f, g, h, i);
+        VitraRenderer r = getRenderer(); if (r != null) r.setClearColor(f, g, h, i);
     }
 
     /**
@@ -376,7 +413,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _clearDepth(double d) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().clearDepth((float) d);
+        VitraRenderer r = getRenderer(); if (r != null) r.clearDepth((float) d);
     }
 
     /**
@@ -386,8 +423,17 @@ public class GlStateManagerMixin {
     public static void _clear(int mask, boolean bl) {
         RenderSystem.assertOnRenderThread();
         System.out.println("[JAVA_CLEAR] _clear() called with mask=0x" + Integer.toHexString(mask) + ", bl=" + bl);
-        getRenderer().clear(mask);
+        VitraRenderer renderer = getRenderer();
+        if (renderer != null) {
+            renderer.clear(mask);
+        }
+        // No-op for D3D12 or if not initialized yet
     }
+
+    // Debug counters for depth state logging
+    private static int depthTestCount = 0;
+    private static int depthMaskCount = 0;
+    private static int depthFuncCount = 0;
 
     /**
      * @author
@@ -395,7 +441,10 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _disableDepthTest() {
         RenderSystem.assertOnRenderThread();
-        getRenderer().disableDepthTest();
+        if (depthTestCount < 30) {
+            System.out.println("[DEPTH_TEST " + depthTestCount++ + "] DISABLED");
+        }
+        VitraRenderer r = getRenderer(); if (r != null) r.disableDepthTest();
     }
 
     /**
@@ -404,7 +453,10 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _enableDepthTest() {
         RenderSystem.assertOnRenderThread();
-        getRenderer().enableDepthTest();
+        if (depthTestCount < 30) {
+            System.out.println("[DEPTH_TEST " + depthTestCount++ + "] ENABLED");
+        }
+        VitraRenderer r = getRenderer(); if (r != null) r.enableDepthTest();
     }
 
     /**
@@ -413,7 +465,10 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _depthFunc(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
-        getRenderer().depthFunc(i);
+        if (depthFuncCount < 30) {
+            System.out.println("[DEPTH_FUNC " + depthFuncCount++ + "] func=0x" + Integer.toHexString(i));
+        }
+        VitraRenderer r = getRenderer(); if (r != null) r.depthFunc(i);
     }
 
     /**
@@ -422,7 +477,10 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _depthMask(boolean bl) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().depthMask(bl);
+        if (depthMaskCount < 30) {
+            System.out.println("[DEPTH_MASK " + depthMaskCount++ + "] mask=" + bl);
+        }
+        VitraRenderer r = getRenderer(); if (r != null) r.depthMask(bl);
 
     }
 
@@ -451,7 +509,7 @@ public class GlStateManagerMixin {
     public static void _glBindFramebuffer(int i, int j) {
         RenderSystem.assertOnRenderThread();
         boundFramebuffer = j;
-        getRenderer().bindFramebuffer(i, j);
+        VitraRenderer r = getRenderer(); if (r != null) r.bindFramebuffer(i, j);
     }
 
     /**
@@ -460,7 +518,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _glFramebufferTexture2D(int i, int j, int k, int l, int m) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().framebufferTexture2D(i, j, k, l, m);
+        VitraRenderer r = getRenderer(); if (r != null) r.framebufferTexture2D(i, j, k, l, m);
     }
 
     /**
@@ -469,7 +527,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _glBindRenderbuffer(int i, int j) {
         RenderSystem.assertOnRenderThreadOrInit();
-        getRenderer().bindRenderbuffer(i, j);
+        VitraRenderer r = getRenderer(); if (r != null) r.bindRenderbuffer(i, j);
     }
 
     /**
@@ -478,7 +536,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _glFramebufferRenderbuffer(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThreadOrInit();
-        getRenderer().framebufferRenderbuffer(i, j, k, l);
+        VitraRenderer r = getRenderer(); if (r != null) r.framebufferRenderbuffer(i, j, k, l);
     }
 
     /**
@@ -487,7 +545,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _glRenderbufferStorage(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThreadOrInit();
-        getRenderer().renderbufferStorage(i, j, k, l);
+        VitraRenderer r = getRenderer(); if (r != null) r.renderbufferStorage(i, j, k, l);
     }
 
     /**
@@ -497,7 +555,8 @@ public class GlStateManagerMixin {
     public static int glCheckFramebufferStatus(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
         // Use currently bound framebuffer handle (0 means main framebuffer)
-        return getRenderer().checkFramebufferStatus(boundFramebuffer, i);
+        VitraRenderer r = getRenderer();
+        return (r != null) ? r.checkFramebufferStatus(boundFramebuffer, i) : 0x8CD5; // GL_FRAMEBUFFER_COMPLETE
     }
 
     /**
@@ -576,7 +635,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite(remap = false)
     public static void _disableVertexAttribArray(int i) {
-        // No-op for DirectX 11 - vertex attributes handled differently
+        // No-op for DirectX - vertex attributes handled differently
     }
 
     /**
@@ -585,7 +644,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _glUseProgram(int i) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().useProgram(i);
+        VitraRenderer r = getRenderer(); if (r != null) r.useProgram(i);
     }
 
     /**
@@ -603,7 +662,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void glDeleteProgram(int i) {
         RenderSystem.assertOnRenderThread();
-        getRenderer().deleteProgram(i);
+        VitraRenderer r = getRenderer(); if (r != null) r.deleteProgram(i);
     }
 
     /**
@@ -612,7 +671,7 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static int _glGenVertexArrays() {
         RenderSystem.assertOnRenderThreadOrInit();
-        // DirectX 11 doesn't use VAOs - return dummy ID
+        // DirectX doesn't use VAOs - return dummy ID
         return 1;
     }
 }

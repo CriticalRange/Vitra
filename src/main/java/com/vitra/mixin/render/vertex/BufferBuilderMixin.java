@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.*;
 
 /**
  * Complete BufferBuilder mixin for optimized vertex building with direct memory access.
- * Based on VulkanMod's approach but adapted for DirectX 11.
+ * Based on VulkanMod's approach but adapted for DirectX.
  */
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderMixin implements VertexConsumer, ExtendedVertexBuilder {
@@ -295,7 +295,7 @@ public abstract class BufferBuilderMixin implements VertexConsumer, ExtendedVert
         int ny = (int) (y * 127.0f) & 0xFF;
         int nz = (int) (z * 127.0f) & 0xFF;
 
-        // Pack into int (RGB format for DirectX 11)
+        // Pack into int (RGB format for DirectX)
         return nx | (ny << 8) | (nz << 16) | (0 << 24);
     }
 
@@ -322,7 +322,7 @@ public abstract class BufferBuilderMixin implements VertexConsumer, ExtendedVert
         int bi = (int) (b * 255.0f) & 0xFF;
         int ai = (int) (a * 255.0f) & 0xFF;
 
-        // ABGR format for DirectX 11
+        // ABGR format for DirectX
         return (ai << 24) | (bi << 16) | (gi << 8) | ri;
     }
 

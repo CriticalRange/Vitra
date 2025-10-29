@@ -1,7 +1,7 @@
 package com.vitra.render.d3d11;
 
 import com.vitra.render.jni.VitraD3D11Renderer;
-import com.vitra.render.shader.HLSLConverter;
+import com.vitra.render.shader.UniformInfo;
 import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +53,7 @@ public class D3D11UniformBuffer {
     }
 
     /**
-     * Uniform types supported by DirectX 11.
+     * Uniform types supported by DirectX.
      */
     public enum UniformType {
         FLOAT(4),
@@ -112,7 +112,7 @@ public class D3D11UniformBuffer {
      * @param uniformInfo Uniform information from HLSL converter
      * @return The created UniformEntry
      */
-    public UniformEntry addUniform(HLSLConverter.UniformInfo uniformInfo) {
+    public UniformEntry addUniform(UniformInfo uniformInfo) {
         UniformType type = UniformType.fromGLSLType(uniformInfo.type);
         int offset = calculateOffset();
 
@@ -318,8 +318,21 @@ public class D3D11UniformBuffer {
      */
     public void uploadIfDirty(D3D11Pipeline pipeline) {
         if (!dirty) {
+            LOGGER.debug("[CB_UPLOAD] Constant buffer slot {} is clean, skipping upload", slot);
             return;
         }
+
+        LOGGER.info("[CB_UPLOAD] Uploading constant buffer slot {} (size: {} bytes)", slot, size);
+
+        // Log the first 64 bytes of the buffer (should contain ModelView matrix)
+        buffer.position(0);
+        StringBuilder hexDump = new StringBuilder();
+        for (int i = 0; i < Math.min(64, size); i += 4) {
+            float value = buffer.getFloat(i);
+            hexDump.append(String.format("%.3f ", value));
+            if ((i + 4) % 16 == 0) hexDump.append("| ");
+        }
+        LOGGER.info("[CB_UPLOAD] Buffer data (first 64 bytes): {}", hexDump.toString());
 
         // Convert ByteBuffer to byte array
         byte[] data = new byte[size];
@@ -328,6 +341,7 @@ public class D3D11UniformBuffer {
 
         // Upload to GPU
         pipeline.uploadConstantBuffer(slot, data);
+        LOGGER.info("[CB_UPLOAD] Successfully uploaded constant buffer slot {}", slot);
 
         dirty = false;
     }

@@ -18,13 +18,16 @@ public class D3D12Renderer extends AbstractRenderer {
     private D3D12ShaderManager shaderManager;
     private D3D12BufferManager bufferManager;
 
+    // Uniform dirty flag for tracking when uniforms need to be re-uploaded
+    private boolean uniformsDirty = false;
+
     public D3D12Renderer() {
         super(D3D12Renderer.class);
     }
 
     @Override
     public void initialize() {
-        initialize(RendererType.DIRECTX12_ULTIMATE);
+        initialize(RendererType.DIRECTX12);
     }
 
     @Override
@@ -165,7 +168,7 @@ public class D3D12Renderer extends AbstractRenderer {
 
     @Override
     public RendererType getRendererType() {
-        return RendererType.DIRECTX12_ULTIMATE;
+        return RendererType.DIRECTX12;
     }
 
     @Override
@@ -487,5 +490,307 @@ public class D3D12Renderer extends AbstractRenderer {
         if (isInitialized()) {
             VitraD3D12Renderer.waitForGpuCommandsStatic();
         }
+    }
+
+    // Mixin compatibility methods - wrappers for native D3D12 calls
+
+    /**
+     * Set viewport with default depth range (0.0 to 1.0)
+     * Wrapper for DirectX 12 setViewport with default depth
+     */
+    public void setViewport(int x, int y, int width, int height) {
+        if (isInitialized()) {
+            VitraD3D12Native.setViewport(x, y, width, height, 0.0f, 1.0f);
+        }
+    }
+
+    /**
+     * Set rasterizer state with simplified parameters
+     * Wrapper for DirectX 12 setRasterizerState
+     *
+     * @param cullMode 0=NONE, 1=FRONT, 2=BACK
+     * @param fillMode 0=WIREFRAME, 1=SOLID
+     * @param frontCCW true if front face is counter-clockwise
+     */
+    public void setRasterizerState(int cullMode, int fillMode, boolean frontCCW) {
+        if (isInitialized()) {
+            VitraD3D12Native.setRasterizerState(
+                fillMode, cullMode, frontCCW,
+                0, 0.0f, 0.0f, // depth bias parameters (disabled)
+                true, false, false, // depth clip, multisample, AA lines
+                0, false // forced sample count, conservative raster
+            );
+        }
+    }
+
+    /**
+     * Set scissor rectangle for clipping
+     * Wrapper for DirectX 12 setScissorRect
+     */
+    public void setScissorRect(int x, int y, int width, int height) {
+        if (isInitialized()) {
+            VitraD3D12Native.setScissorRect(x, y, width, height);
+        }
+    }
+
+    /**
+     * Set primitive topology
+     * Wrapper for DirectX 12 setPrimitiveTopology
+     *
+     * @param glTopology OpenGL/DirectX topology constant (e.g., GL_TRIANGLES = 4 = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST)
+     */
+    public void setPrimitiveTopology(int glTopology) {
+        if (isInitialized()) {
+            VitraD3D12Native.setPrimitiveTopology(glTopology);
+        }
+    }
+
+    /**
+     * Destroy/release a DirectX 12 resource
+     * Wrapper for D3D12MA releaseManagedResource (deferred cleanup)
+     */
+    public void destroyResource(long handle) {
+        if (isInitialized() && handle != 0L) {
+            VitraD3D12Native.releaseManagedResource(handle);
+        }
+    }
+
+    /**
+     * Create graphics pipeline state (shader pipeline)
+     * Wrapper for DirectX 12 createGraphicsPipelineState
+     *
+     * @param vsHandle Vertex shader handle
+     * @param psHandle Pixel shader handle
+     * @return Pipeline state object handle
+     */
+    public long createShaderPipeline(long vsHandle, long psHandle) {
+        if (isInitialized()) {
+            // TODO: Need to serialize pipeline description with shader handles
+            logger.trace("DirectX 12 createShaderPipeline(vs={}, ps={}) - needs pipeline descriptor", vsHandle, psHandle);
+            return 0L; // Placeholder
+        }
+        return 0L;
+    }
+
+    /**
+     * Set active shader pipeline
+     * Wrapper for DirectX 12 setShaderPipeline
+     */
+    public void setShaderPipeline(long pipelineHandle) {
+        if (isInitialized()) {
+            VitraD3D12Native.setShaderPipeline(pipelineHandle);
+        }
+    }
+
+    /**
+     * Upload and bind uniform buffer objects (UBOs)
+     * DirectX 12 uses constant buffers uploaded to GPU
+     */
+    public void uploadAndBindUBOs() {
+        if (isInitialized()) {
+            // TODO: Need to implement constant buffer upload strategy
+            // DirectX 12 uses ring buffer for per-frame constant data
+            logger.trace("DirectX 12 uploadAndBindUBOs() - needs constant buffer implementation");
+        }
+    }
+
+    /**
+     * Set depth comparison function
+     * Wrapper for DirectX 12 setDepthStencilState
+     *
+     * @param func DirectX comparison function (1=NEVER, 2=LESS, 3=EQUAL, 4=LESS_EQUAL, 5=GREATER, 6=NOT_EQUAL, 7=GREATER_EQUAL, 8=ALWAYS)
+     */
+    public void depthFunc(int func) {
+        if (isInitialized()) {
+            // Set depth state with specified comparison function
+            // Parameters: depthEnable, depthWriteMask (1=ALL), depthFunc, stencilEnable, stencilReadMask, stencilWriteMask
+            // Front/back face ops: failOp, depthFailOp, passOp, func (all set to default KEEP=1, ALWAYS=8)
+            VitraD3D12Native.setDepthStencilState(
+                true, 1, func,  // Enable depth, write all, use specified func
+                false, (byte)0xFF, (byte)0xFF,  // Disable stencil, default masks
+                1, 1, 1, 8,  // Front face: KEEP, KEEP, KEEP, ALWAYS
+                1, 1, 1, 8   // Back face: KEEP, KEEP, KEEP, ALWAYS
+            );
+        }
+    }
+
+    /**
+     * Set all transform matrices at once
+     * Calls setProjectionMatrix, setModelViewMatrix, and setTextureMatrix
+     *
+     * @param projMatrix 16-element projection matrix (column-major)
+     * @param mvMatrix 16-element model-view matrix (column-major)
+     * @param texMatrix 16-element texture matrix (column-major), or null to skip
+     */
+    public void setTransformMatrices(float[] projMatrix, float[] mvMatrix, float[] texMatrix) {
+        if (isInitialized()) {
+            if (projMatrix != null && projMatrix.length == 16) {
+                VitraD3D12Native.setProjectionMatrix(
+                    projMatrix[0], projMatrix[1], projMatrix[2], projMatrix[3],
+                    projMatrix[4], projMatrix[5], projMatrix[6], projMatrix[7],
+                    projMatrix[8], projMatrix[9], projMatrix[10], projMatrix[11],
+                    projMatrix[12], projMatrix[13], projMatrix[14], projMatrix[15]
+                );
+            }
+            if (mvMatrix != null && mvMatrix.length == 16) {
+                VitraD3D12Native.setModelViewMatrix(
+                    mvMatrix[0], mvMatrix[1], mvMatrix[2], mvMatrix[3],
+                    mvMatrix[4], mvMatrix[5], mvMatrix[6], mvMatrix[7],
+                    mvMatrix[8], mvMatrix[9], mvMatrix[10], mvMatrix[11],
+                    mvMatrix[12], mvMatrix[13], mvMatrix[14], mvMatrix[15]
+                );
+            }
+            if (texMatrix != null && texMatrix.length == 16) {
+                VitraD3D12Native.setTextureMatrix(
+                    texMatrix[0], texMatrix[1], texMatrix[2], texMatrix[3],
+                    texMatrix[4], texMatrix[5], texMatrix[6], texMatrix[7],
+                    texMatrix[8], texMatrix[9], texMatrix[10], texMatrix[11],
+                    texMatrix[12], texMatrix[13], texMatrix[14], texMatrix[15]
+                );
+            }
+        }
+    }
+
+    /**
+     * Set projection matrix
+     * Wrapper for DirectX 12 setProjectionMatrix
+     */
+    public void setProjectionMatrix(float[] matrix) {
+        if (isInitialized() && matrix != null && matrix.length == 16) {
+            VitraD3D12Native.setProjectionMatrix(
+                matrix[0], matrix[1], matrix[2], matrix[3],
+                matrix[4], matrix[5], matrix[6], matrix[7],
+                matrix[8], matrix[9], matrix[10], matrix[11],
+                matrix[12], matrix[13], matrix[14], matrix[15]
+            );
+        }
+    }
+
+    /**
+     * Set model-view matrix
+     * Wrapper for DirectX 12 setModelViewMatrix
+     */
+    public void setModelViewMatrix(float[] matrix) {
+        if (isInitialized() && matrix != null && matrix.length == 16) {
+            VitraD3D12Native.setModelViewMatrix(
+                matrix[0], matrix[1], matrix[2], matrix[3],
+                matrix[4], matrix[5], matrix[6], matrix[7],
+                matrix[8], matrix[9], matrix[10], matrix[11],
+                matrix[12], matrix[13], matrix[14], matrix[15]
+            );
+        }
+    }
+
+    /**
+     * Set texture matrix
+     * Wrapper for DirectX 12 setTextureMatrix
+     */
+    public void setTextureMatrix(float[] matrix) {
+        if (isInitialized() && matrix != null && matrix.length == 16) {
+            VitraD3D12Native.setTextureMatrix(
+                matrix[0], matrix[1], matrix[2], matrix[3],
+                matrix[4], matrix[5], matrix[6], matrix[7],
+                matrix[8], matrix[9], matrix[10], matrix[11],
+                matrix[12], matrix[13], matrix[14], matrix[15]
+            );
+        }
+    }
+
+    /**
+     * Get maximum supported texture size
+     * Wrapper for DirectX 12 getMaxTextureSize
+     */
+    public int getMaxTextureSize() {
+        if (isInitialized()) {
+            return VitraD3D12Native.getMaxTextureSize();
+        }
+        return 16384; // DirectX 12 minimum required: 16384x16384
+    }
+
+    /**
+     * Set shader color uniform
+     * Wrapper for DirectX 12 setShaderColor
+     */
+    public void setShaderColor(float r, float g, float b, float a) {
+        if (isInitialized()) {
+            VitraD3D12Native.setShaderColor(r, g, b, a);
+        }
+    }
+
+    /**
+     * Set shader light direction uniform
+     * Wrapper for DirectX 12 setShaderLightDirection
+     */
+    public void setShaderLightDirection(int index, float x, float y, float z) {
+        if (isInitialized()) {
+            VitraD3D12Native.setShaderLightDirection(index, x, y, z);
+        }
+    }
+
+    /**
+     * Set shader fog color uniform
+     * Wrapper for DirectX 12 setShaderFogColor
+     * Note: Native method takes 3 params (RGB), alpha is typically 1.0
+     */
+    public void setShaderFogColor(float r, float g, float b, float a) {
+        if (isInitialized()) {
+            VitraD3D12Native.setShaderFogColor(r, g, b);
+        }
+    }
+
+    /**
+     * Clear render target with OpenGL-style mask
+     * Interprets GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_STENCIL_BUFFER_BIT
+     *
+     * @param mask OpenGL clear mask (GL_COLOR_BUFFER_BIT=0x4000, GL_DEPTH_BUFFER_BIT=0x100, GL_STENCIL_BUFFER_BIT=0x400)
+     */
+    public void clear(int mask) {
+        if (isInitialized()) {
+            // GL_COLOR_BUFFER_BIT = 0x4000 (16384)
+            if ((mask & 0x4000) != 0) {
+                // Clear color buffer to black
+                VitraD3D12Native.clear(0.0f, 0.0f, 0.0f, 1.0f);
+            }
+            // GL_DEPTH_BUFFER_BIT = 0x100 (256)
+            if ((mask & 0x100) != 0) {
+                // Clear depth buffer to 1.0 (far plane)
+                VitraD3D12Native.clearDepthBuffer(1.0f);
+            }
+            // GL_STENCIL_BUFFER_BIT = 0x400 (1024) - not implemented yet
+        }
+    }
+
+    // Uniform management methods (DirectX 12 doesn't track dirty state internally like D3D11)
+
+    /**
+     * Mark uniforms as dirty, requiring re-upload to GPU
+     * DirectX 12 handles uniform updates differently than D3D11,
+     * so this is mainly for compatibility with mixin expectations
+     */
+    public void markUniformsDirty() {
+        this.uniformsDirty = true;
+    }
+
+    /**
+     * Check if uniforms are dirty (need re-upload)
+     */
+    public boolean areUniformsDirty() {
+        return this.uniformsDirty;
+    }
+
+    /**
+     * Force uniform update on next draw call
+     * DirectX 12 uploads uniforms via constant buffers per-frame
+     */
+    public void forceUniformUpdate() {
+        this.uniformsDirty = true;
+    }
+
+    /**
+     * Clear uniform dirty flag after upload
+     * Should be called after uploading uniforms to GPU
+     */
+    public void clearUniformsDirty() {
+        this.uniformsDirty = false;
     }
 }

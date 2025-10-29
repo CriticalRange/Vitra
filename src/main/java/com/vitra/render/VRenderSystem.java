@@ -5,7 +5,7 @@ import com.vitra.util.MappedBuffer;
 import org.joml.Matrix4f;
 
 /**
- * DirectX 11 Render System - CPU-side uniform storage
+ * DirectX Render System - CPU-side uniform storage
  *
  * Based on VulkanMod's VRenderSystem pattern.
  * Stores all Minecraft shader uniforms in native memory (MappedBuffers) for zero-copy upload to constant buffers.
@@ -205,12 +205,26 @@ public class VRenderSystem {
 
     // ==================== MATRIX SETTERS ====================
 
+    // Debug counter for matrix logging
+    private static int matrixSetCount = 0;
+
     /**
      * Set model-view matrix from Minecraft's Matrix4f
      * CRITICAL: This is called from RenderSystemMixin after every modelview matrix change
      */
     public static void setModelViewMatrix(Matrix4f matrix) {
         matrix.get(0, modelViewMatrix.byteBuffer());
+
+        // DEBUG: Log first 30 matrix sets to see values
+        if (matrixSetCount < 30) {
+            float m30 = matrix.m30();
+            float m31 = matrix.m31();
+            float m32 = matrix.m32();
+            float m33 = matrix.m33();
+            System.out.println(String.format("[MODELVIEW_SET %d] Row 4: [%.3f, %.3f, %.3f, %.3f]",
+                matrixSetCount++, m30, m31, m32, m33));
+        }
+
         updateMVP();
     }
 

@@ -141,7 +141,7 @@ public abstract class D3D12RenderSystemMixin {
             initializeD3D12Systems();
 
             if (!d3d12Initialized) {
-                LOGGER.warn("D3D12 systems not initialized, falling back to DirectX 11");
+                LOGGER.warn("D3D12 systems not initialized, falling back to DirectX");
                 return;
             }
 
@@ -412,7 +412,7 @@ public abstract class D3D12RenderSystemMixin {
     /**
      * Get D3D12 system statistics for debugging
      */
-    public static String getD3D12Stats() {
+    private static String getD3D12Stats() {
         if (!d3d12Initialized) {
             return "D3D12 not initialized";
         }
@@ -450,7 +450,7 @@ public abstract class D3D12RenderSystemMixin {
     /**
      * Cleanup D3D12 systems
      */
-    public static void cleanupD3D12Systems() {
+    private static void cleanupD3D12Systems() {
         if (!d3d12Initialized) {
             return;
         }

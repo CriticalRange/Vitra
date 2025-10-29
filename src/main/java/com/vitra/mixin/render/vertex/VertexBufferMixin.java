@@ -50,6 +50,8 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void upload(MeshData meshData) {
+        org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("VertexBufferMixin");
+        LOGGER.info("[VERTEX_BUFFER] upload() called with {} vertices", meshData.drawState().vertexCount());
         vbo.upload(meshData);
     }
 
@@ -58,6 +60,8 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void uploadIndexBuffer(ByteBufferBuilder.Result result) {
+        org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("VertexBufferMixin");
+        LOGGER.info("[VERTEX_BUFFER] uploadIndexBuffer() called");
         vbo.uploadIndexBuffer(result.byteBuffer());
     }
 
@@ -66,6 +70,8 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void drawWithShader(Matrix4f viewMatrix, Matrix4f projectionMatrix, ShaderInstance shader) {
+        org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("VertexBufferMixin");
+        LOGGER.info("[VERTEX_BUFFER] drawWithShader() called with shader: {}", shader.getName());
         vbo.drawWithShader(viewMatrix, projectionMatrix, shader);
     }
 
@@ -74,6 +80,8 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void draw() {
+        org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("VertexBufferMixin");
+        LOGGER.info("[VERTEX_BUFFER] draw() called, delegating to VBO");
         vbo.draw();
     }
 
@@ -82,6 +90,8 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void close() {
+        org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("VertexBufferMixin");
+        LOGGER.info("[VERTEX_BUFFER] close() called");
         vbo.close();
     }
 }

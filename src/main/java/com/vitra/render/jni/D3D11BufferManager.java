@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 /**
- * DirectX 11 buffer manager that replaces BGFX buffer operations
+ * DirectX buffer manager that replaces BGFX buffer operations
  */
 public class D3D11BufferManager extends AbstractBufferManager {
     private final Map<Long, BufferInfo> vertexBuffers = new ConcurrentHashMap<>();
@@ -183,6 +183,6 @@ public class D3D11BufferManager extends AbstractBufferManager {
 
     @Override
     public String getRendererType() {
-        return "DirectX 11";
+        return "DirectX";
     }
 }

@@ -12,11 +12,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * DirectX 11 ProgramManager compatibility mixin
+ * DirectX ProgramManager compatibility mixin
  *
  * Prevents OpenGL shader program operations from being executed.
  * All shader linking, program creation, and program management is handled
- * by the DirectX 11 backend through VitraD3D11Renderer.
+ * by the DirectX backend through VitraD3D11Renderer.
  *
  * Based on VulkanMod's GlProgramManagerMixin.
  */
@@ -32,16 +32,16 @@ public class ProgramManagerMixin {
 
     /**
      * Cancel linkShader to prevent OpenGL shader linking.
-     * DirectX 11 shaders are already compiled and linked in native code.
+     * DirectX shaders are already compiled and linked in native code.
      *
      * @author Vitra
-     * @reason DirectX 11 handles shader linking natively
+     * @reason DirectX handles shader linking natively
      */
     @Inject(method = "linkShader", at = @At("HEAD"), cancellable = true)
     private static void cancelLinkShader(Shader shader, CallbackInfo ci) {
         LOGGER.debug("Intercepted linkShader for shader: {}", shader != null ? shader.getClass().getSimpleName() : "null");
         // Cancel the OpenGL linkShader operation
-        // DirectX 11 shaders are compiled and linked separately
+        // DirectX shaders are compiled and linked separately
         ci.cancel();
     }
 
@@ -51,7 +51,7 @@ public class ProgramManagerMixin {
      * Following VulkanMod's VkGlProgram.genProgramId() pattern.
      *
      * @author Vitra
-     * @reason DirectX 11 uses programId for pipeline association in D3D11ProgramRegistry
+     * @reason DirectX uses programId for pipeline association in D3D11ProgramRegistry
      */
     @Overwrite
     public static int createProgram() {
@@ -63,27 +63,27 @@ public class ProgramManagerMixin {
 
     /**
      * Override releaseProgram to prevent OpenGL program deletion.
-     * DirectX 11 programs are managed by native code.
+     * DirectX programs are managed by native code.
      *
      * @author Vitra
-     * @reason DirectX 11 handles program lifecycle natively
+     * @reason DirectX handles program lifecycle natively
      */
     @Overwrite
     public static void releaseProgram(Shader shader) {
         LOGGER.debug("Intercepted releaseProgram for shader: {}", shader != null ? shader.getClass().getSimpleName() : "null");
-        // No-op - DirectX 11 programs are released by native code
+        // No-op - DirectX programs are released by native code
     }
 
     /**
      * Override glUseProgram to prevent OpenGL program binding.
-     * DirectX 11 handles shader binding through pipeline state.
+     * DirectX handles shader binding through pipeline state.
      *
      * @author Vitra
-     * @reason DirectX 11 uses pipeline state instead of program binding
+     * @reason DirectX uses pipeline state instead of program binding
      */
     @Overwrite
     public static void glUseProgram(int program) {
         LOGGER.trace("Intercepted glUseProgram({})", program);
-        // No-op - DirectX 11 handles shader binding through pipeline state
+        // No-op - DirectX handles shader binding through pipeline state
     }
 }

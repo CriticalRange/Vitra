@@ -21,7 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import static org.lwjgl.glfw.GLFW.*;
 
 /**
- * Critical mixin to prevent OpenGL context creation and enable DirectX 11
+ * Critical mixin to prevent OpenGL context creation and enable DirectX
  * Pattern from VulkanMod - redirects OpenGL calls and sets GLFW_NO_API
  */
 @Mixin(Window.class)
@@ -80,7 +80,7 @@ public abstract class WindowMixin {
         return null;
     }
 
-    // DirectX 11 device not initialized yet during Window construction
+    // DirectX device not initialized yet during Window construction
     @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;maxSupportedTextureSize()I"))
     private int redirectMaxTextureSize() {
         return 0;
@@ -96,7 +96,7 @@ public abstract class WindowMixin {
      */
     @Inject(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J"))
     private void setNoApiHint(WindowEventHandler windowEventHandler, ScreenManager screenManager, DisplayData displayData, String string, String string2, CallbackInfo ci) {
-        LOGGER.info("Setting GLFW_CLIENT_API to GLFW_NO_API for DirectX 11");
+        LOGGER.info("Setting GLFW_CLIENT_API to GLFW_NO_API for DirectX");
         GLFW.glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     }
 
@@ -108,7 +108,7 @@ public abstract class WindowMixin {
         try {
             LOGGER.info("Window constructed with handle: 0x{} (GLFW_NO_API)", Long.toHexString(this.window));
 
-            // Store the window handle in renderer (works for both DirectX 11 and DirectX 12)
+            // Store the window handle in renderer (works for both DirectX and DirectX 12)
             com.vitra.render.IVitraRenderer renderer = VitraMod.getRenderer();
             if (renderer instanceof com.vitra.render.AbstractRenderer abstractRenderer) {
                 abstractRenderer.setWindowHandle(this.window);
@@ -122,17 +122,17 @@ public abstract class WindowMixin {
     }
 
     /**
-     * CRITICAL: Override VSync management to use DirectX 11 swap chain
+     * CRITICAL: Override VSync management to use DirectX swap chain
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 swap chain handles VSync, not GLFW glfwSwapInterval()
+     * @reason DirectX swap chain handles VSync, not GLFW glfwSwapInterval()
      */
     @Overwrite
     public void updateVsync(boolean vsync) {
         this.vsync = vsync;
         try {
-            // DirectX 11 swap chain VSync is set during creation
+            // DirectX swap chain VSync is set during creation
             // Changing VSync requires recreating the swap chain
-            LOGGER.info("VSync changed to: {} - recreating DirectX 11 swap chain", vsync);
+            LOGGER.info("VSync changed to: {} - recreating DirectX swap chain", vsync);
             VitraD3D11Renderer.recreateSwapChain();
         } catch (Exception e) {
             LOGGER.error("Failed to update VSync setting", e);
@@ -140,9 +140,9 @@ public abstract class WindowMixin {
     }
 
     /**
-     * CRITICAL: Override display update for DirectX 11 frame presentation and deferred fullscreen
+     * CRITICAL: Override display update for DirectX frame presentation and deferred fullscreen
      * @author Vitra (adapted from VulkanMod)
-     * @reason Custom frame presentation flow for DirectX 11
+     * @reason Custom frame presentation flow for DirectX
      */
     @Overwrite
     public void updateDisplay() {
@@ -169,9 +169,9 @@ public abstract class WindowMixin {
     }
 
     /**
-     * CRITICAL: Override framebuffer resize to recreate DirectX 11 swap chain
+     * CRITICAL: Override framebuffer resize to recreate DirectX swap chain
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 swap chain buffers must match framebuffer size
+     * @reason DirectX swap chain buffers must match framebuffer size
      */
     @Overwrite
     private void onFramebufferResize(long window, int width, int height) {
@@ -180,7 +180,7 @@ public abstract class WindowMixin {
                 this.framebufferWidth = width;
                 this.framebufferHeight = height;
 
-                LOGGER.info("Framebuffer resized to {}x{} - recreating DirectX 11 swap chain", width, height);
+                LOGGER.info("Framebuffer resized to {}x{} - recreating DirectX swap chain", width, height);
 
                 // Schedule swap chain recreation (matches VulkanMod's Renderer.scheduleSwapChainUpdate())
                 try {
@@ -193,9 +193,9 @@ public abstract class WindowMixin {
     }
 
     /**
-     * CRITICAL: Override window resize to recreate DirectX 11 swap chain
+     * CRITICAL: Override window resize to recreate DirectX swap chain
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 swap chain buffers must match window size
+     * @reason DirectX swap chain buffers must match window size
      */
     @Overwrite
     private void onResize(long window, int width, int height) {
@@ -203,7 +203,7 @@ public abstract class WindowMixin {
         this.height = height;
 
         if (width > 0 && height > 0) {
-            LOGGER.info("Window resized to {}x{} - recreating DirectX 11 swap chain", width, height);
+            LOGGER.info("Window resized to {}x{} - recreating DirectX swap chain", width, height);
 
             // Schedule swap chain recreation (matches VulkanMod's Renderer.scheduleSwapChainUpdate())
             try {

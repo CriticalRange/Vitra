@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * DirectX 12 renderer implementation matching DirectX 11 pattern
+ * DirectX 12 renderer implementation matching DirectX pattern
  * Provides high-level DirectX 12 backend methods
  */
 public class VitraD3D12Renderer implements com.vitra.render.IVitraRenderer {

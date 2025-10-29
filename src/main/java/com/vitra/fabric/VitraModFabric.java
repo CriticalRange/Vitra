@@ -42,13 +42,13 @@ public final class VitraModFabric implements ModInitializer {
      * Register Fabric-specific hooks and events
      */
     private void registerFabricHooks() {
-        LOGGER.info("Registering Fabric-specific rendering hooks for DirectX 11 JNI integration");
+        LOGGER.info("Registering Fabric-specific rendering hooks for DirectX JNI integration");
 
         try {
-            // Register world rendering events for DirectX 11 JNI integration
+            // Register world rendering events for DirectX JNI integration
             registerWorldRenderingHooks();
 
-            // Register chunk loading events for DirectX 11 JNI mesh building
+            // Register chunk loading events for DirectX JNI mesh building
             registerChunkHooks();
 
             // Register entity rendering events
@@ -66,20 +66,20 @@ public final class VitraModFabric implements ModInitializer {
     }
 
     /**
-     * Register Fabric WorldRenderEvents for DirectX 11 JNI integration
+     * Register Fabric WorldRenderEvents for DirectX JNI integration
      */
     private void registerWorldRenderingHooks() {
-        // Hook into world rendering start to setup DirectX 11 JNI frame
+        // Hook into world rendering start to setup DirectX JNI frame
         net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents.START.register((context) -> {
-            LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.START - Beginning DirectX 11 JNI frame setup");
+            LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.START - Beginning DirectX JNI frame setup");
 
-            // Notify DirectX 11 JNI renderer that a new frame is starting
+            // Notify DirectX JNI renderer that a new frame is starting
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // Log frame start for DirectX 11 JNI integration
-                    LOGGER.debug("DirectX 11 JNI frame setup completed via Fabric START hook");
+                    // Log frame start for DirectX JNI integration
+                    LOGGER.debug("DirectX JNI frame setup completed via Fabric START hook");
                 } catch (Exception e) {
-                    LOGGER.error("Error in DirectX 11 JNI frame setup during Fabric START hook", e);
+                    LOGGER.error("Error in DirectX JNI frame setup during Fabric START hook", e);
                 }
             }
         });
@@ -89,16 +89,16 @@ public final class VitraModFabric implements ModInitializer {
             LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.AFTER_ENTITIES - Entities rendered");
         });
 
-        // Hook into world rendering end to finalize DirectX 11 JNI frame
+        // Hook into world rendering end to finalize DirectX JNI frame
         net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents.END.register((context) -> {
-            LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.END - Finalizing DirectX 11 JNI frame submission");
+            LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.END - Finalizing DirectX JNI frame submission");
 
-                        // Additional calls here would violate DirectX 11 JNI threading model
+                        // Additional calls here would violate DirectX JNI threading model
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // DirectX 11 JNI frame submission is handled by WindowMixin -> VitraRenderer
+                    // DirectX JNI frame submission is handled by WindowMixin -> VitraRenderer
                     // No additional action needed - frame is already properly submitted
-                    LOGGER.debug("DirectX 11 JNI frame already submitted via WindowMixin->VitraRenderer (proper threading model)");
+                    LOGGER.debug("DirectX JNI frame already submitted via WindowMixin->VitraRenderer (proper threading model)");
                 } catch (Exception e) {
                     LOGGER.error("Error during Fabric END hook", e);
                 }
@@ -109,35 +109,35 @@ public final class VitraModFabric implements ModInitializer {
     }
 
     /**
-     * Register Fabric chunk events for DirectX 11 JNI mesh building
+     * Register Fabric chunk events for DirectX JNI mesh building
      */
     private void registerChunkHooks() {
-        // Hook into client-side chunk loading for DirectX 11 JNI mesh preparation
+        // Hook into client-side chunk loading for DirectX JNI mesh preparation
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
             LOGGER.debug("*** FABRIC HOOK: ClientChunkEvents.CHUNK_LOAD - Chunk loaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
 
-            // Chunk loading detected - DirectX 11 JNI will handle mesh data through existing pipeline
+            // Chunk loading detected - DirectX JNI will handle mesh data through existing pipeline
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // Log chunk loading for DirectX 11 JNI integration tracking
-                    LOGGER.debug("DirectX 11 JNI chunk tracking - chunk loaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
+                    // Log chunk loading for DirectX JNI integration tracking
+                    LOGGER.debug("DirectX JNI chunk tracking - chunk loaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
                 } catch (Exception e) {
-                    LOGGER.error("Error tracking chunk load for DirectX 11 JNI at {}, {}", chunk.getPos().x, chunk.getPos().z, e);
+                    LOGGER.error("Error tracking chunk load for DirectX JNI at {}, {}", chunk.getPos().x, chunk.getPos().z, e);
                 }
             }
         });
 
-        // Hook into client-side chunk unloading for DirectX 11 JNI cleanup
+        // Hook into client-side chunk unloading for DirectX JNI cleanup
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> {
             LOGGER.debug("*** FABRIC HOOK: ClientChunkEvents.CHUNK_UNLOAD - Chunk unloaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
 
-            // Chunk unloading detected - DirectX 11 JNI will handle cleanup through existing pipeline
+            // Chunk unloading detected - DirectX JNI will handle cleanup through existing pipeline
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // Log chunk unloading for DirectX 11 JNI integration tracking
-                    LOGGER.debug("DirectX 11 JNI chunk tracking - chunk unloaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
+                    // Log chunk unloading for DirectX JNI integration tracking
+                    LOGGER.debug("DirectX JNI chunk tracking - chunk unloaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
                 } catch (Exception e) {
-                    LOGGER.error("Error tracking chunk unload for DirectX 11 JNI at {}, {}", chunk.getPos().x, chunk.getPos().z, e);
+                    LOGGER.error("Error tracking chunk unload for DirectX JNI at {}, {}", chunk.getPos().x, chunk.getPos().z, e);
                 }
             }
         });
@@ -146,7 +146,7 @@ public final class VitraModFabric implements ModInitializer {
     }
 
     /**
-     * Register entity rendering hooks for DirectX 11 JNI
+     * Register entity rendering hooks for DirectX JNI
      */
     private void registerEntityRenderingHooks() {
         // Entity rendering is primarily handled through our existing mixins
@@ -161,19 +161,19 @@ public final class VitraModFabric implements ModInitializer {
     private void registerRenderStateHooks() {
         // Hook into render state invalidation (F3+A, resource pack changes)
         net.fabricmc.fabric.api.client.rendering.v1.InvalidateRenderStateCallback.EVENT.register(() -> {
-            LOGGER.info("*** FABRIC HOOK: InvalidateRenderStateCallback - Render state invalidated, reinitializing DirectX 11 JNI");
+            LOGGER.info("*** FABRIC HOOK: InvalidateRenderStateCallback - Render state invalidated, reinitializing DirectX JNI");
 
-            // Reinitialize DirectX 11 JNI when render state is invalidated
+            // Reinitialize DirectX JNI when render state is invalidated
             if (com.vitra.VitraMod.getRenderer() != null) {
                 try {
-                    // Reload DirectX 11 JNI shaders for validation
+                    // Reload DirectX JNI shaders for validation
                     if (com.vitra.VitraMod.getCore() != null) {
                         com.vitra.VitraMod.getCore().loadShaders();
                     }
 
-                    LOGGER.info("DirectX 11 JNI render state reinitialized after invalidation");
+                    LOGGER.info("DirectX JNI render state reinitialized after invalidation");
                 } catch (Exception e) {
-                    LOGGER.error("Error reinitializing DirectX 11 JNI render state", e);
+                    LOGGER.error("Error reinitializing DirectX JNI render state", e);
                 }
             }
         });

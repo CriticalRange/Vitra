@@ -2,6 +2,7 @@ package com.vitra.render.d3d11;
 
 import com.vitra.render.jni.VitraD3D11Renderer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormatElement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,15 +38,65 @@ public class D3D11Pipeline {
 
     /**
      * Bind this pipeline to the rendering context.
+     * CRITICAL FIX: Also set input layout from vertex format to prevent linkage errors.
      */
     public void bind() {
         if (pipelineHandle != 0) {
+            LOGGER.info("[PIPELINE_BIND] Binding pipeline '{}' with vertex format: {}", name, formatToString(vertexFormat));
             LOGGER.debug("Binding pipeline '{}' with handle: 0x{}", name, Long.toHexString(pipelineHandle));
+
+            // CRITICAL: Set input layout from pipeline's vertex format BEFORE binding shaders
+            // This fixes the "TEXCOORD0 linkage error" when draw() is called without vertex format
+            if (vertexFormat != null) {
+                int[] vertexFormatDesc = encodeVertexFormat(vertexFormat);
+                VitraD3D11Renderer.setInputLayoutFromVertexFormat(vertexShaderHandle, vertexFormatDesc);
+            }
+
             VitraD3D11Renderer.bindShaderPipeline(pipelineHandle);
             bound = true;
         } else {
             LOGGER.error("Cannot bind pipeline '{}': invalid pipeline handle", name);
         }
+    }
+
+    /**
+     * Encode Minecraft VertexFormat to int array for JNI.
+     * Format: [elementCount, usage1, type1, count1, offset1, usage2, type2, count2, offset2, ...]
+     */
+    private static int[] encodeVertexFormat(VertexFormat format) {
+        var elements = format.getElements();
+        int[] desc = new int[1 + elements.size() * 4];
+        desc[0] = elements.size();
+
+        int currentOffset = 0;
+        for (int i = 0; i < elements.size(); i++) {
+            var element = elements.get(i);
+            desc[1 + i * 4] = element.usage().ordinal();
+            desc[1 + i * 4 + 1] = element.type().ordinal();
+            desc[1 + i * 4 + 2] = element.count();
+            desc[1 + i * 4 + 3] = currentOffset;
+
+            // Calculate offset for next element
+            currentOffset += getElementByteSize(element.type(), element.count());
+        }
+
+        return desc;
+    }
+
+    /**
+     * Calculate byte size of a vertex element based on type and count.
+     * Matches VulkanMod's approach of manually calculating sizes.
+     */
+    private static int getElementByteSize(VertexFormatElement.Type type, int count) {
+        return switch (type) {
+            case FLOAT -> 4 * count;   // 4 bytes per float
+            case UBYTE -> 1 * count;   // 1 byte per ubyte
+            case BYTE -> 1 * count;    // 1 byte per byte
+            case USHORT -> 2 * count;  // 2 bytes per ushort
+            case SHORT -> 2 * count;   // 2 bytes per short
+            case UINT -> 4 * count;    // 4 bytes per uint
+            case INT -> 4 * count;     // 4 bytes per int
+        };
     }
 
     /**
@@ -118,6 +169,24 @@ public class D3D11Pipeline {
      */
     public String getName() {
         return name;
+    }
+
+    /**
+     * Convert vertex format to string for logging.
+     */
+    private static String formatToString(VertexFormat format) {
+        if (format == null) return "null";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("size=").append(format.getVertexSize()).append("B [");
+        boolean first = true;
+        for (var element : format.getElements()) {
+            if (!first) sb.append(", ");
+            sb.append(element.usage().name());
+            first = false;
+        }
+        sb.append("]");
+        return sb.toString();
     }
 
     /**

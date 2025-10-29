@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 
 /**
- * Vertex Buffer Object wrapper for DirectX 11
+ * Vertex Buffer Object wrapper for DirectX
  * Manages vertex and index buffers, handles uploads and drawing
  * Based on VulkanMod's VBO architecture
  */
@@ -26,7 +26,7 @@ public class VBO {
     // Buffer usage type
     private final BufferUsage usage;
 
-    // DirectX 11 buffer handles
+    // DirectX buffer handles
     private long vertexBufferHandle = 0;
     private long indexBufferHandle = 0;
 
@@ -64,14 +64,21 @@ public class VBO {
         this.vertexFormat = parameters.format();
         this.vertexSize = parameters.format().getVertexSize();
 
+        LOGGER.info("[VBO_UPLOAD] BEFORE: vertexCount={}, indexCount={}, mode={}, format={}",
+            this.vertexCount, this.indexCount, this.mode, this.vertexFormat);
+
         this.uploadVertexBuffer(parameters, meshData.vertexBuffer());
         this.uploadIndexBuffer(meshData.indexBuffer());
+
+        LOGGER.info("[VBO_UPLOAD] AFTER: vertexCount={}, indexCount={}, autoIndexed={}, vbHandle=0x{}, ibHandle=0x{}",
+            this.vertexCount, this.indexCount, this.autoIndexed,
+            Long.toHexString(this.vertexBufferHandle), Long.toHexString(this.indexBufferHandle));
 
         meshData.close();
     }
 
     /**
-     * Upload vertex data to DirectX 11 vertex buffer
+     * Upload vertex data to DirectX vertex buffer
      */
     private void uploadVertexBuffer(MeshData.DrawState parameters, ByteBuffer data) {
         if (data == null) {
@@ -87,7 +94,7 @@ public class VBO {
         int size = parameters.format().getVertexSize() * parameters.vertexCount();
         int stride = parameters.format().getVertexSize(); // Stride = size of one vertex
 
-        // Create new DirectX 11 vertex buffer with explicit stride
+        // Create new DirectX vertex buffer with explicit stride
         // Use GL_ARRAY_BUFFER constant (34962) for vertex buffers
         int bufferId = generateBufferId();
         VitraD3D11Renderer.bindBuffer(34962, bufferId); // GL_ARRAY_BUFFER
@@ -170,7 +177,7 @@ public class VBO {
     private void uploadExplicitIndexBuffer(ByteBuffer data) {
         int size = data.remaining();
 
-        // Create new DirectX 11 index buffer
+        // Create new DirectX index buffer
         // Use GL_ELEMENT_ARRAY_BUFFER constant (34963) for index buffers
         int bufferId = generateBufferId();
         VitraD3D11Renderer.bindBuffer(34963, bufferId); // GL_ELEMENT_ARRAY_BUFFER
@@ -186,7 +193,12 @@ public class VBO {
      * Draw with shader instance (Minecraft's shader system)
      */
     public void drawWithShader(Matrix4f modelView, Matrix4f projection, ShaderInstance shaderInstance) {
+        LOGGER.info("[VBO_DRAW_WITH_SHADER] CALLED: shader={}, vbHandle=0x{}, vertexCount={}, indexCount={}, mode={}",
+            shaderInstance.getName(), Long.toHexString(this.vertexBufferHandle), this.vertexCount, this.indexCount, this.mode);
+
         if (this.indexCount == 0 || this.vertexBufferHandle == 0) {
+            LOGGER.warn("[VBO_DRAW_WITH_SHADER] EARLY RETURN: indexCount={}, vertexBufferHandle=0x{}",
+                this.indexCount, Long.toHexString(this.vertexBufferHandle));
             return;
         }
 
@@ -214,23 +226,28 @@ public class VBO {
         // Draw
         if (this.indexBufferHandle != 0) {
             // Indexed draw
+            LOGGER.info("[VBO_DRAW_WITH_SHADER] Calling native drawWithVertexFormat (indexed)");
             VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, this.indexBufferHandle,
                 0, 0, this.indexCount, 1, vertexFormatDesc);
         } else {
             // Non-indexed draw
+            LOGGER.info("[VBO_DRAW_WITH_SHADER] Calling native drawWithVertexFormat (non-indexed)");
             VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, 0,
                 0, 0, this.vertexCount, 1, vertexFormatDesc);
         }
 
-        LOGGER.debug("Drew with shader: vertices={}, indices={}, mode={}",
-            this.vertexCount, this.indexCount, this.mode);
+        LOGGER.info("[VBO_DRAW_WITH_SHADER] SUCCESS: Drew with shader");
     }
 
     /**
      * Draw without shader (uses currently bound shader/pipeline)
      */
     public void draw() {
-        if (this.indexCount == 0 || this.vertexBufferHandle == 0) {
+        LOGGER.info("[VBO_DRAW] CALLED: vbHandle=0x{}, vertexCount={}, indexCount={}, autoIndexed={}, mode={}",
+            Long.toHexString(this.vertexBufferHandle), this.vertexCount, this.indexCount, this.autoIndexed, this.mode);
+
+        if (this.vertexBufferHandle == 0) {
+            LOGGER.warn("[VBO_DRAW] EARLY RETURN: vertexBufferHandle is 0!");
             return;
         }
 
@@ -238,20 +255,34 @@ public class VBO {
         int[] vertexFormatDesc = encodeVertexFormat(this.vertexFormat);
 
         // Draw using current shader state
-        if (this.indexBufferHandle != 0) {
+        if (this.indexBufferHandle != 0 && !this.autoIndexed) {
+            // Explicit index buffer - indexed draw
+            if (this.indexCount == 0) {
+                LOGGER.warn("[VBO_DRAW] EARLY RETURN: indexCount is 0 (explicit index buffer)!");
+                return;
+            }
+            LOGGER.info("[VBO_DRAW] Calling native drawWithVertexFormat (indexed): vb=0x{}, ib=0x{}, indexCount={}",
+                Long.toHexString(this.vertexBufferHandle), Long.toHexString(this.indexBufferHandle), this.indexCount);
             VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, this.indexBufferHandle,
                 0, 0, this.indexCount, 1, vertexFormatDesc);
         } else {
+            // Non-indexed draw or auto-indexed (no actual index buffer in DirectX)
+            if (this.vertexCount == 0) {
+                LOGGER.warn("[VBO_DRAW] EARLY RETURN: vertexCount is 0!");
+                return;
+            }
+            LOGGER.info("[VBO_DRAW] Calling native drawWithVertexFormat (non-indexed): vb=0x{}, vertexCount={}, autoIndexed={}",
+                Long.toHexString(this.vertexBufferHandle), this.vertexCount, this.autoIndexed);
             VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, 0,
                 0, 0, this.vertexCount, 1, vertexFormatDesc);
         }
 
-        LOGGER.debug("Drew: vertices={}, indices={}, mode={}",
-            this.vertexCount, this.indexCount, this.mode);
+        LOGGER.info("[VBO_DRAW] SUCCESS: Drew vertices={}, indices={}, mode={}, autoIndexed={}",
+            this.vertexCount, this.indexCount, this.mode, this.autoIndexed);
     }
 
     /**
-     * Clean up DirectX 11 resources
+     * Clean up DirectX resources
      */
     public void close() {
         if (this.vertexCount <= 0) {

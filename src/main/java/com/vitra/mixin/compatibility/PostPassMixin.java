@@ -4,7 +4,9 @@ import com.mojang.blaze3d.pipeline.MainTarget;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
+import com.vitra.VitraMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.EffectInstance;
 import net.minecraft.client.renderer.PostPass;
@@ -23,18 +25,18 @@ import java.util.Objects;
 import java.util.function.IntSupplier;
 
 /**
- * DirectX 11 PostPass compatibility mixin
+ * DirectX PostPass compatibility mixin
  *
- * Based on VulkanMod's PostPassM but adapted for DirectX 11 pipeline.
+ * Based on VulkanMod's PostPassM but adapted for DirectX pipeline.
  * Handles individual post-processing effect passes within a PostChain.
  *
  * Key responsibilities:
  * - Execute single post-processing shader pass
- * - Bind input/output render targets for DirectX 11
+ * - Bind input/output render targets for DirectX
  * - Configure auxiliary textures (depth buffers, additional samplers)
  * - Set up shader uniforms (InSize, OutSize, Time, ScreenSize, etc.)
  * - Render fullscreen quad with effect shader
- * - Manage DirectX 11 viewport and depth state
+ * - Manage DirectX viewport and depth state
  *
  * Architecture:
  * A PostPass represents a single rendering operation:
@@ -43,14 +45,14 @@ import java.util.function.IntSupplier;
  * 3. Write to output render target (outTarget)
  * 4. Optionally use auxiliary textures (depth buffers, additional samplers)
  *
- * DirectX 11 workflow:
+ * DirectX workflow:
  * 1. Unbind input target from writing (prepare for reading)
  * 2. Set viewport to output target dimensions
  * 3. Bind input target as shader texture ("DiffuseSampler")
  * 4. Bind auxiliary textures (depth, additional samplers)
  * 5. Set shader uniforms (sizes, time, projection matrix)
  * 6. Clear and bind output target for writing
- * 7. Configure DirectX 11 depth and cull state
+ * 7. Configure DirectX depth and cull state
  * 8. Apply effect shader and draw fullscreen quad
  * 9. Unbind all render targets
  *
@@ -63,8 +65,8 @@ import java.util.function.IntSupplier;
  * - ScreenSize: Window dimensions (vec2)
  * - AuxSize[i]: Auxiliary texture dimensions (vec2)
  *
- * DirectX 11 specific optimizations:
- * - Inverted viewport for DirectX 11 coordinate system
+ * DirectX specific optimizations:
+ * - Inverted viewport for DirectX coordinate system
  * - Depth function set to GL_GREATER (519) during effect rendering
  * - Cull face disabled for fullscreen quad rendering
  * - Primitive topology explicitly set to TRIANGLES
@@ -74,12 +76,23 @@ public class PostPassMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/PostPassM");
 
     // Helper to get renderer instance (with null-safety check)
+    // Returns null for D3D12 (which doesn't need GL compatibility layer)
+    @org.jetbrains.annotations.Nullable
     private static VitraRenderer getRenderer() {
-        VitraRenderer renderer = VitraRenderer.getInstance();
-        if (renderer == null) {
-            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        IVitraRenderer baseRenderer = VitraMod.getRenderer();
+        if (baseRenderer == null) {
+            // Not yet initialized - this is expected during early initialization
+            return null;
         }
-        return renderer;
+
+        // If it's already a VitraRenderer (D3D11), return it directly
+        if (baseRenderer instanceof VitraRenderer) {
+            return (VitraRenderer) baseRenderer;
+        }
+
+        // For D3D12, return null (D3D12 doesn't use GL compatibility layer)
+        // D3D12 handles rendering directly without going through GL emulation
+        return null;
     }
 
     @Shadow @Final public RenderTarget inTarget;
@@ -96,7 +109,7 @@ public class PostPassMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace OpenGL post-pass execution with DirectX 11 pipeline
+     * @reason Replace OpenGL post-pass execution with DirectX pipeline
      *
      * Execute a single post-processing shader pass.
      * Reads from inTarget, applies shader effect, writes to outTarget.
@@ -176,13 +189,13 @@ public class PostPassMixin {
             this.outTarget.clear(Minecraft.ON_OSX);
             this.outTarget.bindWrite(false); // Don't set viewport (already set above)
 
-            // Step 7: Configure DirectX 11 rendering state
+            // Step 7: Configure DirectX rendering state
             disableDirectX11Cull();
             setDirectX11DepthFunc(519); // GL_GREATER
             setPrimitiveTopology(GL11.GL_TRIANGLES);
 
-            // Set inverted viewport for DirectX 11 coordinate system
-            // DirectX 11 uses top-left origin, OpenGL uses bottom-left
+            // Set inverted viewport for DirectX coordinate system
+            // DirectX uses top-left origin, OpenGL uses bottom-left
             setInvertedViewport(0, 0, this.outTarget.width, this.outTarget.height);
             resetScissor();
 
@@ -233,7 +246,7 @@ public class PostPassMixin {
     }
 
     /**
-     * Disable DirectX 11 face culling
+     * Disable DirectX face culling
      *
      * Fullscreen quad rendering requires backface culling to be disabled
      * since the quad covers the entire screen and may have inconsistent winding.
@@ -241,47 +254,59 @@ public class PostPassMixin {
     @Unique
     private void disableDirectX11Cull() {
         try {
-            // CULL_MODE_NONE = 0 (D3D11_CULL_NONE)
-            getRenderer().setRasterizerState(0, 0, false);
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                // CULL_MODE_NONE = 0 (D3D11_CULL_NONE)
+                renderer.setRasterizerState(0, 0, false);
+            }
+            // For D3D12 or not initialized: skip
         } catch (Exception e) {
-            LOGGER.warn("Failed to disable DirectX 11 cull mode", e);
+            LOGGER.warn("Failed to disable DirectX cull mode", e);
         }
     }
 
     /**
-     * Enable DirectX 11 face culling (restore default state)
+     * Enable DirectX face culling (restore default state)
      *
      * Re-enable backface culling after fullscreen quad rendering completes.
      */
     @Unique
     private void enableDirectX11Cull() {
         try {
-            // CULL_MODE_BACK = 2 (D3D11_CULL_BACK)
-            getRenderer().setRasterizerState(2, 0, false);
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                // CULL_MODE_BACK = 2 (D3D11_CULL_BACK)
+                renderer.setRasterizerState(2, 0, false);
+            }
+            // For D3D12 or not initialized: skip
         } catch (Exception e) {
-            LOGGER.warn("Failed to enable DirectX 11 cull mode", e);
+            LOGGER.warn("Failed to enable DirectX cull mode", e);
         }
     }
 
     /**
-     * Set DirectX 11 depth comparison function
+     * Set DirectX depth comparison function
      *
      * @param glDepthFunc OpenGL depth function constant (e.g., GL_GREATER = 519)
      */
     @Unique
     private void setDirectX11DepthFunc(int glDepthFunc) {
         try {
-            // Map OpenGL depth func to DirectX 11 D3D11_COMPARISON_FUNC
-            // GL_GREATER (519) -> D3D11_COMPARISON_GREATER
-            int d3d11ComparisonFunc = mapGLDepthFuncToD3D11(glDepthFunc);
-            getRenderer().depthFunc(d3d11ComparisonFunc);
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                // Map OpenGL depth func to DirectX D3D11_COMPARISON_FUNC
+                // GL_GREATER (519) -> D3D11_COMPARISON_GREATER
+                int d3d11ComparisonFunc = mapGLDepthFuncToD3D11(glDepthFunc);
+                renderer.depthFunc(d3d11ComparisonFunc);
+            }
+            // For D3D12 or not initialized: skip
         } catch (Exception e) {
-            LOGGER.warn("Failed to set DirectX 11 depth function", e);
+            LOGGER.warn("Failed to set DirectX depth function", e);
         }
     }
 
     /**
-     * Map OpenGL depth function to DirectX 11 comparison function
+     * Map OpenGL depth function to DirectX comparison function
      *
      * OpenGL constants:
      * - GL_NEVER (512) -> D3D11_COMPARISON_NEVER (1)
@@ -294,7 +319,7 @@ public class PostPassMixin {
      * - GL_ALWAYS (519) -> D3D11_COMPARISON_ALWAYS (8)
      *
      * @param glDepthFunc OpenGL depth function constant
-     * @return DirectX 11 D3D11_COMPARISON_FUNC value
+     * @return DirectX D3D11_COMPARISON_FUNC value
      */
     @Unique
     private int mapGLDepthFuncToD3D11(int glDepthFunc) {
@@ -312,25 +337,29 @@ public class PostPassMixin {
     }
 
     /**
-     * Set DirectX 11 primitive topology
+     * Set DirectX primitive topology
      *
      * @param glTopology OpenGL primitive topology (e.g., GL_TRIANGLES)
      */
     @Unique
     private void setPrimitiveTopology(int glTopology) {
         try {
-            // Map OpenGL topology to DirectX 11
-            // GL_TRIANGLES (4) -> D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST (4)
-            getRenderer().setPrimitiveTopology(glTopology);
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                // Map OpenGL topology to DirectX
+                // GL_TRIANGLES (4) -> D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST (4)
+                renderer.setPrimitiveTopology(glTopology);
+            }
+            // For D3D12 or not initialized: skip
         } catch (Exception e) {
-            LOGGER.warn("Failed to set DirectX 11 primitive topology", e);
+            LOGGER.warn("Failed to set DirectX primitive topology", e);
         }
     }
 
     /**
-     * Set inverted viewport for DirectX 11 coordinate system
+     * Set inverted viewport for DirectX coordinate system
      *
-     * DirectX 11 uses top-left origin (Y down), OpenGL uses bottom-left (Y up).
+     * DirectX uses top-left origin (Y down), OpenGL uses bottom-left (Y up).
      * Inverted viewport flips Y coordinates to match expected behavior.
      *
      * @param x Viewport X coordinate
@@ -341,24 +370,32 @@ public class PostPassMixin {
     @Unique
     private void setInvertedViewport(int x, int y, int width, int height) {
         try {
-            // DirectX 11 viewport with inverted Y
-            getRenderer().setViewport(x, y, width, height);
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                // DirectX viewport with inverted Y
+                renderer.setViewport(x, y, width, height);
+            }
+            // For D3D12 or not initialized: skip
         } catch (Exception e) {
-            LOGGER.warn("Failed to set inverted DirectX 11 viewport", e);
+            LOGGER.warn("Failed to set inverted DirectX viewport", e);
         }
     }
 
     /**
-     * Reset DirectX 11 scissor test to full viewport
+     * Reset DirectX scissor test to full viewport
      *
      * Ensures scissor test doesn't clip post-processing effects.
      */
     @Unique
     private void resetScissor() {
         try {
-            getRenderer().setScissorRect(0, 0, this.outTarget.width, this.outTarget.height);
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                renderer.setScissorRect(0, 0, this.outTarget.width, this.outTarget.height);
+            }
+            // For D3D12 or not initialized: skip
         } catch (Exception e) {
-            LOGGER.warn("Failed to reset DirectX 11 scissor", e);
+            LOGGER.warn("Failed to reset DirectX scissor", e);
         }
     }
 

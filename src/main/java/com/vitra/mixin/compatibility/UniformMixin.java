@@ -9,10 +9,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * DirectX 11 Uniform Upload Interception Mixin
+ * DirectX Uniform Upload Interception Mixin
  *
  * Based on VulkanMod's UniformM - intercepts Minecraft's Uniform.upload() calls
- * and redirects them to DirectX 11 constant buffer updates instead of OpenGL glUniform calls.
+ * and redirects them to DirectX constant buffer updates instead of OpenGL glUniform calls.
  *
  * Critical mixin for rendering:
  * - Without this, no uniforms reach the GPU
@@ -28,7 +28,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 6. Constant buffers are bound to shader stages
  *
  * Why cancel OpenGL calls?
- * - OpenGL glUniform* are no-ops in DirectX 11 backend
+ * - OpenGL glUniform* are no-ops in DirectX backend
  * - Prevents wasted CPU cycles
  * - Ensures all uniform updates go through our system
  */
@@ -73,10 +73,10 @@ public class UniformMixin {
 
     /**
      * Return dummy uniform location.
-     * DirectX 11 doesn't use uniform locations - constant buffers use offsets instead.
+     * DirectX doesn't use uniform locations - constant buffers use offsets instead.
      *
      * @author Vitra (based on VulkanMod)
-     * @reason DirectX 11 doesn't have uniform locations
+     * @reason DirectX doesn't have uniform locations
      */
     @Overwrite
     public static int glGetUniformLocation(int program, CharSequence name) {
@@ -85,10 +85,10 @@ public class UniformMixin {
 
     /**
      * Return dummy attribute location.
-     * DirectX 11 doesn't use attribute locations - input layout uses semantics instead.
+     * DirectX doesn't use attribute locations - input layout uses semantics instead.
      *
      * @author Vitra (based on VulkanMod)
-     * @reason DirectX 11 doesn't have attribute locations
+     * @reason DirectX doesn't have attribute locations
      */
     @Overwrite
     public static int glGetAttribLocation(int program, CharSequence name) {

@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * DirectX 12 native interface matching DirectX 11 pattern
+ * DirectX 12 native interface matching DirectX pattern
  * Provides DirectX 12 backend methods without duplicates
  */
 public class VitraD3D12Native {
@@ -156,6 +156,8 @@ public class VitraD3D12Native {
 
     // Render state methods
     public static native void setViewport(int x, int y, int width, int height, float minDepth, float maxDepth);
+    public static native void setScissorRect(int x, int y, int width, int height);
+    public static native void setPrimitiveTopology(int topology);
     public static native void setRasterizerState(int fillMode, int cullMode, boolean frontCounterClockwise,
                                               int depthBias, float depthBiasClamp, float slopeScaledDepthBias,
                                               boolean depthClipEnable, boolean multisampleEnable,
@@ -277,7 +279,7 @@ public class VitraD3D12Native {
                 LOGGER.warn("vitra-d3d12.dll will attempt to load it from PATH at runtime");
             }
 
-            // Now load the main DLL (matching DirectX 11 pattern)
+            // Now load the main DLL (matching DirectX pattern)
             try {
                 // Try loading from JAR resources or system library path first
                 System.loadLibrary("vitra-d3d12");

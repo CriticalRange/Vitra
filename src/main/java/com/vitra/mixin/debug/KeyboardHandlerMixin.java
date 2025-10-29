@@ -10,9 +10,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * DirectX 11 Keyboard Handler Debug Mixin
+ * DirectX Keyboard Handler Debug Mixin
  *
- * Based on VulkanMod's KeyboardHandlerM but adapted for DirectX 11.
+ * Based on VulkanMod's KeyboardHandlerM but adapted for DirectX.
  * Adds additional debug key handling for chunk debugging features.
  *
  * Key responsibilities:

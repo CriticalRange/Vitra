@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * Renderer-agnostic PostChain compatibility mixin
  *
- * Based on VulkanMod's PostChainM but adapted for DirectX 11 pipeline.
+ * Based on VulkanMod's PostChainM but adapted for DirectX pipeline.
  * Handles post-processing effect chains consisting of multiple sequential render passes.
  *
  * Key responsibilities:
@@ -26,7 +26,7 @@ import java.util.Map;
  * - Handle render target management for effect chains
  * - Manage effect timing and animation
  * - Apply filter modes (linear/nearest) for texture sampling
- * - Integrate with DirectX 11 viewport and scissor operations
+ * - Integrate with DirectX viewport and scissor operations
  *
  * Architecture:
  * A PostChain is a sequence of PostPass operations, each rendering from one
@@ -35,10 +35,10 @@ import java.util.Map;
  * 2. Applies multiple shader passes through intermediate render targets
  * 3. Outputs final result to screen or another render target
  *
- * DirectX 11 specifics:
+ * DirectX specifics:
  * - Viewport reset after each pass to ensure correct rendering dimensions
- * - Filter mode changes handled via DirectX 11 sampler states
- * - Render target binding coordinated with DirectX 11 OMSetRenderTargets
+ * - Filter mode changes handled via DirectX sampler states
+ * - Render target binding coordinated with DirectX OMSetRenderTargets
  * - Time management for animated effects
  *
  * PostChain JSON format (loaded by Minecraft):
@@ -90,20 +90,20 @@ public abstract class PostChainMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace OpenGL post-processing chain execution with DirectX 11 pipeline
+     * @reason Replace OpenGL post-processing chain execution with DirectX pipeline
      *
      * Process the entire post-processing effect chain.
      * Each pass reads from an input render target, applies a shader effect,
      * and writes to an output render target.
      *
-     * DirectX 11 workflow:
+     * DirectX workflow:
      * 1. Update effect timing for animation
      * 2. For each PostPass in the chain:
-     *    a. Set DirectX 11 filter mode (sampler state)
+     *    a. Set DirectX filter mode (sampler state)
      *    b. Execute the pass (handled by PostPassM)
      *    c. Reset viewport to ensure correct rendering dimensions
      * 3. Reset filter mode to default (nearest neighbor)
-     * 4. Reset DirectX 11 viewport to screen dimensions
+     * 4. Reset DirectX viewport to screen dimensions
      *
      * @param timestamp Current frame timestamp (0.0 - 1.0 range, wraps around)
      */
@@ -135,7 +135,7 @@ public abstract class PostChainMixin {
         for (PostPass postPass : this.passes) {
             int passFilterMode = postPass.getFilterMode();
 
-            // Only update filter mode if changed (reduces DirectX 11 state changes)
+            // Only update filter mode if changed (reduces DirectX state changes)
             if (currentFilterMode != passFilterMode) {
                 this.setFilterMode(passFilterMode);
                 currentFilterMode = passFilterMode;
@@ -143,7 +143,7 @@ public abstract class PostChainMixin {
             }
 
             try {
-                // Execute the pass - PostPassM handles DirectX 11 rendering
+                // Execute the pass - PostPassM handles DirectX rendering
                 // Passes normalized time (0.0 - 1.0 range)
                 postPass.process(this.time / 20.0F);
 
@@ -156,24 +156,24 @@ public abstract class PostChainMixin {
         // Reset filter mode to default (nearest neighbor)
         this.setFilterMode(9728); // GL_NEAREST
 
-        // Reset DirectX 11 viewport to screen dimensions
+        // Reset DirectX viewport to screen dimensions
         // This ensures subsequent rendering operations have correct viewport
         try {
             resetDirectX11Viewport();
         } catch (Exception e) {
-            LOGGER.error("Failed to reset DirectX 11 viewport after PostChain processing", e);
+            LOGGER.error("Failed to reset DirectX viewport after PostChain processing", e);
         }
 
         LOGGER.trace("Completed PostChain processing");
     }
 
     /**
-     * Reset DirectX 11 viewport to screen dimensions
+     * Reset DirectX viewport to screen dimensions
      *
      * After post-processing effects complete, the viewport must be reset to
      * ensure subsequent rendering operations (UI, HUD, etc.) render correctly.
      *
-     * DirectX 11 viewport structure:
+     * DirectX viewport structure:
      * - TopLeftX: 0
      * - TopLeftY: 0
      * - Width: screenWidth
@@ -205,11 +205,11 @@ public abstract class PostChainMixin {
      * Called when window is resized or when render scale changes.
      * All intermediate render targets must be recreated with new dimensions.
      *
-     * DirectX 11 resize workflow:
+     * DirectX resize workflow:
      * 1. Destroy existing render target resources
      * 2. Recreate render targets with new dimensions
      * 3. Update screenWidth/screenHeight
-     * 4. Recreate DirectX 11 textures and views
+     * 4. Recreate DirectX textures and views
      *
      * @param width New screen width
      * @param height New screen height
@@ -221,7 +221,7 @@ public abstract class PostChainMixin {
      * Close and cleanup all post-chain resources
      *
      * Called when the effect chain is no longer needed.
-     * Releases all DirectX 11 render targets and shader resources.
+     * Releases all DirectX render targets and shader resources.
      */
     @Shadow
     public abstract void close();

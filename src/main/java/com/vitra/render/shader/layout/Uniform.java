@@ -7,7 +7,7 @@ import org.lwjgl.system.MemoryUtil;
 import java.util.function.Supplier;
 
 /**
- * DirectX 11 Constant Buffer Uniform Field
+ * DirectX Constant Buffer Uniform Field
  *
  * Based on VulkanMod's Uniform class - represents a single field within a constant buffer (UBO).
  * Manages std140 layout alignment, data suppliers, and GPU upload.

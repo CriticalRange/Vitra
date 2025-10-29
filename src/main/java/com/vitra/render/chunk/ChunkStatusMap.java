@@ -5,11 +5,11 @@ public class ChunkStatusMap {
     public static final int DATA_READY = 1;
 
     public void setChunkStatus(int x, int z, int status) {
-        // DirectX 11 chunk status tracking implementation
+        // DirectX chunk status tracking implementation
     }
 
     public void resetChunkStatus(int x, int z, int status) {
-        // DirectX 11 chunk status reset implementation
+        // DirectX chunk status reset implementation
     }
 
     // Static convenience methods

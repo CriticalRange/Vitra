@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Performance benchmarking tool for Vitra renderers
- * Supports comparison between DirectX 11 and DirectX 12 Ultimate
+ * Supports comparison between DirectX and DirectX 12 Ultimate
  */
 public class PerformanceBenchmark {
     private static final Logger LOGGER = LoggerFactory.getLogger(PerformanceBenchmark.class);
@@ -169,15 +169,15 @@ public class PerformanceBenchmark {
 
         // Performance improvement calculations
         if (results.containsKey(RendererType.DIRECTX11) &&
-            results.containsKey(RendererType.DIRECTX12_ULTIMATE)) {
+            results.containsKey(RendererType.DIRECTX12)) {
 
             BenchmarkResult dx11Result = results.get(RendererType.DIRECTX11);
-            BenchmarkResult dx12Result = results.get(RendererType.DIRECTX12_ULTIMATE);
+            BenchmarkResult dx12Result = results.get(RendererType.DIRECTX12);
 
             double fpsImprovement = ((dx12Result.getAverageFPS() - dx11Result.getAverageFPS()) / dx11Result.getAverageFPS()) * 100;
             double frameTimeImprovement = ((dx11Result.getAverageFrameTime() - dx12Result.getAverageFrameTime()) / dx11Result.getAverageFrameTime()) * 100;
 
-            comparison.append("Performance Improvements (DirectX 12 Ultimate vs DirectX 11):\n");
+            comparison.append("Performance Improvements (DirectX 12 Ultimate vs DirectX):\n");
             comparison.append(String.format("  FPS Improvement: %.1f%%\n", fpsImprovement));
             comparison.append(String.format("  Frame Time Reduction: %.1f%%\n", frameTimeImprovement));
         }

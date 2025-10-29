@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Advanced debugging utilities for Vitra renderers
- * Uses VitraNativeRenderer for DirectX 11 Debug Layer access via ID3D11InfoQueue
+ * Uses VitraNativeRenderer for DirectX Debug Layer access via ID3D11InfoQueue
  */
 public class VitraDebugUtils {
     private static final Logger LOGGER = LoggerFactory.getLogger(VitraDebugUtils.class);
@@ -123,7 +123,7 @@ public class VitraDebugUtils {
 
     /**
      * Process queued debug messages from native code
-     * Uses VitraNativeRenderer to access DirectX 11 ID3D11InfoQueue
+     * Uses VitraNativeRenderer to access DirectX ID3D11InfoQueue
      */
     public static void processDebugMessages() {
         if (!debugEnabled) {

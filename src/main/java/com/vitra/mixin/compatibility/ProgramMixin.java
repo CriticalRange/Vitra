@@ -16,15 +16,15 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * DirectX 11 Program compatibility mixin
+ * DirectX Program compatibility mixin
  *
- * Based on VulkanMod's ProgramM but adapted for DirectX 11 shader compilation.
+ * Based on VulkanMod's ProgramM but adapted for DirectX shader compilation.
  * Handles shader program compilation by intercepting OpenGL shader creation
- * and redirecting to precompiled DirectX 11 HLSL bytecode.
+ * and redirecting to precompiled DirectX HLSL bytecode.
  *
  * Key responsibilities:
  * - Intercept OpenGL shader compilation (glCreateShader, glCompileShader)
- * - Load precompiled DirectX 11 shaders instead of compiling GLSL at runtime
+ * - Load precompiled DirectX shaders instead of compiling GLSL at runtime
  * - Process GLSL source for compatibility (preprocessor directives)
  * - Return dummy shader IDs for OpenGL compatibility
  * - Integrate with D3D11ShaderManager for shader caching
@@ -34,8 +34,8 @@ import java.nio.charset.StandardCharsets;
  * This mixin intercepts compilation and instead:
  * 1. Reads GLSL source from resources (for compatibility checking)
  * 2. Processes GLSL with preprocessor (handles #define, #ifdef, etc.)
- * 3. Loads corresponding precompiled DirectX 11 shader from /shaders/compiled/
- * 4. Returns dummy shader ID (actual DirectX 11 shader handle managed separately)
+ * 3. Loads corresponding precompiled DirectX shader from /shaders/compiled/
+ * 4. Returns dummy shader ID (actual DirectX shader handle managed separately)
  *
  * Shader compilation flow (OpenGL):
  * 1. Program.compileShaderInternal() called by Minecraft
@@ -47,12 +47,12 @@ import java.nio.charset.StandardCharsets;
  * 7. glGetShaderiv() checks compilation status
  * 8. Returns shader ID
  *
- * Shader compilation flow (DirectX 11):
+ * Shader compilation flow (DirectX):
  * 1. Program.compileShaderInternal() intercepted by this mixin
  * 2. GLSL source loaded from InputStream (same as OpenGL)
  * 3. GLSL preprocessor processes source (compatibility)
  * 4. Extract shader name from resource path
- * 5. Load precompiled DirectX 11 shader via D3D11ShaderManager
+ * 5. Load precompiled DirectX shader via D3D11ShaderManager
  * 6. Return dummy shader ID (0) for compatibility
  *
  * Precompiled shader naming convention:
@@ -85,10 +85,10 @@ public class ProgramMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace OpenGL shader compilation with DirectX 11 precompiled shader loading
+     * @reason Replace OpenGL shader compilation with DirectX precompiled shader loading
      *
      * Intercepts Minecraft's shader compilation and redirects to precompiled
-     * DirectX 11 HLSL bytecode. GLSL source is still processed for compatibility
+     * DirectX HLSL bytecode. GLSL source is still processed for compatibility
      * but not compiled at runtime.
      *
      * @param type Shader type (VERTEX or FRAGMENT)
@@ -96,7 +96,7 @@ public class ProgramMixin {
      * @param inputStream GLSL source input stream
      * @param sourceName Source identifier (e.g., "minecraft:shaders/core/rendertype_solid.vsh")
      * @param glslPreprocessor GLSL preprocessor for handling directives
-     * @return Dummy shader ID (0) - actual DirectX 11 shader managed separately
+     * @return Dummy shader ID (0) - actual DirectX shader managed separately
      * @throws IOException If GLSL source cannot be read
      */
     @Overwrite
@@ -126,15 +126,15 @@ public class ProgramMixin {
 
             LOGGER.trace("Processed GLSL with preprocessor");
 
-            // Step 3: Load precompiled DirectX 11 shader
+            // Step 3: Load precompiled DirectX shader
             // Extract shader base name from source path
             // Example: "minecraft:shaders/core/rendertype_solid.vsh" -> "rendertype_solid"
             String shaderBaseName = extractShaderBaseName(sourceName, shaderName);
 
-            // Determine DirectX 11 shader type
+            // Determine DirectX shader type
             int d3d11ShaderType = mapProgramTypeToD3D11(type);
 
-            LOGGER.debug("Loading precompiled DirectX 11 shader: baseName={}, type={}",
+            LOGGER.debug("Loading precompiled DirectX shader: baseName={}, type={}",
                 shaderBaseName, d3d11ShaderType);
 
             // Load shader via D3D11ShaderManager
@@ -143,9 +143,9 @@ public class ProgramMixin {
                 long shaderHandle = shaderManager.loadShader(shaderBaseName, d3d11ShaderType);
 
                 if (shaderHandle == 0) {
-                    LOGGER.warn("Failed to load precompiled DirectX 11 shader: {}", shaderBaseName);
+                    LOGGER.warn("Failed to load precompiled DirectX shader: {}", shaderBaseName);
                 } else {
-                    LOGGER.debug("Loaded DirectX 11 shader successfully: {} (handle: 0x{})",
+                    LOGGER.debug("Loaded DirectX shader successfully: {} (handle: 0x{})",
                         shaderBaseName, Long.toHexString(shaderHandle));
                 }
             } else {
@@ -160,12 +160,12 @@ public class ProgramMixin {
             converter.process(processedGlsl);
             String hlslSource = converter.getHlslSource();
 
-            // Compile HLSL to DirectX 11 bytecode at runtime
+            // Compile HLSL to DirectX bytecode at runtime
             D3DCompiler compiler = new D3DCompiler();
             String profile = (type == Program.Type.VERTEX) ? "vs_5_0" : "ps_5_0";
             byte[] bytecode = compiler.compile(hlslSource, "main", profile);
 
-            // Create DirectX 11 shader from bytecode
+            // Create DirectX shader from bytecode
             long shaderHandle = getRenderer().createGLProgramShader(
                 bytecode, bytecode.length, d3d11ShaderType);
 
@@ -174,7 +174,7 @@ public class ProgramMixin {
             */
 
             // Step 4: Return dummy shader ID
-            // OpenGL compatibility requires a shader ID, but DirectX 11 shaders
+            // OpenGL compatibility requires a shader ID, but DirectX shaders
             // are managed separately via handles in D3D11ShaderManager
             return 0;
 
@@ -228,10 +228,10 @@ public class ProgramMixin {
     }
 
     /**
-     * Map Minecraft Program.Type to DirectX 11 shader type
+     * Map Minecraft Program.Type to DirectX shader type
      *
      * @param type Minecraft shader type
-     * @return DirectX 11 shader type constant
+     * @return DirectX shader type constant
      */
     private static int mapProgramTypeToD3D11(Program.Type type) {
         return switch (type) {

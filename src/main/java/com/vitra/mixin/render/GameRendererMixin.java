@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.Map;
 
 /**
- * Complete GameRenderer mixin for DirectX 11 shader lifecycle management.
+ * Complete GameRenderer mixin for DirectX shader lifecycle management.
  * Handles shader preloading and initialization.
  */
 @Mixin(GameRenderer.class)
@@ -28,11 +28,11 @@ public class GameRendererMixin {
     @Shadow @Final private Map<String, ShaderInstance> shaders;
 
     /**
-     * Inject into preloadUiShader to ensure DirectX 11 UI shaders are ready.
+     * Inject into preloadUiShader to ensure DirectX UI shaders are ready.
      */
     @Inject(method = "preloadUiShader", at = @At("RETURN"))
     private void onPreloadUiShader(ResourceProvider resourceProvider, CallbackInfo ci) {
-        LOGGER.info("DirectX 11: UI shaders preloaded successfully");
+        LOGGER.info("DirectX: UI shaders preloaded successfully");
         LOGGER.info("Total shaders loaded: {}", shaders.size());
 
         // Log all loaded shaders for debugging
@@ -44,11 +44,11 @@ public class GameRendererMixin {
     }
 
     /**
-     * Inject at the start of tick to update DirectX 11 state.
+     * Inject at the start of tick to update DirectX state.
      */
     @Inject(method = "tick", at = @At("HEAD"))
     private void onTickStart(CallbackInfo ci) {
-        // Update DirectX 11 render state if needed
+        // Update DirectX render state if needed
         // This runs every game tick (20 times per second)
     }
 

@@ -12,19 +12,19 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 
 /**
- * D3D11RenderSystem - Complete DirectX 11 rendering state management
+ * D3D11RenderSystem - Complete DirectX rendering state management
  *
- * This class is equivalent to VulkanMod's VRenderSystem but adapted for DirectX 11.
- * It maintains all OpenGL-equivalent state and forwards operations to DirectX 11 via JNI.
+ * This class is equivalent to VulkanMod's VRenderSystem but adapted for DirectX.
+ * It maintains all OpenGL-equivalent state and forwards operations to DirectX via JNI.
  *
  * Architecture:
- * - Maintains DirectX 11 rendering state (depth, blend, cull, etc.)
+ * - Maintains DirectX rendering state (depth, blend, cull, etc.)
  * - Manages uniform buffers (MVP matrices, shader colors, fog, etc.)
- * - Translates OpenGL state calls to DirectX 11 equivalents
- * - Uses JNI for native DirectX 11 operations
+ * - Translates OpenGL state calls to DirectX equivalents
+ * - Uses JNI for native DirectX operations
  *
  * Unlike VulkanMod which uses Vulkan bindings directly in Java, we use JNI to call
- * native C++ DirectX 11 code for maximum performance and direct API access.
+ * native C++ DirectX code for maximum performance and direct API access.
  */
 public abstract class D3D11RenderSystem {
     private static final Logger LOGGER = LoggerFactory.getLogger("D3D11RenderSystem");
@@ -32,8 +32,8 @@ public abstract class D3D11RenderSystem {
 
     private static long window;
 
-    // ===== DirectX 11 Rendering State =====
-    // These mirror OpenGL state but control DirectX 11 behavior
+    // ===== DirectX Rendering State =====
+    // These mirror OpenGL state but control DirectX behavior
 
     // Depth state
     public static boolean depthTest = true;
@@ -73,7 +73,7 @@ public abstract class D3D11RenderSystem {
     public static FloatBuffer clearColor = MemoryUtil.memCallocFloat(4);
 
     // ===== Uniform Buffers (CPU-side) =====
-    // These buffers store data that will be uploaded to DirectX 11 constant buffers
+    // These buffers store data that will be uploaded to DirectX constant buffers
 
     // Matrix uniforms (16 floats each = 64 bytes)
     public static FloatBuffer modelViewMatrix = MemoryUtil.memCallocFloat(16);
@@ -99,25 +99,25 @@ public abstract class D3D11RenderSystem {
     // ===== Initialization =====
 
     /**
-     * Initialize DirectX 11 renderer.
+     * Initialize DirectX renderer.
      * Called from RenderSystemMixin.initRenderer()
      */
     public static void initRenderer() {
         LOGGER.info("╔════════════════════════════════════════════════════════════╗");
         LOGGER.info("║  D3D11RenderSystem INITIALIZATION                          ║");
         LOGGER.info("╠════════════════════════════════════════════════════════════╣");
-        LOGGER.info("║ Initializing DirectX 11 rendering system...");
+        LOGGER.info("║ Initializing DirectX rendering system...");
         LOGGER.info("╚════════════════════════════════════════════════════════════╝");
 
         try {
-            // Initialize DirectX 11 via JNI
+            // Initialize DirectX via JNI
             // Note: Window handle is set via WindowMixin after GLFW window creation
             if (window != 0L) {
                 boolean success = VitraD3D11Renderer.initializeDirectX(window, 1920, 1080, false, false);
                 if (success) {
-                    LOGGER.info("✓ DirectX 11 initialized successfully");
+                    LOGGER.info("✓ DirectX initialized successfully");
                 } else {
-                    LOGGER.error("✗ DirectX 11 initialization failed!");
+                    LOGGER.error("✗ DirectX initialization failed!");
                 }
             } else {
                 LOGGER.warn("Window handle not available yet - deferring initialization");
@@ -133,10 +133,10 @@ public abstract class D3D11RenderSystem {
 
     /**
      * Setup default rendering state.
-     * Called after DirectX 11 initialization.
+     * Called after DirectX initialization.
      */
     public static void setupDefaultState() {
-        LOGGER.debug("Setting up default DirectX 11 rendering state");
+        LOGGER.debug("Setting up default DirectX rendering state");
 
         // Set default clear color (black)
         setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -170,11 +170,11 @@ public abstract class D3D11RenderSystem {
         // Set default fog color (black)
         setShaderFogColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-        LOGGER.debug("Default DirectX 11 state configured");
+        LOGGER.debug("Default DirectX state configured");
     }
 
     /**
-     * Set the GLFW window handle for DirectX 11 initialization.
+     * Set the GLFW window handle for DirectX initialization.
      * Called from WindowMixin after window creation.
      */
     public static void setWindow(long windowHandle) {
@@ -215,7 +215,7 @@ public abstract class D3D11RenderSystem {
      */
     public static void applyModelViewMatrix(Matrix4f mat) {
         mat.get(modelViewMatrix);
-        // Upload to DirectX 11 constant buffer via JNI
+        // Upload to DirectX constant buffer via JNI
         VitraD3D11Renderer.updateConstantBuffer(
             VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_MATRICES,
             modelViewMatrix
@@ -227,7 +227,7 @@ public abstract class D3D11RenderSystem {
      */
     public static void applyProjectionMatrix(Matrix4f mat) {
         mat.get(projectionMatrix);
-        // Upload to DirectX 11 constant buffer via JNI
+        // Upload to DirectX constant buffer via JNI
         VitraD3D11Renderer.updateConstantBuffer(
             VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_MATRICES,
             projectionMatrix
@@ -247,7 +247,7 @@ public abstract class D3D11RenderSystem {
         // MVP = Projection * ModelView
         P.mul(MV).get(MVP);
 
-        // Upload MVP to DirectX 11
+        // Upload MVP to DirectX
         VitraD3D11Renderer.updateConstantBuffer(
             VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_MATRICES,
             MVP
@@ -259,7 +259,7 @@ public abstract class D3D11RenderSystem {
      */
     public static void setTextureMatrix(Matrix4f mat) {
         mat.get(textureMatrix);
-        // Upload to DirectX 11 constant buffer
+        // Upload to DirectX constant buffer
         VitraD3D11Renderer.updateConstantBuffer(
             VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_MATRICES,
             textureMatrix
@@ -304,7 +304,7 @@ public abstract class D3D11RenderSystem {
         modelOffset.put(1, y);
         modelOffset.put(2, z);
 
-        // Upload to DirectX 11
+        // Upload to DirectX
         VitraD3D11Renderer.updateConstantBuffer(
             VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_VECTORS,
             modelOffset
@@ -320,7 +320,7 @@ public abstract class D3D11RenderSystem {
         shaderColor.put(2, b);
         shaderColor.put(3, a);
 
-        // Upload to DirectX 11
+        // Upload to DirectX
         VitraD3D11Renderer.updateConstantBuffer(
             VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_COLORS,
             shaderColor
@@ -336,7 +336,7 @@ public abstract class D3D11RenderSystem {
         shaderFogColor.put(2, b);
         shaderFogColor.put(3, a);
 
-        // Upload to DirectX 11
+        // Upload to DirectX
         VitraD3D11Renderer.updateConstantBuffer(
             VitraD3D11Renderer.CONSTANT_BUFFER_SLOT_COLORS,
             shaderFogColor
@@ -374,7 +374,7 @@ public abstract class D3D11RenderSystem {
      * @param mask Bitmask indicating which buffers to clear
      */
     public static void clear(int mask) {
-        // Translate OpenGL clear mask to DirectX 11 clear operations
+        // Translate OpenGL clear mask to DirectX clear operations
         boolean clearColorBuffer = (mask & 0x4000) != 0; // GL_COLOR_BUFFER_BIT
         boolean clearDepthBuffer = (mask & 0x100) != 0;  // GL_DEPTH_BUFFER_BIT
         boolean clearStencilBuffer = (mask & 0x400) != 0; // GL_STENCIL_BUFFER_BIT
@@ -442,7 +442,7 @@ public abstract class D3D11RenderSystem {
     }
 
     /**
-     * Translate OpenGL depth function to DirectX 11 comparison function.
+     * Translate OpenGL depth function to DirectX comparison function.
      */
     private static int translateDepthFunc(int glFunc) {
         return switch (glFunc) {
@@ -499,7 +499,7 @@ public abstract class D3D11RenderSystem {
             blendSrcFactorAlpha = srcFactorAlpha;
             blendDstFactorAlpha = dstFactorAlpha;
 
-            // Note: DirectX 11 blend state supports separate RGB/Alpha factors, but our JNI method
+            // Note: DirectX blend state supports separate RGB/Alpha factors, but our JNI method
             // only accepts source/destination factor pairs. For now, use RGB factors for both.
             VitraD3D11Renderer.setBlendFunc(
                 translateBlendFactor(srcFactorRGB),
@@ -509,7 +509,7 @@ public abstract class D3D11RenderSystem {
     }
 
     /**
-     * Translate OpenGL blend factor to DirectX 11 blend factor.
+     * Translate OpenGL blend factor to DirectX blend factor.
      */
     private static int translateBlendFactor(int glFactor) {
         return switch (glFactor) {
@@ -580,7 +580,7 @@ public abstract class D3D11RenderSystem {
     }
 
     /**
-     * Translate OpenGL polygon mode to DirectX 11 fill mode.
+     * Translate OpenGL polygon mode to DirectX fill mode.
      */
     private static int translatePolygonMode(int glMode) {
         return switch (glMode) {
@@ -598,8 +598,8 @@ public abstract class D3D11RenderSystem {
      */
     public static void enableColorLogicOp() {
         logicOpEnabled = true;
-        // DirectX 11 doesn't have direct equivalent - implement in shader if needed
-        LOGGER.warn("Color logic operations not fully supported in DirectX 11");
+        // DirectX doesn't have direct equivalent - implement in shader if needed
+        LOGGER.warn("Color logic operations not fully supported in DirectX");
     }
 
     /**
@@ -614,7 +614,7 @@ public abstract class D3D11RenderSystem {
      */
     public static void logicOp(int glLogicOp) {
         logicOpFunc = glLogicOp;
-        // DirectX 11 doesn't support all logic ops - would need shader implementation
+        // DirectX doesn't support all logic ops - would need shader implementation
     }
 
     // ===== Polygon Offset (Depth Bias) =====
@@ -656,7 +656,7 @@ public abstract class D3D11RenderSystem {
     // ===== Cleanup =====
 
     /**
-     * Shutdown DirectX 11 rendering system.
+     * Shutdown DirectX rendering system.
      */
     public static void shutdown() {
         LOGGER.info("Shutting down D3D11RenderSystem");
@@ -674,7 +674,7 @@ public abstract class D3D11RenderSystem {
         MemoryUtil.memFree(shaderFogColor);
         MemoryUtil.memFree(screenSize);
 
-        // Shutdown DirectX 11 via JNI
+        // Shutdown DirectX via JNI
         VitraD3D11Renderer.shutdown();
 
         LOGGER.info("D3D11RenderSystem shutdown complete");

@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.Overwrite;
 
 /**
  * Critical mixin to prevent MainTarget from creating OpenGL framebuffers
- * Pattern based on VulkanMod's MainTargetMixin - redirects to DirectX 11 swap chain
+ * Pattern based on VulkanMod's MainTargetMixin - redirects to DirectX swap chain
  */
 @Mixin(MainTarget.class)
 public class MainTargetMixin extends RenderTarget {
@@ -22,11 +22,11 @@ public class MainTargetMixin extends RenderTarget {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Prevent OpenGL framebuffer creation, use DirectX 11 swap chain instead
+     * @reason Prevent OpenGL framebuffer creation, use DirectX swap chain instead
      */
     @Overwrite
     private void createFrameBuffer(int width, int height) {
-        // Don't create OpenGL framebuffer - DirectX 11 swap chain handles this
+        // Don't create OpenGL framebuffer - DirectX swap chain handles this
         this.frameBufferId = 0;
 
         this.viewWidth = width;
@@ -34,17 +34,17 @@ public class MainTargetMixin extends RenderTarget {
         this.width = width;
         this.height = height;
 
-        LOGGER.info("MainTarget framebuffer creation intercepted - using DirectX 11 swap chain ({}x{})", width, height);
+        LOGGER.info("MainTarget framebuffer creation intercepted - using DirectX swap chain ({}x{})", width, height);
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Bind DirectX 11 main render target for writing
+     * @reason Bind DirectX main render target for writing
      */
     @Override
     public void bindWrite(boolean updateViewport) {
         try {
-            // Bind DirectX 11 back buffer as render target
+            // Bind DirectX back buffer as render target
             VitraD3D11Renderer.bindMainRenderTarget();
 
             if (updateViewport) {
@@ -57,12 +57,12 @@ public class MainTargetMixin extends RenderTarget {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Bind DirectX 11 main render target for reading
+     * @reason Bind DirectX main render target for reading
      */
     @Override
     public void bindRead() {
         try {
-            // Bind DirectX 11 back buffer texture for reading
+            // Bind DirectX back buffer texture for reading
             VitraD3D11Renderer.bindMainRenderTargetTexture();
         } catch (Exception e) {
             LOGGER.error("Failed to bind main render target texture", e);
@@ -71,7 +71,7 @@ public class MainTargetMixin extends RenderTarget {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Return DirectX 11 back buffer texture ID
+     * @reason Return DirectX back buffer texture ID
      */
     @Override
     public int getColorTextureId() {

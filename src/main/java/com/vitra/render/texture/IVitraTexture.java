@@ -2,7 +2,7 @@ package com.vitra.render.texture;
 
 /**
  * Renderer-agnostic texture interface for Vitra rendering backends.
- * Provides common texture operations that work across DirectX 11, DirectX 12, and future renderers.
+ * Provides common texture operations that work across DirectX, DirectX 12, and future renderers.
  */
 public interface IVitraTexture {
     /**

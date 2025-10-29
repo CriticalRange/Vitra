@@ -85,13 +85,14 @@ java {
 // ============================================================================
 // HLSL Shader Compilation Task
 // ============================================================================
-// Compiles HLSL shaders using fxc.exe from Windows SDK
+// DISABLED: Now using runtime shader compilation (GLSL→HLSL→D3DCompile)
+// Pre-compiled shaders are no longer needed - shaders compile on-the-fly like VulkanMod
 task compileShaders {
-	description = 'Compiles HLSL shaders using fxc.exe'
+	description = 'DISABLED - Runtime compilation used instead'
 	group = 'build'
 
-	// Only compile on Windows
-	onlyIf { System.getProperty('os.name').toLowerCase().contains('windows') }
+	// DISABLED: Runtime compilation eliminates need for pre-compiled shaders
+	onlyIf { false }
 
 	doFirst {
 		// Create output directory
@@ -223,9 +224,18 @@ task compileNativeDX11(type: Exec) {
 		// Create output directory
 		file("$buildDir/native").mkdirs()
 
-		// Check for Visual Studio build tools
-		def vsWhere = "${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
-		if (!file(vsWhere).exists()) {
+		// Check for Visual Studio build tools - try both Program Files locations
+		def vsWhere = null
+		def programFilesX86 = System.env['ProgramFiles(x86)'] ?: 'C:\\Program Files (x86)'
+		def programFiles = System.env['ProgramFiles'] ?: 'C:\\Program Files'
+
+		if (file("${programFilesX86}\\Microsoft Visual Studio\\Installer\\vswhere.exe").exists()) {
+			vsWhere = "${programFilesX86}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+		} else if (file("${programFiles}\\Microsoft Visual Studio\\Installer\\vswhere.exe").exists()) {
+			vsWhere = "${programFiles}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+		}
+
+		if (vsWhere == null) {
 			throw new GradleException("Visual Studio Build Tools not found. Please install Visual Studio 2019/2022 with C++ support.")
 		}
 
@@ -239,19 +249,25 @@ task compileNativeDX11(type: Exec) {
 			throw new GradleException("vcvars64.bat not found at: ${vcvarsPath}")
 		}
 
+		println "Using vswhere: ${vsWhere}"
 		println "Compiling D3D 11 native library with Visual Studio at: ${vsPath}"
 		println "RenderDoc integration: Enabled (runtime dynamic loading)"
 	}
 
 	// Set up Visual Studio environment and compile D3D 11
-	commandLine 'cmd', '/c', "call \"${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt && " +
-		"set /p VS_PATH=<vs_path.txt && " +
-		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
+	// Use direct path to vcvars64.bat instead of vswhere in the compile command
+	// Explicitly add Windows SDK paths as fallback for missing UCRT
+	commandLine 'cmd', '/c', "call \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
 		"cl /LD /EHsc /D_DEBUG /MDd /I\"src/main/include\" " +
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
+		"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\ucrt\" " +
+		"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\um\" " +
+		"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\shared\" " +
 		"\"src/main/cpp/vitra_d3d11.cpp\" " +
 		"/Fe:\"$buildDir/native/vitra-d3d11.dll\" " +
-		"/link /LIBPATH:\"libs/x64\" d3d11.lib dxgi.lib d3dcompiler.lib dxguid.lib user32.lib Ole32.lib Shell32.lib"
+		"/link /LIBPATH:\"libs/x64\" /LIBPATH:\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64\" " +
+		"/LIBPATH:\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64\" " +
+		"d3d11.lib dxgi.lib d3dcompiler.lib dxguid.lib user32.lib Ole32.lib Shell32.lib"
 
 	workingDir projectDir
 
@@ -269,9 +285,18 @@ task compileNativeDX12(type: Exec) {
 		// Create output directory
 		file("$buildDir/native").mkdirs()
 
-		// Check for Visual Studio build tools with Windows 10 SDK
-		def vsWhere = "${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
-		if (!file(vsWhere).exists()) {
+		// Check for Visual Studio build tools with Windows 10 SDK - try both Program Files locations
+		def vsWhere = null
+		def programFilesX86 = System.env['ProgramFiles(x86)'] ?: 'C:\\Program Files (x86)'
+		def programFiles = System.env['ProgramFiles'] ?: 'C:\\Program Files'
+
+		if (file("${programFilesX86}\\Microsoft Visual Studio\\Installer\\vswhere.exe").exists()) {
+			vsWhere = "${programFilesX86}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+		} else if (file("${programFiles}\\Microsoft Visual Studio\\Installer\\vswhere.exe").exists()) {
+			vsWhere = "${programFiles}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+		}
+
+		if (vsWhere == null) {
 			throw new GradleException("Visual Studio Build Tools not found. Please install Visual Studio 2019/2022 with C++ support.")
 		}
 
@@ -285,14 +310,14 @@ task compileNativeDX12(type: Exec) {
 			throw new GradleException("vcvars64.bat not found at: ${vcvarsPath}")
 		}
 
+		println "Using vswhere: ${vsWhere}"
 		println "Compiling D3D 12 Ultimate native library with Visual Studio at: ${vsPath}"
 		println "RenderDoc integration: Enabled (runtime dynamic loading)"
 	}
 
 	// Set up Visual Studio environment and compile D3D 12 Ultimate with D3D12MA
-	commandLine 'cmd', '/c', "call \"${System.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt && " +
-		"set /p VS_PATH=<vs_path.txt && " +
-		"call \"%VS_PATH%\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
+	// Use direct path to vcvars64.bat instead of vswhere in the compile command
+	commandLine 'cmd', '/c', "call \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
 		"cl /LD /EHsc /std:c++20 /I\"src/main/include\" /I\"src/main/external/D3D12MA\" " +
 		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
 		"/DVITRA_D3D12MA_AVAILABLE=1 " +
@@ -359,8 +384,9 @@ task copyNativeToSrc(type: Copy) {
 	}
 }
 
-// Make processResources depend on shader compilation, copyNative, and copyNativeToSrc
-processResources.dependsOn compileShaders, copyNative, copyNativeToSrc
+// Make processResources depend on copyNative and copyNativeToSrc
+// compileShaders removed - now using runtime compilation instead
+processResources.dependsOn copyNative, copyNativeToSrc
 
 // Make classes task depend on copyNativeToSrc for IDE development
 classes.dependsOn copyNativeToSrc

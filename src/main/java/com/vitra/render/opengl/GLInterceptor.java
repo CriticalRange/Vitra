@@ -2122,8 +2122,10 @@ public class GLInterceptor {
         if (framebuffer != 0) {
             GLResource resource = resources.get(framebuffer);
             if (resource != null) {
-                VitraD3D11Renderer.bindFramebuffer(resource.getDirectXHandle(), target);
+                VitraD3D11Renderer.bindFramebuffer(target, (int)resource.getDirectXHandle());
             }
+        } else {
+            VitraD3D11Renderer.bindFramebuffer(target, 0);
         }
 
         translatedCalls++;

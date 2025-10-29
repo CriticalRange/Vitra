@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * DirectX 11 RenderTarget mixin
+ * DirectX RenderTarget mixin
  *
  * Based on VulkanMod's RenderTargetMixin.
  * Uses deferred clear pattern and GL interception for framebuffer management.
@@ -34,7 +34,7 @@ public abstract class RenderTargetMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 framebuffer management through GL interception
+     * @reason DirectX framebuffer management through GL30 interception
      */
     @Overwrite
     public void createBuffers(int width, int height, boolean useDepth) {
@@ -43,23 +43,42 @@ public abstract class RenderTargetMixin {
         this.viewWidth = width;
         this.viewHeight = height;
         this.useDepth = useDepth;
+
+        // FBO creation is handled by GL30Mixin when glRenderbufferStorage is called
+        // This matches VulkanMod's approach
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 cleanup through GL interception
+     * @reason DirectX cleanup - destroy FBO resources
      */
     @Overwrite
     public void destroyBuffers() {
-        // GL interception handles cleanup
+        if (this.frameBufferId != 0) {
+            VitraD3D11Renderer.destroyFramebuffer(this.frameBufferId);
+            LOGGER.debug("[RenderTarget.destroyBuffers] Destroyed FBO {}", this.frameBufferId);
+        }
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 framebuffer binding
+     * @reason DirectX framebuffer binding - create FBO on demand
      */
     @Overwrite
     public void bindWrite(boolean setViewport) {
+        // CRITICAL: Create FBO on first use if it doesn't exist
+        // Minecraft 1.21.1 doesn't call glGenFramebuffers/glRenderbufferStorage
+        // for regular RenderTargets, so we create them on-demand here
+        if (this.frameBufferId != 0 && this.width > 0 && this.height > 0) {
+            boolean created = VitraD3D11Renderer.createFramebufferTextures(
+                this.frameBufferId, this.width, this.height, true, this.useDepth);
+
+            if (created) {
+                LOGGER.debug("[RenderTarget.bindWrite] Created FBO {} on-demand ({}x{}, depth={})",
+                    this.frameBufferId, this.width, this.height, this.useDepth);
+            }
+        }
+
         VitraD3D11Renderer.bindFramebuffer(36160, this.frameBufferId); // GL_FRAMEBUFFER
 
         if (setViewport) {
@@ -75,17 +94,19 @@ public abstract class RenderTargetMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 texture binding
+     * @reason DirectX texture binding - bind FBO color texture
      */
     @Overwrite
     public void bindRead() {
-        // Bind framebuffer texture for reading
-        // GL interception handles this
+        if (this.frameBufferId != 0) {
+            // Bind the FBO's color texture to texture unit 0
+            VitraD3D11Renderer.bindFramebufferTexture(this.frameBufferId, 0);
+        }
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 unbind
+     * @reason DirectX unbind
      */
     @Overwrite
     public void unbindRead() {
@@ -113,7 +134,7 @@ public abstract class RenderTargetMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason DirectX 11 clear with deferred clear support
+     * @reason DirectX clear with deferred clear support
      */
     @Overwrite
     public void clear(boolean getError) {
@@ -144,7 +165,7 @@ public abstract class RenderTargetMixin {
             this.clearChannels[3]
         );
 
-        // Clear through DirectX 11
+        // Clear through DirectX
         int clearFlags = 16384; // GL_COLOR_BUFFER_BIT
         if (this.useDepth) {
             clearFlags |= 256; // GL_DEPTH_BUFFER_BIT

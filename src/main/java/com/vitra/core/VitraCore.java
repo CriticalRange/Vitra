@@ -68,7 +68,6 @@ public class VitraCore {
                 break;
 
             case DIRECTX12:
-            case DIRECTX12_ULTIMATE:
                 renderer = new D3D12Renderer();
                 renderer.setConfig(config);
                 renderer.setCore(this);
@@ -117,7 +116,6 @@ public class VitraCore {
                     loadDirectX11Shaders();
                     break;
                 case DIRECTX12:
-                case DIRECTX12_ULTIMATE:
                     loadDirectX12Shaders();
                     break;
                 default:
@@ -207,7 +205,6 @@ public class VitraCore {
                     pipelineHandle = dx11ShaderManager.createPipeline(shaderName);
                     break;
                 case DIRECTX12:
-                case DIRECTX12_ULTIMATE:
                     // D3D12 shaders are loaded differently - this method is mainly for D3D11
                     LOGGER.debug("D3D12 shader loading handled by preloadMinecraftShaders()");
                     return;

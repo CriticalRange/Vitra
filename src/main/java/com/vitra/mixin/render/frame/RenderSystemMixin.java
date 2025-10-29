@@ -2,8 +2,10 @@ package com.vitra.mixin.render.frame;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexSorting;
+import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VRenderSystem;
 import com.vitra.render.VitraRenderer;
+import com.vitra.VitraMod;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
@@ -32,12 +34,23 @@ public abstract class RenderSystemMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/RenderSystem");
 
     // Helper to get renderer instance (with null-safety check)
+    // Returns null for D3D12 (which doesn't need GL compatibility layer)
+    @Nullable
     private static VitraRenderer getRenderer() {
-        VitraRenderer renderer = VitraRenderer.getInstance();
-        if (renderer == null) {
-            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        IVitraRenderer baseRenderer = VitraMod.getRenderer();
+        if (baseRenderer == null) {
+            // Not yet initialized - this is expected during early initialization
+            return null;
         }
-        return renderer;
+
+        // If it's already a VitraRenderer (D3D11), return it directly
+        if (baseRenderer instanceof VitraRenderer) {
+            return (VitraRenderer) baseRenderer;
+        }
+
+        // For D3D12, return null (D3D12 doesn't use GL compatibility layer)
+        // D3D12 handles rendering directly without going through GL emulation
+        return null;
     }
 
     /**
@@ -133,19 +146,12 @@ public abstract class RenderSystemMixin {
     @Overwrite(remap = false)
     public static int maxSupportedTextureSize() {
         try {
-            // Get the configured renderer and query its max texture size
-            com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
-            if (core != null && core.getRenderer() != null) {
-                com.vitra.render.IVitraRenderer renderer = core.getRenderer();
-
-                // Try to get max texture size through unified interface
-                // This would need to be added to IVitraRenderer interface
-                // For now, use the DirectX 11 native method as fallback
-                return getRenderer().getMaxTextureSize();
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                return renderer.getMaxTextureSize();
             }
-
-            // Fallback to DirectX 11 native method
-            return getRenderer().getMaxTextureSize();
+            // For D3D12 or not initialized: return default
+            return 2048;
         } catch (Exception e) {
             // Follow VulkanMod pattern: silent fallback
             LOGGER.warn("Failed to get Vitra max texture size, returning default");
@@ -163,22 +169,12 @@ public abstract class RenderSystemMixin {
         shaderLightDirections[1] = dir1;
 
         try {
-            // Get configured renderer and set shader light directions
-            com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
-            if (core != null && core.getRenderer() != null) {
-                com.vitra.render.IVitraRenderer renderer = core.getRenderer();
-
-                // For DirectX 11 backend
-                if (renderer.getRendererType() == com.vitra.config.RendererType.DIRECTX11) {
-                    getRenderer().setShaderLightDirection(0, dir0.x(), dir0.y(), dir0.z());
-                    getRenderer().setShaderLightDirection(1, dir1.x(), dir1.y(), dir1.z());
-                }
-                // For DirectX 12 backend - would need equivalent method
-                else if (renderer.getRendererType() == com.vitra.config.RendererType.DIRECTX12) {
-                    // TODO: Implement DirectX 12 shader light direction setting
-                    LOGGER.debug("DirectX 12 shader light directions not yet implemented");
-                }
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                renderer.setShaderLightDirection(0, dir0.x(), dir0.y(), dir0.z());
+                renderer.setShaderLightDirection(1, dir1.x(), dir1.y(), dir1.z());
             }
+            // For D3D12 or not initialized: skip (D3D12 handles its own shader state)
         } catch (Exception e) {
             // Silent error following VulkanMod pattern
             LOGGER.warn("Failed to set Vitra shader light directions");
@@ -187,7 +183,7 @@ public abstract class RenderSystemMixin {
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL shader color setup with DirectX 11 equivalent
+     * @reason Replace OpenGL shader color setup with DirectX equivalent
      */
     @Overwrite(remap = false)
     private static void _setShaderColor(float r, float g, float b, float a) {
@@ -197,23 +193,27 @@ public abstract class RenderSystemMixin {
         shaderColor[3] = a;
 
         try {
-            getRenderer().setShaderColor(r, g, b, a);
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                renderer.setShaderColor(r, g, b, a);
+            }
+            // For D3D12 or not initialized: skip (D3D12 handles its own shader state)
         } catch (Exception e) {
             // Silent error following VulkanMod pattern
-            LOGGER.warn("Failed to set DirectX 11 shader color");
+            LOGGER.warn("Failed to set DirectX shader color");
         }
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace GLFW swap buffers with DirectX 11 Present()
+     * @reason Replace GLFW swap buffers with DirectX Present()
      */
     @Redirect(method = "flipFrame", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSwapBuffers(J)V"), remap = false)
     private static void endFrame(long window) {
         // DEBUG: Log that redirect is being called
         LOGGER.info("[VITRA_PRESENT] endFrame() redirect called! window={}", window);
 
-        // Call DirectX 11 Present() via VitraCore renderer
+        // Call DirectX Present() via VitraCore renderer
         try {
             com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
             if (core != null && core.getRenderer() != null) {
@@ -224,13 +224,13 @@ public abstract class RenderSystemMixin {
                 LOGGER.warn("[VITRA_PRESENT] Core or renderer is null!");
             }
         } catch (Exception e) {
-            LOGGER.error("Failed to present DirectX 11 frame", e);
+            LOGGER.error("Failed to present DirectX frame", e);
         }
     }
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL shader fog color setup with DirectX 11 equivalent
+     * @reason Replace OpenGL shader fog color setup with DirectX equivalent
      */
     @Overwrite(remap = false)
     public static void setShaderFogColor(float f, float g, float h, float i) {
@@ -240,16 +240,20 @@ public abstract class RenderSystemMixin {
         shaderFogColor[3] = i;
 
         try {
-            getRenderer().setShaderFogColor(f, g, h, i);
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                renderer.setShaderFogColor(f, g, h, i);
+            }
+            // For D3D12 or not initialized: skip (D3D12 handles its own shader state)
         } catch (Exception e) {
             // Silent error following VulkanMod pattern
-            LOGGER.warn("Failed to set DirectX 11 shader fog color");
+            LOGGER.warn("Failed to set DirectX shader fog color");
         }
     }
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL projection matrix setup with DirectX 11 equivalent
+     * @reason Replace OpenGL projection matrix setup with DirectX equivalent
      */
     @Overwrite(remap = false)
     public static void setProjectionMatrix(Matrix4f projectionMatrix, VertexSorting vertexSorting) {
@@ -269,7 +273,7 @@ public abstract class RenderSystemMixin {
                     uploadTransformMatricesToNative();
                 } catch (Exception e) {
                     // Silent error following VulkanMod pattern
-                    LOGGER.warn("Failed to set DirectX 11 projection matrix");
+                    LOGGER.warn("Failed to set DirectX projection matrix");
                 }
             });
         } else {
@@ -285,14 +289,14 @@ public abstract class RenderSystemMixin {
                 uploadTransformMatricesToNative();
             } catch (Exception e) {
                 // Silent error following VulkanMod pattern
-                LOGGER.warn("Failed to set DirectX 11 projection matrix");
+                LOGGER.warn("Failed to set DirectX projection matrix");
             }
         }
     }
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL texture matrix setup with DirectX 11 equivalent
+     * @reason Replace OpenGL texture matrix setup with DirectX equivalent
      */
     @Overwrite(remap = false)
     public static void setTextureMatrix(Matrix4f matrix4f) {
@@ -301,36 +305,44 @@ public abstract class RenderSystemMixin {
             RenderSystem.recordRenderCall(() -> {
                 textureMatrix = matrix4f2;
                 try {
-                    getRenderer().setTextureMatrix(new float[]{
-                        matrix4f2.m00(), matrix4f2.m01(), matrix4f2.m02(), matrix4f2.m03(),
-                        matrix4f2.m10(), matrix4f2.m11(), matrix4f2.m12(), matrix4f2.m13(),
-                        matrix4f2.m20(), matrix4f2.m21(), matrix4f2.m22(), matrix4f2.m23(),
-                        matrix4f2.m30(), matrix4f2.m31(), matrix4f2.m32(), matrix4f2.m33()
-                    });
+                    VitraRenderer renderer = getRenderer();
+                    if (renderer != null) {
+                        renderer.setTextureMatrix(new float[]{
+                            matrix4f2.m00(), matrix4f2.m01(), matrix4f2.m02(), matrix4f2.m03(),
+                            matrix4f2.m10(), matrix4f2.m11(), matrix4f2.m12(), matrix4f2.m13(),
+                            matrix4f2.m20(), matrix4f2.m21(), matrix4f2.m22(), matrix4f2.m23(),
+                            matrix4f2.m30(), matrix4f2.m31(), matrix4f2.m32(), matrix4f2.m33()
+                        });
+                    }
+                    // For D3D12 or not initialized: skip
                 } catch (Exception e) {
                     // Silent error following VulkanMod pattern
-                    LOGGER.warn("Failed to set DirectX 11 texture matrix");
+                    LOGGER.warn("Failed to set DirectX texture matrix");
                 }
             });
         } else {
             textureMatrix = matrix4f2;
             try {
-                getRenderer().setTextureMatrix(new float[]{
-                    matrix4f2.m00(), matrix4f2.m01(), matrix4f2.m02(), matrix4f2.m03(),
-                    matrix4f2.m10(), matrix4f2.m11(), matrix4f2.m12(), matrix4f2.m13(),
-                    matrix4f2.m20(), matrix4f2.m21(), matrix4f2.m22(), matrix4f2.m23(),
-                    matrix4f2.m30(), matrix4f2.m31(), matrix4f2.m32(), matrix4f2.m33()
-                });
+                VitraRenderer renderer = getRenderer();
+                if (renderer != null) {
+                    renderer.setTextureMatrix(new float[]{
+                        matrix4f2.m00(), matrix4f2.m01(), matrix4f2.m02(), matrix4f2.m03(),
+                        matrix4f2.m10(), matrix4f2.m11(), matrix4f2.m12(), matrix4f2.m13(),
+                        matrix4f2.m20(), matrix4f2.m21(), matrix4f2.m22(), matrix4f2.m23(),
+                        matrix4f2.m30(), matrix4f2.m31(), matrix4f2.m32(), matrix4f2.m33()
+                    });
+                }
+                // For D3D12 or not initialized: skip
             } catch (Exception e) {
                 // Silent error following VulkanMod pattern
-                LOGGER.warn("Failed to set DirectX 11 texture matrix");
+                LOGGER.warn("Failed to set DirectX texture matrix");
             }
         }
     }
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL texture matrix reset with DirectX 11 equivalent
+     * @reason Replace OpenGL texture matrix reset with DirectX equivalent
      */
     @Overwrite(remap = false)
     public static void resetTextureMatrix() {
@@ -338,36 +350,44 @@ public abstract class RenderSystemMixin {
             RenderSystem.recordRenderCall(() -> {
                 textureMatrix.identity();
                 try {
-                    getRenderer().setTextureMatrix(new float[]{
-                        1.0f, 0.0f, 0.0f, 0.0f,
-                        0.0f, 1.0f, 0.0f, 0.0f,
-                        0.0f, 0.0f, 1.0f, 0.0f,
-                        0.0f, 0.0f, 0.0f, 1.0f
-                    });
+                    VitraRenderer renderer = getRenderer();
+                    if (renderer != null) {
+                        renderer.setTextureMatrix(new float[]{
+                            1.0f, 0.0f, 0.0f, 0.0f,
+                            0.0f, 1.0f, 0.0f, 0.0f,
+                            0.0f, 0.0f, 1.0f, 0.0f,
+                            0.0f, 0.0f, 0.0f, 1.0f
+                        });
+                    }
+                    // For D3D12 or not initialized: skip
                 } catch (Exception e) {
                     // Silent error following VulkanMod pattern
-                    LOGGER.warn("Failed to reset DirectX 11 texture matrix");
+                    LOGGER.warn("Failed to reset DirectX texture matrix");
                 }
             });
         } else {
             textureMatrix.identity();
             try {
-                getRenderer().setTextureMatrix(new float[]{
-                    1.0f, 0.0f, 0.0f, 0.0f,
-                    0.0f, 1.0f, 0.0f, 0.0f,
-                    0.0f, 0.0f, 1.0f, 0.0f,
-                    0.0f, 0.0f, 0.0f, 1.0f
-                });
+                VitraRenderer renderer = getRenderer();
+                if (renderer != null) {
+                    renderer.setTextureMatrix(new float[]{
+                        1.0f, 0.0f, 0.0f, 0.0f,
+                        0.0f, 1.0f, 0.0f, 0.0f,
+                        0.0f, 0.0f, 1.0f, 0.0f,
+                        0.0f, 0.0f, 0.0f, 1.0f
+                    });
+                }
+                // For D3D12 or not initialized: skip
             } catch (Exception e) {
                 // Silent error following VulkanMod pattern
-                LOGGER.warn("Failed to reset DirectX 11 texture matrix");
+                LOGGER.warn("Failed to reset DirectX texture matrix");
             }
         }
     }
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL model view matrix application with DirectX 11 equivalent
+     * @reason Replace OpenGL model view matrix application with DirectX equivalent
      */
     @Overwrite(remap = false)
     public static void applyModelViewMatrix() {
@@ -384,7 +404,7 @@ public abstract class RenderSystemMixin {
                     uploadTransformMatricesToNative();
                 } catch (Exception e) {
                     // Silent error following VulkanMod pattern
-                    LOGGER.warn("Failed to apply DirectX 11 model view matrix");
+                    LOGGER.warn("Failed to apply DirectX model view matrix");
                 }
             });
         } else {
@@ -399,7 +419,7 @@ public abstract class RenderSystemMixin {
                 uploadTransformMatricesToNative();
             } catch (Exception e) {
                 // Silent error following VulkanMod pattern
-                LOGGER.warn("Failed to apply DirectX 11 model view matrix");
+                LOGGER.warn("Failed to apply DirectX model view matrix");
             }
         }
     }
@@ -409,24 +429,28 @@ public abstract class RenderSystemMixin {
      * CRITICAL: This uses the COMPUTED MVP from VRenderSystem, ensuring correct transformation
      */
     private static void uploadTransformMatricesToNative() {
-        // Extract matrices from VRenderSystem's MappedBuffers
-        float[] mvpArray = new float[16];
-        float[] mvArray = new float[16];
-        float[] projArray = new float[16];
+        VitraRenderer renderer = getRenderer();
+        if (renderer != null) {
+            // Extract matrices from VRenderSystem's MappedBuffers
+            float[] mvpArray = new float[16];
+            float[] mvArray = new float[16];
+            float[] projArray = new float[16];
 
-        // Read from VRenderSystem's computed matrices
-        VRenderSystem.getMVP().byteBuffer().asFloatBuffer().get(mvpArray);
-        VRenderSystem.getModelViewMatrix().byteBuffer().asFloatBuffer().get(mvArray);
-        VRenderSystem.getProjectionMatrix().byteBuffer().asFloatBuffer().get(projArray);
+            // Read from VRenderSystem's computed matrices
+            VRenderSystem.getMVP().byteBuffer().asFloatBuffer().get(mvpArray);
+            VRenderSystem.getModelViewMatrix().byteBuffer().asFloatBuffer().get(mvArray);
+            VRenderSystem.getProjectionMatrix().byteBuffer().asFloatBuffer().get(projArray);
 
-        // Upload all three matrices to native constant buffer
-        // CRITICAL: This is the FIX - we're now sending the COMPUTED MVP, not just projection!
-        getRenderer().setTransformMatrices(mvpArray, mvArray, projArray);
+            // Upload all three matrices to native constant buffer
+            // CRITICAL: This is the FIX - we're now sending the COMPUTED MVP, not just projection!
+            renderer.setTransformMatrices(mvpArray, mvArray, projArray);
+        }
+        // For D3D12 or not initialized: skip (D3D12 handles its own matrix management)
     }
 
     /**
      * @author Vitra
-     * @reason Replace OpenGL projection matrix restoration with DirectX 11 equivalent
+     * @reason Replace OpenGL projection matrix restoration with DirectX equivalent
      */
     @Overwrite(remap = false)
     private static void _restoreProjectionMatrix() {
@@ -434,15 +458,19 @@ public abstract class RenderSystemMixin {
         vertexSorting = savedVertexSorting;
 
         try {
-            getRenderer().setProjectionMatrix(new float[]{
-                projectionMatrix.m00(), projectionMatrix.m01(), projectionMatrix.m02(), projectionMatrix.m03(),
-                projectionMatrix.m10(), projectionMatrix.m11(), projectionMatrix.m12(), projectionMatrix.m13(),
-                projectionMatrix.m20(), projectionMatrix.m21(), projectionMatrix.m22(), projectionMatrix.m23(),
-                projectionMatrix.m30(), projectionMatrix.m31(), projectionMatrix.m32(), projectionMatrix.m33()
-            });
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                renderer.setProjectionMatrix(new float[]{
+                    projectionMatrix.m00(), projectionMatrix.m01(), projectionMatrix.m02(), projectionMatrix.m03(),
+                    projectionMatrix.m10(), projectionMatrix.m11(), projectionMatrix.m12(), projectionMatrix.m13(),
+                    projectionMatrix.m20(), projectionMatrix.m21(), projectionMatrix.m22(), projectionMatrix.m23(),
+                    projectionMatrix.m30(), projectionMatrix.m31(), projectionMatrix.m32(), projectionMatrix.m33()
+                });
+            }
+            // For D3D12 or not initialized: skip
         } catch (Exception e) {
             // Silent error following VulkanMod pattern
-            LOGGER.warn("Failed to restore DirectX 11 projection matrix");
+            LOGGER.warn("Failed to restore DirectX projection matrix");
         }
     }
 }

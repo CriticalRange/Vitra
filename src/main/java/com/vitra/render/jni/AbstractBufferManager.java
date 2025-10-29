@@ -46,7 +46,7 @@ public abstract class AbstractBufferManager implements IBufferManager {
     public abstract String getBufferStats();
 
     /**
-     * Get the renderer type name (e.g., "DirectX 11", "DirectX 12 Ultimate")
+     * Get the renderer type name (e.g., "DirectX", "DirectX 12 Ultimate")
      */
     @Override
     public abstract String getRendererType();

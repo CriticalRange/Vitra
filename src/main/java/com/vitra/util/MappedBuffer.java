@@ -7,7 +7,7 @@ import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 
 /**
- * Zero-copy native memory buffer wrapper for DirectX 11 uniform data.
+ * Zero-copy native memory buffer wrapper for DirectX uniform data.
  *
  * Based on VulkanMod's MappedBuffer pattern - uses direct ByteBuffer with native pointer
  * for efficient CPU-side uniform storage and GPU upload.

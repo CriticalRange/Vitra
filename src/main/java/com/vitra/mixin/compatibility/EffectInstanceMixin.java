@@ -8,8 +8,10 @@ import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.shaders.ProgramManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
 import com.vitra.render.jni.D3D11ShaderManager;
+import com.vitra.VitraMod;
 import net.minecraft.client.renderer.EffectInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
@@ -74,12 +76,23 @@ public class EffectInstanceMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/EffectInstanceM");
 
     // Helper to get renderer instance (with null-safety check)
+    // Returns null for D3D12 (which doesn't need GL compatibility layer)
+    @org.jetbrains.annotations.Nullable
     private static VitraRenderer getRenderer() {
-        VitraRenderer renderer = VitraRenderer.getInstance();
-        if (renderer == null) {
-            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        IVitraRenderer baseRenderer = VitraMod.getRenderer();
+        if (baseRenderer == null) {
+            // Not yet initialized - this is expected during early initialization
+            return null;
         }
-        return renderer;
+
+        // If it's already a VitraRenderer (D3D11), return it directly
+        if (baseRenderer instanceof VitraRenderer) {
+            return (VitraRenderer) baseRenderer;
+        }
+
+        // For D3D12, return null (D3D12 doesn't use GL compatibility layer)
+        // D3D12 handles rendering directly without going through GL emulation
+        return null;
     }
 
     // Shader type constants (renderer-agnostic)
@@ -148,36 +161,39 @@ public class EffectInstanceMixin {
             uniform.close();
         }
 
-        // Schedule D3D11 pipeline cleanup
-        if (pipelineHandle != 0) {
-            getRenderer().destroyResource(pipelineHandle);
-            pipelineHandle = 0;
-        }
+        // Schedule D3D11 pipeline cleanup (only for D3D11, skip for D3D12)
+        VitraRenderer renderer = getRenderer();
+        if (renderer != null) {
+            if (pipelineHandle != 0) {
+                renderer.destroyResource(pipelineHandle);
+                pipelineHandle = 0;
+            }
 
-        if (vertexShaderHandle != 0) {
-            getRenderer().destroyResource(vertexShaderHandle);
-            vertexShaderHandle = 0;
-        }
+            if (vertexShaderHandle != 0) {
+                renderer.destroyResource(vertexShaderHandle);
+                vertexShaderHandle = 0;
+            }
 
-        if (pixelShaderHandle != 0) {
-            getRenderer().destroyResource(pixelShaderHandle);
-            pixelShaderHandle = 0;
-        }
+            if (pixelShaderHandle != 0) {
+                renderer.destroyResource(pixelShaderHandle);
+                pixelShaderHandle = 0;
+            }
 
-        if (constantBufferHandle != 0) {
-            getRenderer().destroyResource(constantBufferHandle);
-            constantBufferHandle = 0;
-        }
+            if (constantBufferHandle != 0) {
+                renderer.destroyResource(constantBufferHandle);
+                constantBufferHandle = 0;
+            }
 
-        LOGGER.debug("Closed D3D11 effect instance: {}", name);
+            LOGGER.debug("Closed D3D11 effect instance: {}", name);
+        }
+        // For D3D12 or not initialized: skip cleanup (D3D12 has its own cleanup)
     }
 
     /**
-     * Create D3D11 shaders from precompiled HLSL bytecode
+     * Create D3D11 shaders using runtime HLSL compilation
      *
-     * Shader loading priority:
-     * 1. Precompiled .cso files from /shaders/compiled/
-     * 2. TODO: GLSL→HLSL runtime conversion (future enhancement)
+     * NEW APPROACH: Runtime compilation from HLSL source (like ShaderInstanceMixin)
+     * This replaces the old .cso file loading system for post-processing effects.
      *
      * @param resourceManager Minecraft resource provider
      * @param vertexShaderName Vertex shader name (e.g., "blit_screen")
@@ -186,40 +202,50 @@ public class EffectInstanceMixin {
     @Unique
     private void createDirectX11Shaders(ResourceProvider resourceManager, String vertexShaderName, String fragShaderName) {
         try {
+            // Only for D3D11, skip for D3D12
+            VitraRenderer renderer = getRenderer();
+            if (renderer == null) {
+                // D3D12 or not initialized: skip shader loading (D3D12 has its own shader system)
+                LOGGER.debug("Skipping D3D11 shader loading (using D3D12 or not initialized)");
+                return;
+            }
+
             // Extract shader base name from Minecraft resource location format
             String[] vshPathInfo = this.decompose(vertexShaderName, ':');
-            String vshBaseName = vshPathInfo[1]; // e.g., "blit_screen"
+            String vshBaseName = vshPathInfo[1]; // e.g., "blit_screen" or "blur"
 
             String[] fshPathInfo = this.decompose(fragShaderName, ':');
-            String fshBaseName = fshPathInfo[1]; // e.g., "blit_screen"
+            String fshBaseName = fshPathInfo[1]; // e.g., "blit_screen" or "blur"
 
-            // Strategy 1: Load precompiled D3D11 shaders (.cso files)
-            // These are HLSL compiled with fxc.exe to shader model 5.0
-            Object shaderManagerObj = getRenderer().getShaderManager();
-            if (!(shaderManagerObj instanceof D3D11ShaderManager)) {
-                LOGGER.error("Shader manager is not D3D11ShaderManager");
-                return;
-            }
-            D3D11ShaderManager shaderManager = (D3D11ShaderManager) shaderManagerObj;
+            LOGGER.info("Loading effect shaders: vertex={}, fragment={}", vshBaseName, fshBaseName);
 
-            // Load vertex shader (e.g., /shaders/compiled/blit_screen_vs.cso)
-            vertexShaderHandle = shaderManager.loadShader(vshBaseName, SHADER_TYPE_VERTEX);
+            // Load HLSL source files from vitra:shaders/hlsl/
+            String vshSource = loadEffectShaderSource(resourceManager, vshBaseName, "vsh");
+            String fshSource = loadEffectShaderSource(resourceManager, fshBaseName, "fsh");
 
-            if (vertexShaderHandle == 0) {
-                LOGGER.error("Failed to load vertex shader: {}", vshBaseName);
+            if (vshSource == null || fshSource == null) {
+                LOGGER.error("Failed to load HLSL source for effect: {}", name);
                 return;
             }
 
-            // Load pixel shader (e.g., /shaders/compiled/blit_screen_ps.cso)
-            pixelShaderHandle = shaderManager.loadShader(fshBaseName, SHADER_TYPE_PIXEL);
+            // Load and inline cbuffer_common.hlsli
+            String cbufferCommon = loadCBufferCommon(resourceManager);
+            if (cbufferCommon != null) {
+                vshSource = vshSource.replace("#include \"cbuffer_common.hlsli\"", cbufferCommon);
+                fshSource = fshSource.replace("#include \"cbuffer_common.hlsli\"", cbufferCommon);
+            }
 
-            if (pixelShaderHandle == 0) {
-                LOGGER.error("Failed to load pixel shader: {}", fshBaseName);
+            // Compile HLSL to D3D11 bytecode at runtime
+            vertexShaderHandle = compileAndCreateShader(vshSource, vshBaseName + "_vs", "vs_5_0", SHADER_TYPE_VERTEX);
+            pixelShaderHandle = compileAndCreateShader(fshSource, fshBaseName + "_ps", "ps_5_0", SHADER_TYPE_PIXEL);
+
+            if (vertexShaderHandle == 0 || pixelShaderHandle == 0) {
+                LOGGER.error("Failed to compile shaders for effect: {}", name);
                 return;
             }
 
             // Create D3D11 graphics pipeline
-            pipelineHandle = getRenderer().createShaderPipeline(vertexShaderHandle, pixelShaderHandle);
+            pipelineHandle = renderer.createShaderPipeline(vertexShaderHandle, pixelShaderHandle);
 
             if (pipelineHandle == 0) {
                 LOGGER.error("Failed to create D3D11 pipeline for effect: {}", name);
@@ -337,6 +363,149 @@ public class EffectInstanceMixin {
     }
 
     /**
+     * Load HLSL effect shader source from resources
+     */
+    @Unique
+    private String loadEffectShaderSource(ResourceProvider resourceProvider, String shaderName, String extension) {
+        try {
+            // Try vitra:shaders/hlsl/ first (our custom effect shaders)
+            String classpathPath = "/assets/vitra/shaders/hlsl/" + shaderName + "." + extension;
+            InputStream stream = getClass().getResourceAsStream(classpathPath);
+
+            if (stream != null) {
+                String source = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+                stream.close();
+                LOGGER.info("Loaded effect shader from classpath: {}", classpathPath);
+                return source;
+            }
+
+            // Fallback: Try loading from ResourceProvider
+            ResourceLocation location = ResourceLocation.tryParse("vitra:shaders/hlsl/" + shaderName + "." + extension);
+            if (location != null) {
+                try {
+                    Resource resource = resourceProvider.getResourceOrThrow(location);
+                    String source = IOUtils.toString(resource.open(), StandardCharsets.UTF_8);
+                    LOGGER.info("Loaded effect shader from ResourceProvider: {}", location);
+                    return source;
+                } catch (IOException e) {
+                    LOGGER.debug("Could not load from ResourceProvider: {}", location);
+                }
+            }
+
+            LOGGER.error("Effect shader not found: {}.{}", shaderName, extension);
+            return null;
+        } catch (Exception e) {
+            LOGGER.error("Error loading effect shader: {}.{}", shaderName, extension, e);
+            return null;
+        }
+    }
+
+    /**
+     * Load cbuffer_common.hlsli include file
+     */
+    @Unique
+    private String loadCBufferCommon(ResourceProvider resourceProvider) {
+        try {
+            String classpathPath = "/assets/vitra/shaders/hlsl/cbuffer_common.hlsli";
+            InputStream stream = getClass().getResourceAsStream(classpathPath);
+
+            if (stream != null) {
+                String source = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+                stream.close();
+                return source;
+            }
+
+            ResourceLocation location = ResourceLocation.tryParse("vitra:shaders/hlsl/cbuffer_common.hlsli");
+            if (location != null) {
+                Resource resource = resourceProvider.getResourceOrThrow(location);
+                return IOUtils.toString(resource.open(), StandardCharsets.UTF_8);
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Could not load cbuffer_common.hlsli: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Compile HLSL shader and create D3D11 shader object
+     * Uses the same approach as ShaderInstanceMixin for runtime compilation
+     */
+    @Unique
+    private long compileAndCreateShader(String hlslSource, String debugName, String profile, int shaderType) {
+        try {
+            // Compile HLSL to bytecode using D3DCompile
+            byte[] bytecode = compileHLSLToBytes(hlslSource, profile, debugName);
+
+            if (bytecode == null || bytecode.length == 0) {
+                LOGGER.error("Failed to compile HLSL shader: {}", debugName);
+                return 0;
+            }
+
+            // Create D3D11 shader from bytecode
+            VitraRenderer renderer = getRenderer();
+            if (renderer == null) return 0;
+
+            long handle = renderer.createGLProgramShader(bytecode, bytecode.length, shaderType);
+
+            if (handle != 0) {
+                LOGGER.info("Compiled effect shader '{}' ({} bytes)", debugName, bytecode.length);
+            } else {
+                LOGGER.error("Failed to create D3D11 shader: {}", debugName);
+            }
+
+            return handle;
+        } catch (Exception e) {
+            LOGGER.error("Exception compiling shader: {}", debugName, e);
+            return 0;
+        }
+    }
+
+    /**
+     * Compile HLSL source code to bytecode using D3DCompile (runtime compilation).
+     * Same implementation as ShaderInstanceMixin.
+     *
+     * @param hlslSource HLSL shader source code
+     * @param target Shader target (e.g., "vs_5_0", "ps_5_0")
+     * @param debugName Debug name for error messages
+     * @return Compiled shader bytecode, or null if compilation failed
+     */
+    @Unique
+    private byte[] compileHLSLToBytes(String hlslSource, String target, String debugName) {
+        try {
+            LOGGER.info("[EFFECT_COMPILE] Compiling effect shader: {} (target: {})", debugName, target);
+
+            // Convert HLSL string to bytes (UTF-8)
+            byte[] sourceBytes = hlslSource.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+            // Call JNI method to compile using D3DCompile
+            // This returns a handle to the compiled shader blob
+            long blobHandle = com.vitra.render.jni.VitraD3D11Renderer.compileShaderBYTEARRAY(
+                sourceBytes, sourceBytes.length, target, debugName);
+
+            if (blobHandle == 0) {
+                String error = com.vitra.render.jni.VitraD3D11Renderer.getLastShaderError();
+                LOGGER.error("Failed to compile {} effect shader '{}': {}", target, debugName, error);
+                return null;
+            }
+
+            // Get bytecode from the blob handle
+            byte[] bytecode = com.vitra.render.jni.VitraD3D11Renderer.getBlobBytecode(blobHandle);
+
+            if (bytecode == null) {
+                LOGGER.error("Failed to get bytecode from blob for effect shader: {}", debugName);
+                return null;
+            }
+
+            LOGGER.info("Successfully compiled {} effect shader '{}' ({} bytes)", target, debugName, bytecode.length);
+            return bytecode;
+
+        } catch (Exception e) {
+            LOGGER.error("Exception while compiling effect shader '{}': {}", debugName, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
      * Decompose Minecraft resource location (namespace:path)
      */
     @Unique
@@ -366,10 +535,13 @@ public class EffectInstanceMixin {
         // Maintain OpenGL program ID for compatibility
         ProgramManager.glUseProgram(this.programId);
 
-        // Bind D3D11 graphics pipeline if changed
-        if (this.pipelineHandle != lastPipelineHandle) {
-            getRenderer().setShaderPipeline(pipelineHandle);
-            lastPipelineHandle = this.pipelineHandle;
+        // Bind D3D11 graphics pipeline if changed (only for D3D11, skip for D3D12)
+        VitraRenderer renderer = getRenderer();
+        if (renderer != null) {
+            if (this.pipelineHandle != lastPipelineHandle) {
+                renderer.setShaderPipeline(pipelineHandle);
+                lastPipelineHandle = this.pipelineHandle;
+            }
         }
 
         // Bind samplers (texture slots)
@@ -394,10 +566,12 @@ public class EffectInstanceMixin {
             uniform.upload();
         }
 
-        // Upload and bind constant buffers to D3D11 pipeline
-        getRenderer().uploadAndBindUBOs();
-
-        LOGGER.trace("Applied D3D11 effect: {}", name);
+        // Upload and bind constant buffers to D3D11 pipeline (only for D3D11)
+        if (renderer != null) {
+            renderer.uploadAndBindUBOs();
+            LOGGER.trace("Applied D3D11 effect: {}", name);
+        }
+        // For D3D12 or not initialized: skip (D3D12 has its own effect system)
     }
 
     /**

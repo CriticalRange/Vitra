@@ -9,17 +9,17 @@ import org.spongepowered.asm.mixin.Overwrite;
 /**
  * Renderer-agnostic Debug Info Mixin
  *
- * Based on VulkanMod's GlDebugInfoM but adapted for DirectX 11.
- * Overrides OpenGL debug info methods to return DirectX 11 device information.
+ * Based on VulkanMod's GlDebugInfoM but adapted for DirectX.
+ * Overrides OpenGL debug info methods to return DirectX device information.
  *
  * Key responsibilities:
- * - Override GlUtil.getVendor() to return DirectX 11 GPU vendor
- * - Override GlUtil.getRenderer() to return DirectX 11 GPU name
- * - Override GlUtil.getOpenGLVersion() to return DirectX 11 driver version
+ * - Override GlUtil.getVendor() to return DirectX GPU vendor
+ * - Override GlUtil.getRenderer() to return DirectX GPU name
+ * - Override GlUtil.getOpenGLVersion() to return DirectX driver version
  * - Override GlUtil.getCpuInfo() to return CPU information
  *
  * This ensures that when Minecraft queries for OpenGL information (e.g., in crash reports,
- * F3 debug screen, logs), it receives DirectX 11 device information instead.
+ * F3 debug screen, logs), it receives DirectX device information instead.
  */
 @Mixin(GlUtil.class)
 public class GlDebugInfoMixin {
@@ -35,12 +35,12 @@ public class GlDebugInfoMixin {
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace OpenGL vendor query with DirectX 11 GPU vendor
+     * @reason Replace OpenGL vendor query with DirectX GPU vendor
      *
-     * Returns the GPU vendor ID string from DirectX 11 device.
+     * Returns the GPU vendor ID string from DirectX device.
      * Examples: "NVIDIA", "AMD", "Intel"
      *
-     * @return DirectX 11 GPU vendor name or "n/a" if unavailable
+     * @return DirectX GPU vendor name or "n/a" if unavailable
      */
     @Overwrite
     public static String getVendor() {
@@ -64,17 +64,17 @@ public class GlDebugInfoMixin {
         } catch (Exception e) {
             // Silent failure - return fallback
         }
-        return "DirectX 11";
+        return "DirectX";
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace OpenGL renderer query with DirectX 11 GPU name
+     * @reason Replace OpenGL renderer query with DirectX GPU name
      *
-     * Returns the full GPU device name from DirectX 11.
+     * Returns the full GPU device name from DirectX.
      * Example: "NVIDIA GeForce RTX 3080"
      *
-     * @return DirectX 11 GPU device name or "n/a" if unavailable
+     * @return DirectX GPU device name or "n/a" if unavailable
      */
     @Overwrite
     public static String getRenderer() {
@@ -92,17 +92,17 @@ public class GlDebugInfoMixin {
         } catch (Exception e) {
             // Silent failure - return fallback
         }
-        return "DirectX 11 (device unavailable)";
+        return "DirectX (device unavailable)";
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Replace OpenGL version query with DirectX 11 driver version
+     * @reason Replace OpenGL version query with DirectX driver version
      *
-     * Returns the DirectX 11 driver version from the device.
+     * Returns the DirectX driver version from the device.
      * Example: "31.0.15.4601" (NVIDIA driver version)
      *
-     * @return DirectX 11 driver version or "n/a" if unavailable
+     * @return DirectX driver version or "n/a" if unavailable
      */
     @Overwrite
     public static String getOpenGLVersion() {
@@ -123,7 +123,7 @@ public class GlDebugInfoMixin {
         } catch (Exception e) {
             // Silent failure - return fallback
         }
-        return "DirectX 11";
+        return "DirectX";
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.vitra.mixin.compatibility.gl;
 
+import com.vitra.VitraMod;
+import com.vitra.render.IVitraRenderer;
 import com.vitra.render.VitraRenderer;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.MemoryUtil;
@@ -14,13 +16,29 @@ import java.nio.IntBuffer;
 @Mixin(GL11.class)
 public class GL11Mixin {
 
-    // Helper to get renderer instance (with null-safety check)
+    // Helper to get renderer instance (renderer-agnostic, supports both D3D11 and D3D12)
+    // Returns VitraRenderer for D3D11, null for D3D12
+    // D3D12 doesn't use OpenGL compatibility layer - it renders directly
+    @Nullable
     private static VitraRenderer getRenderer() {
-        VitraRenderer renderer = VitraRenderer.getInstance();
-        if (renderer == null) {
-            throw new IllegalStateException("VitraRenderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
+        IVitraRenderer baseRenderer = VitraMod.getRenderer();
+        if (baseRenderer == null) {
+            throw new IllegalStateException("Vitra renderer not initialized yet. Ensure renderer is initialized before OpenGL calls.");
         }
-        return renderer;
+
+        // GL compatibility mixins only work with VitraRenderer (D3D11)
+        // D3D12 doesn't need GL interception layer - it renders directly via mixins
+        if (baseRenderer instanceof VitraRenderer) {
+            return (VitraRenderer) baseRenderer;
+        }
+
+        // For D3D12, return null (GL compatibility is not used)
+        return null;
+    }
+
+    // Check if GL compatibility layer is active (D3D11 only)
+    private static boolean isGLCompatActive() {
+        return getRenderer() != null;
     }
 
     /**
@@ -29,7 +47,9 @@ public class GL11Mixin {
      */
     @Overwrite(remap = false)
     public static void glScissor(@NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height) {
-        getRenderer().setScissor(x, y, width, height);
+        VitraRenderer renderer = getRenderer();
+        if (renderer != null) renderer.setScissor(x, y, width, height);
+        // D3D12: No-op, scissor handled directly by mixins
     }
 
     /**
@@ -38,7 +58,9 @@ public class GL11Mixin {
      */
     @Overwrite(remap = false)
     public static void glViewport(@NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLsizei") int w, @NativeType("GLsizei") int h) {
-        getRenderer().setViewport(x, y, w, h);
+        VitraRenderer renderer = getRenderer();
+        if (renderer != null) renderer.setViewport(x, y, w, h);
+        // D3D12: No-op, viewport handled directly by mixins
     }
 
     /**
@@ -47,7 +69,9 @@ public class GL11Mixin {
      */
     @Overwrite(remap = false)
     public static void glBindTexture(@NativeType("GLenum") int target, @NativeType("GLuint") int texture) {
-        getRenderer().bindTexture(texture);
+        VitraRenderer renderer = getRenderer();
+        if (renderer != null) renderer.bindTexture(texture);
+        // D3D12: No-op, texture binding handled directly by D3D12 backend
     }
 
     /**
@@ -56,7 +80,7 @@ public class GL11Mixin {
      */
     @Overwrite(remap = false)
     public static void glLineWidth(@NativeType("GLfloat") float width) {
-        // Line width - no-op for DirectX 11
+        // Line width - no-op for DirectX
     }
 
     /**
