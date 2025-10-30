@@ -16,7 +16,7 @@ import java.nio.ByteBuffer;
  * - Dynamic buffer updates via Map/Unmap (D3D11_MAP_WRITE_DISCARD)
  * - CPU-side staging buffer for zero-copy updates
  * - Automatic binding to shader stages (VS/PS)
- * - Alignment to 16-byte boundaries (DirectX requirement)
+ * - Alignment to 256-byte boundaries (D3D11 constant buffer requirement)
  *
  * Usage:
  * 1. Create: D3D11ConstantBuffer cb = new D3D11ConstantBuffer(ubo)
@@ -27,7 +27,7 @@ public class D3D11ConstantBuffer {
 
     private final int binding;      // Constant buffer slot (b0, b1, b2, b3)
     private final int stages;       // Shader stages (VERTEX | FRAGMENT)
-    private final int size;         // Buffer size in bytes (16-byte aligned)
+    private final int size;         // Buffer size in bytes (256-byte aligned)
 
     private long nativeHandle;      // DirectX ID3D11Buffer handle
     private ByteBuffer stagingBuffer;  // CPU-side buffer for updates
@@ -38,19 +38,36 @@ public class D3D11ConstantBuffer {
      * @param ubo UBO descriptor with layout and binding info
      */
     public D3D11ConstantBuffer(UBO ubo) {
+        if (ubo == null) {
+            throw new IllegalArgumentException("UBO descriptor cannot be null");
+        }
+
         this.binding = ubo.getBinding();
         this.stages = ubo.getStages();
-        this.size = alignTo16(ubo.getSize());
+        this.size = alignTo256(ubo.getSize());
 
-        // Allocate CPU staging buffer
-        this.stagingBuffer = MemoryUtil.memAlloc(this.size);
+        if (this.size <= 0 || this.size > 65536) { // 64KB max for safety
+            throw new IllegalArgumentException("Invalid constant buffer size: " + this.size + " bytes (must be > 0 and <= 64KB)");
+        }
 
-        // Create GPU constant buffer (dynamic usage for frequent updates)
-        this.nativeHandle = VitraD3D11Renderer.createConstantBuffer(this.size);
+        try {
+            // Allocate CPU staging buffer
+            this.stagingBuffer = MemoryUtil.memAlloc(this.size);
 
-        if (this.nativeHandle == 0) {
-            throw new RuntimeException("Failed to create DirectX constant buffer (binding=" + binding +
-                ", size=" + size + " bytes)");
+            // Create GPU constant buffer (dynamic usage for frequent updates)
+            this.nativeHandle = VitraD3D11Renderer.createConstantBuffer(this.size);
+
+            if (this.nativeHandle == 0) {
+                throw new RuntimeException("Failed to create DirectX constant buffer (binding=" + binding +
+                    ", size=" + size + " bytes)");
+            }
+        } catch (Exception e) {
+            // Cleanup on failure
+            if (this.stagingBuffer != null) {
+                MemoryUtil.memFree(this.stagingBuffer);
+                this.stagingBuffer = null;
+            }
+            throw new RuntimeException("Failed to create D3D11 constant buffer", e);
         }
     }
 
@@ -60,21 +77,36 @@ public class D3D11ConstantBuffer {
      * @param ubo UBO descriptor with suppliers
      */
     public void update(UBO ubo) {
-        // Clear staging buffer
-        MemoryUtil.memSet(MemoryUtil.memAddress(stagingBuffer), 0, size);
+        if (ubo == null) {
+            throw new IllegalArgumentException("UBO descriptor cannot be null");
+        }
 
-        // Get pointer to staging buffer
-        long ptr = MemoryUtil.memAddress(stagingBuffer);
+        if (stagingBuffer == null || nativeHandle == 0) {
+            throw new IllegalStateException("Constant buffer not properly initialized");
+        }
 
-        // Update all uniforms (calls suppliers and copies data)
-        ubo.update(ptr);
+        try {
+            // Clear staging buffer
+            MemoryUtil.memSet(MemoryUtil.memAddress(stagingBuffer), 0, size);
 
-        // Upload to GPU via JNI (convert ByteBuffer to byte array)
-        byte[] data = new byte[size];
-        stagingBuffer.position(0);
-        stagingBuffer.get(data);
-        VitraD3D11Renderer.updateConstantBuffer(nativeHandle, data);
-        stagingBuffer.position(0); // Reset position
+            // Get pointer to staging buffer
+            long ptr = MemoryUtil.memAddress(stagingBuffer);
+
+            // Update all uniforms (calls suppliers and copies data)
+            ubo.update(ptr);
+
+            // Upload to GPU via JNI (convert ByteBuffer to byte array)
+            byte[] data = new byte[size];
+            stagingBuffer.position(0);
+            stagingBuffer.get(data);
+
+            // Upload to GPU - the method returns void, throws exception on failure
+            VitraD3D11Renderer.updateConstantBuffer(nativeHandle, data);
+
+            stagingBuffer.position(0); // Reset position
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to update constant buffer", e);
+        }
     }
 
     /**
@@ -133,10 +165,10 @@ public class D3D11ConstantBuffer {
     }
 
     /**
-     * Align size to 16-byte boundary (DirectX requirement)
+     * Align size to 256-byte boundary (D3D11 constant buffer requirement)
      */
-    private static int alignTo16(int size) {
-        return ((size + 15) / 16) * 16;
+    private static int alignTo256(int size) {
+        return ((size + 255) / 256) * 256;
     }
 
     /**

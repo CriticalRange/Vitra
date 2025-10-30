@@ -23,6 +23,10 @@ public class GL15Mixin {
     private static VitraGlBuffer pixelPackBuffer = null;
     private static VitraGlBuffer pixelUnpackBuffer = null;
 
+    /**
+     * @author Vitra
+     * Redirect buffer generation to D3D11 buffer management
+     */
     @Overwrite(remap = false)
     @NativeType("void")
     public static int glGenBuffers() {
@@ -31,6 +35,10 @@ public class GL15Mixin {
         return id;
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glBindBuffer(@NativeType("GLenum") int target, @NativeType("GLuint") int buffer) {
         VitraGlBuffer glBuffer = bufferMap.get(buffer);
@@ -52,6 +60,10 @@ public class GL15Mixin {
         }
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glBufferData(@NativeType("GLenum") int target, @NativeType("void const *") ByteBuffer data, @NativeType("GLenum") int usage) {
         // Only handle pixel buffers
@@ -69,6 +81,10 @@ public class GL15Mixin {
         }
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glBufferData(int target, long size, int usage) {
         // Only handle pixel buffers
@@ -82,6 +98,10 @@ public class GL15Mixin {
         }
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     @NativeType("void *")
     public static ByteBuffer glMapBuffer(@NativeType("GLenum") int target, @NativeType("GLenum") int access) {
@@ -99,6 +119,10 @@ public class GL15Mixin {
         return null;
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     @Nullable
     @NativeType("void *")
@@ -106,12 +130,20 @@ public class GL15Mixin {
         return glMapBuffer(target, access);
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     @NativeType("GLboolean")
     public static boolean glUnmapBuffer(@NativeType("GLenum") int target) {
         return true;
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glDeleteBuffers(int buffer) {
         VitraGlBuffer glBuffer = bufferMap.remove(buffer);
@@ -120,6 +152,10 @@ public class GL15Mixin {
         }
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glDeleteBuffers(@NativeType("GLuint const *") IntBuffer buffers) {
         for (int i = buffers.position(); i < buffers.limit(); i++) {

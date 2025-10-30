@@ -167,7 +167,7 @@ public class ShaderInstanceMixin implements ShaderMixed {
             case FRAGMENT -> this.fsPath = path;
         }
 
-        // Return null - we handle shader compilation ourselves
+        // Return null - we handle shader compilation ourselves through native methods
         return null;
     }
 
@@ -551,8 +551,7 @@ public class ShaderInstanceMixin implements ShaderMixed {
 
             long vsHandle, psHandle, pipelineHandle;
 
-            if (rendererType == com.vitra.config.RendererType.DIRECTX12 ||
-                rendererType == com.vitra.config.RendererType.DIRECTX12) {
+            if (rendererType == com.vitra.config.RendererType.DIRECTX12) {
                 // D3D12 path
                 vsHandle = com.vitra.render.jni.VitraD3D12Native.createShader(vsBytecode, 0); // 0 = vertex shader
                 psHandle = com.vitra.render.jni.VitraD3D12Native.createShader(psBytecode, 1); // 1 = pixel shader
@@ -826,11 +825,11 @@ public class ShaderInstanceMixin implements ShaderMixed {
                 case COLOR -> flags |= 0x02;
                 case UV -> {
                     // UV can be UV0, UV1, or UV2 - check the element index
-                    if (element == VertexFormatElement.UV0 || element.equals(VertexFormatElement.UV0)) {
+                    if (element == VertexFormatElement.UV0) {
                         flags |= 0x04;
-                    } else if (element == VertexFormatElement.UV1 || element.equals(VertexFormatElement.UV1)) {
+                    } else if (element == VertexFormatElement.UV1) {
                         flags |= 0x08;
-                    } else if (element == VertexFormatElement.UV2 || element.equals(VertexFormatElement.UV2)) {
+                    } else if (element == VertexFormatElement.UV2) {
                         flags |= 0x10;
                     } else {
                         // Default to UV0 if we can't determine which UV

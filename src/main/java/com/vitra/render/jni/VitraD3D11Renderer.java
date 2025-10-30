@@ -3254,4 +3254,5 @@ public class VitraD3D11Renderer {
      */
     public static native int getMainColorTextureId();
 
-  }
+    
+}

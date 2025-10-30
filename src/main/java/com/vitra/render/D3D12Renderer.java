@@ -320,7 +320,40 @@ public class D3D12Renderer extends AbstractRenderer {
 
     @Override
     public com.vitra.render.jni.VitraD3D12Renderer getD3D12Renderer() {
-        return null; // TODO: Implement proper D3D12 renderer instance management
+        // Return a minimal implementation that only provides static methods
+        // This is sufficient for basic D3D12 support
+        return new com.vitra.render.jni.VitraD3D12Renderer() {
+            @Override
+            public boolean isInitialized() {
+                return VitraD3D12Renderer.isInitializedStatic();
+            }
+
+            @Override
+            public void present() {
+                VitraD3D12Renderer.presentStatic();
+            }
+
+            @Override
+            public void clear(float r, float g, float b, float a) {
+                VitraD3D12Native.clear(r, g, b, a);
+            }
+
+            // Static method implementations
+            @Override
+            public void beginFrame() {
+                VitraD3D12Native.beginFrameStatic();
+            }
+
+            @Override
+            public void endFrame() {
+                VitraD3D12Native.endFrameStatic();
+            }
+
+            @Override
+            public void resize(int width, int height) {
+                VitraD3D12Native.resizeStatic(width, height);
+            }
+        };
     }
 
     @Override
@@ -565,9 +598,27 @@ public class D3D12Renderer extends AbstractRenderer {
      */
     public long createShaderPipeline(long vsHandle, long psHandle) {
         if (isInitialized()) {
-            // TODO: Need to serialize pipeline description with shader handles
-            logger.trace("DirectX 12 createShaderPipeline(vs={}, ps={}) - needs pipeline descriptor", vsHandle, psHandle);
-            return 0L; // Placeholder
+            if (vsHandle == 0 || psHandle == 0) {
+                logger.error("Invalid shader handles for pipeline creation: vs={}, ps={}", vsHandle, psHandle);
+                return 0L;
+            }
+
+            try {
+                // Create a simple pipeline description using native method
+                long pipelineHandle = VitraD3D12Native.createSimplePipeline(vsHandle, psHandle);
+
+                if (pipelineHandle == 0) {
+                    logger.error("Failed to create D3D12 pipeline");
+                    return 0L;
+                }
+
+                logger.debug("Created D3D12 pipeline 0x{} from vs=0x{}, ps=0x{}",
+                    Long.toHexString(pipelineHandle), Long.toHexString(vsHandle), Long.toHexString(psHandle));
+                return pipelineHandle;
+            } catch (Exception e) {
+                logger.error("Exception creating D3D12 pipeline", e);
+                return 0L;
+            }
         }
         return 0L;
     }
@@ -588,9 +639,16 @@ public class D3D12Renderer extends AbstractRenderer {
      */
     public void uploadAndBindUBOs() {
         if (isInitialized()) {
-            // TODO: Need to implement constant buffer upload strategy
-            // DirectX 12 uses ring buffer for per-frame constant data
-            logger.trace("DirectX 12 uploadAndBindUBOs() - needs constant buffer implementation");
+            try {
+                // D3D12 constant buffer management
+                boolean success = VitraD3D12Native.uploadAndBindConstantBuffers();
+
+                if (!success) {
+                    logger.warn("Failed to upload and bind D3D12 constant buffers");
+                }
+            } catch (Exception e) {
+                logger.error("Exception during D3D12 constant buffer upload", e);
+            }
         }
     }
 

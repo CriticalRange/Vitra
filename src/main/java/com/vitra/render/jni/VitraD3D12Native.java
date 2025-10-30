@@ -244,6 +244,49 @@ public class VitraD3D12Native {
     // Advanced Features Initialization
     public static native boolean initializeAdvancedFeatures();
 
+    // ==================== MISSING METHODS ====================
+
+    /**
+     * Create a simple graphics pipeline from vertex and pixel shaders
+     * @param vsHandle Vertex shader handle
+     * @param psHandle Pixel shader handle
+     * @return Pipeline state object handle
+     */
+    public static native long createSimplePipeline(long vsHandle, long psHandle);
+
+    /**
+     * Upload and bind constant buffers to the GPU
+     * @return true if successful
+     */
+    public static native boolean uploadAndBindConstantBuffers();
+
+    /**
+     * Begin frame (static method for easier access)
+     */
+    public static native void beginFrameStatic();
+
+    /**
+     * End frame (static method for easier access)
+     */
+    public static native void endFrameStatic();
+
+    /**
+     * Present frame (static method for easier access)
+     */
+    public static native void presentStatic();
+
+    /**
+     * Resize display (static method for easier access)
+     * @param width New width
+     * @param height New height
+     */
+    public static native void resizeStatic(int width, int height);
+
+    /**
+     * Clear depth buffer (static method for easier access)
+     */
+    public static native void clearDepthBufferStatic();
+
     // Static initialization - Load native library
     static {
         try {

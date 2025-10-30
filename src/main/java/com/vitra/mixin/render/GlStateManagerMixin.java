@@ -65,6 +65,7 @@ public class GlStateManagerMixin {
      * @author Vitra (adapted from VulkanMod)
      * @reason Use D3D11Texture system for texture binding
      */
+    
     @Overwrite(remap = false)
     public static void _bindTexture(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -94,6 +95,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _blendFunc(int i, int j) {
         RenderSystem.assertOnRenderThread();
@@ -103,6 +105,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _blendFuncSeparate(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThread();
@@ -112,6 +115,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _blendEquation(int i) {
         RenderSystem.assertOnRenderThread();
@@ -121,6 +125,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _disableScissorTest() {
         VitraRenderer r = getRenderer(); if (r != null) r.resetScissor();
@@ -129,6 +134,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _enableScissorTest() {
         // No-op - scissor enabled by setScissor call
@@ -137,6 +143,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _enableCull() {
         VitraRenderer r = getRenderer(); if (r != null) r.enableCull();
@@ -145,6 +152,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _disableCull() {
         VitraRenderer r = getRenderer(); if (r != null) r.disableCull();
@@ -164,6 +172,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _scissorBox(int x, int y, int width, int height) {
         // DEBUG: Log first 30 scissor calls to trace where 0x0 comes from
@@ -176,6 +185,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static int _getError() {
         return 0;
@@ -185,6 +195,7 @@ public class GlStateManagerMixin {
      * @author Vitra (adapted from VulkanMod)
      * @reason Use renderer-aware GlTexture system for proper texture management
      */
+    
     @Overwrite(remap = false)
     public static void _texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, @Nullable IntBuffer pixels) {
         RenderSystem.assertOnRenderThread();
@@ -222,6 +233,7 @@ public class GlStateManagerMixin {
      * @author Vitra (adapted from VulkanMod)
      * @reason Use D3D11Texture system for proper texture management
      */
+    
     @Overwrite(remap = false)
     public static void _texSubImage2D(int target, int level, int offsetX, int offsetY, int width, int height, int format, int type, long pixels) {
         RenderSystem.assertOnRenderThread();
@@ -236,6 +248,7 @@ public class GlStateManagerMixin {
      * @author Vitra (adapted from VulkanMod)
      * @reason Use D3D11Texture to track active texture slot
      */
+    
     @Overwrite(remap = false)
     public static void _activeTexture(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -246,6 +259,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _texParameter(int i, int j, int k) {
         VitraRenderer r = getRenderer(); if (r != null) r.texParameteri(i, j, k);
@@ -254,6 +268,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _texParameter(int i, int j, float k) {
         VitraRenderer r = getRenderer(); if (r != null) r.setTextureParameterf(i, j, k);
@@ -262,6 +277,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static int _getTexLevelParameter(int i, int j, int k) {
         VitraRenderer r = getRenderer();
@@ -272,6 +288,7 @@ public class GlStateManagerMixin {
      * @author Vitra (adapted from VulkanMod)
      * @reason Use D3D11Texture to track pixel store parameters for texture uploads
      */
+    
     @Overwrite(remap = false)
     public static void _pixelStore(int pname, int param) {
         RenderSystem.assertOnRenderThread();
@@ -301,6 +318,7 @@ public class GlStateManagerMixin {
      * @author Vitra (adapted from VulkanMod)
      * @reason Use D3D11Texture to generate texture IDs
      */
+    
     @Overwrite(remap = false)
     public static int _genTexture() {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -312,6 +330,7 @@ public class GlStateManagerMixin {
      * @author Vitra (adapted from VulkanMod)
      * @reason Use D3D11Texture to delete textures and clean up DirectX resources
      */
+    
     @Overwrite(remap = false)
     public static void _deleteTexture(int i) {
         RenderSystem.assertOnRenderThread();
@@ -322,6 +341,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
         RenderSystem.assertOnRenderThread();
@@ -331,6 +351,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _polygonMode(int face, int mode) {
         RenderSystem.assertOnRenderThread();
@@ -340,6 +361,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _enablePolygonOffset() {
         RenderSystem.assertOnRenderThread();
@@ -349,6 +371,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _disablePolygonOffset() {
         RenderSystem.assertOnRenderThread();
@@ -358,6 +381,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _polygonOffset(float f, float g) {
         RenderSystem.assertOnRenderThread();
@@ -367,6 +391,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _enableColorLogicOp() {
         RenderSystem.assertOnRenderThread();
@@ -376,6 +401,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _disableColorLogicOp() {
         RenderSystem.assertOnRenderThread();
@@ -385,6 +411,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _logicOp(int i) {
         RenderSystem.assertOnRenderThread();
@@ -394,6 +421,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _clearColor(float f, float g, float h, float i) {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -410,6 +438,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _clearDepth(double d) {
         RenderSystem.assertOnRenderThread();
@@ -419,6 +448,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _clear(int mask, boolean bl) {
         RenderSystem.assertOnRenderThread();
@@ -438,6 +468,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _disableDepthTest() {
         RenderSystem.assertOnRenderThread();
@@ -450,6 +481,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _enableDepthTest() {
         RenderSystem.assertOnRenderThread();
@@ -462,6 +494,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _depthFunc(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -474,6 +507,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _depthMask(boolean bl) {
         RenderSystem.assertOnRenderThread();
@@ -487,6 +521,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static int glGenFramebuffers() {
         RenderSystem.assertOnRenderThread();
@@ -496,6 +531,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static int glGenRenderbuffers() {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -505,6 +541,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glBindFramebuffer(int i, int j) {
         RenderSystem.assertOnRenderThread();
@@ -515,6 +552,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glFramebufferTexture2D(int i, int j, int k, int l, int m) {
         RenderSystem.assertOnRenderThread();
@@ -524,6 +562,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glBindRenderbuffer(int i, int j) {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -533,6 +572,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glFramebufferRenderbuffer(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -542,6 +582,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glRenderbufferStorage(int i, int j, int k, int l) {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -551,6 +592,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static int glCheckFramebufferStatus(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -562,6 +604,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static int _glGenBuffers() {
         RenderSystem.assertOnRenderThreadOrInit();
@@ -572,6 +615,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glBindBuffer(int i, int j) {
         RenderSystem.assertOnRenderThread();
@@ -582,6 +626,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glBufferData(int i, ByteBuffer byteBuffer, int j) {
         RenderSystem.assertOnRenderThread();
@@ -592,6 +637,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glBufferData(int i, long l, int j) {
         RenderSystem.assertOnRenderThread();
@@ -602,6 +648,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     @Nullable
     public static ByteBuffer _glMapBuffer(int i, int j) {
@@ -613,6 +660,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glUnmapBuffer(int i) {
         RenderSystem.assertOnRenderThread();
@@ -623,6 +671,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glDeleteBuffers(int i) {
         RenderSystem.assertOnRenderThread();
@@ -633,6 +682,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _disableVertexAttribArray(int i) {
         // No-op for DirectX - vertex attributes handled differently
@@ -641,6 +691,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void _glUseProgram(int i) {
         RenderSystem.assertOnRenderThread();
@@ -650,6 +701,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static int glCreateProgram() {
         RenderSystem.assertOnRenderThread();
@@ -659,6 +711,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static void glDeleteProgram(int i) {
         RenderSystem.assertOnRenderThread();
@@ -668,6 +721,7 @@ public class GlStateManagerMixin {
     /**
      * @author
      */
+    
     @Overwrite(remap = false)
     public static int _glGenVertexArrays() {
         RenderSystem.assertOnRenderThreadOrInit();

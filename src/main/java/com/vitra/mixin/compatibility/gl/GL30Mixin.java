@@ -41,28 +41,48 @@ public class GL30Mixin {
         }
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glGenerateMipmap(@NativeType("GLenum") int target) {
         // No-op - not needed for DirectX
     }
 
     @NativeType("void")
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static int glGenFramebuffers() {
         return framebufferIdCounter.getAndIncrement();
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glBindFramebuffer(@NativeType("GLenum") int target, @NativeType("GLuint") int framebuffer) {
         boundFramebuffer = framebuffer;
         VitraD3D11Renderer.bindFramebuffer(target, framebuffer);
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glFramebufferTexture2D(@NativeType("GLenum") int target, @NativeType("GLenum") int attachment, @NativeType("GLenum") int textarget, @NativeType("GLuint") int texture, @NativeType("GLint") int level) {
         // Not used by Minecraft for FBO creation - they use renderbuffers
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glFramebufferRenderbuffer(@NativeType("GLenum") int target, @NativeType("GLenum") int attachment, @NativeType("GLenum") int renderbuffertarget, @NativeType("GLuint") int renderbuffer) {
         // This is called to attach renderbuffer to framebuffer
@@ -83,6 +103,10 @@ public class GL30Mixin {
         }
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glDeleteFramebuffers(@NativeType("GLuint const *") int framebuffer) {
         if (framebuffer != 0) {
@@ -90,6 +114,10 @@ public class GL30Mixin {
         }
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     @NativeType("GLenum")
     public static int glCheckFramebufferStatus(@NativeType("GLenum") int target) {
@@ -97,22 +125,38 @@ public class GL30Mixin {
         return 0x8CD5; // GL_FRAMEBUFFER_COMPLETE
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glBlitFramebuffer(@NativeType("GLint") int srcX0, @NativeType("GLint") int srcY0, @NativeType("GLint") int srcX1, @NativeType("GLint") int srcY1, @NativeType("GLint") int dstX0, @NativeType("GLint") int dstY0, @NativeType("GLint") int dstX1, @NativeType("GLint") int dstY1, @NativeType("GLbitfield") int mask, @NativeType("GLenum") int filter) {
         // No-op - not needed for DirectX
     }
 
     @NativeType("void")
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static int glGenRenderbuffers() {
         return renderbufferIdCounter.getAndIncrement();
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glBindRenderbuffer(@NativeType("GLenum") int target, @NativeType("GLuint") int renderbuffer) {
         boundRenderbuffer = renderbuffer;
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glRenderbufferStorage(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height) {
         if (width == 0 || height == 0 || boundRenderbuffer == 0) return;
@@ -125,6 +169,10 @@ public class GL30Mixin {
             boundRenderbuffer, width, height, Integer.toHexString(internalformat), info.isDepth);
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glDeleteRenderbuffers(@NativeType("GLuint const *") int renderbuffer) {
         renderbufferInfo.remove(renderbuffer);
@@ -133,16 +181,28 @@ public class GL30Mixin {
     // VERTEX ARRAY OBJECTS (VAOs) - CRITICAL for Minecraft 1.21.1
 
     @NativeType("void")
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static int glGenVertexArrays() {
         return vaoIdCounter.getAndIncrement();
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glBindVertexArray(@NativeType("GLuint") int array) {
         // Handled by GlStateManagerM
     }
 
+    /**
+     * @author Vitra
+     * 
+     */
     @Overwrite(remap = false)
     public static void glDeleteVertexArrays(@NativeType("GLuint const *") int array) {
         // Handled by GlStateManagerM
