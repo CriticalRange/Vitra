@@ -1,0 +1,7 @@
+﻿{
+    "vertex": "minecraft:core/rendertype_gui_text_highlight",
+    "fragment": "minecraft:core/rendertype_gui_text_highlight",
+    "samplers": [ ],
+    "uniforms": [
+    ]
+}

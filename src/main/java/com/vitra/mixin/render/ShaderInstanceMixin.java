@@ -111,20 +111,17 @@ public class ShaderInstanceMixin implements ShaderMixed {
                 // Legacy GLSL shader - load HLSL directly with shader variant selection
                 LOGGER.info("[SHADER_LOAD] Loading shader '{}' with format {}", this.name, formatToString(format));
 
-                // CRITICAL: Use shader variant selection to match shader with vertex format
-                // VulkanMod creates input layouts from vertex buffer format, so shader MUST match
-                // DirectX 11 requires shader inputs to match buffer data, unused inputs cause warnings
-                // Solution: Select shader variant based on actual vertex format capabilities
-                int formatFlags = analyzeVertexFormat(format);
-                String shaderVariant = selectShaderVariant(this.name, formatFlags);
+                // CRITICAL FIX: Do NOT use shader variant selection!
+                // Minecraft already selects the correct shader based on vertex format
+                // (e.g., position-only data → "position" shader, position+UV → "position_tex")
+                // Our previous variant selection was redirecting "position" → "position_tex" incorrectly,
+                // causing shader/format mismatch and UI rendering failures
+                // VulkanMod doesn't do variant selection - it trusts Minecraft's choice
 
-                if (!shaderVariant.equals(this.name)) {
-                    LOGGER.info("[SHADER_VARIANT] Shader '{}' (format={}) redirected to variant '{}'",
-                        this.name, formatToString(format), shaderVariant);
-                }
-
-                this.vsPath = "vitra:shaders/hlsl/" + shaderVariant;
-                this.fsPath = "vitra:shaders/hlsl/" + shaderVariant;
+                // NEW: Use VulkanMod-style directory structure
+                // Each shader has its own directory: /shaders/core/<name>/<name>.{vsh,fsh}
+                this.vsPath = "vitra:shaders/core/" + this.name + "/" + this.name;
+                this.fsPath = "vitra:shaders/core/" + this.name + "/" + this.name;
 
                 createLegacyShader(resourceProvider, format);
             } else {
@@ -222,8 +219,13 @@ public class ShaderInstanceMixin implements ShaderMixed {
 
         // Upload uniforms if needed (VulkanMod pattern)
         if (this.doUniformUpdate) {
-            // Bind textures from samplerMap ONLY (VulkanMod ShaderInstanceM.java:131-153)
-            // shaderTextures[] binding happens in bindPipeline() -> bindShaderTextures()
+            // DEBUG: Log samplerMap on first apply call
+            if (bindCount < 3) {
+                LOGGER.info("[APPLY_SAMPLER_DEBUG {}] Shader '{}': doUniformUpdate={}, samplerMap size={}, samplerNames={}, keys={}",
+                    bindCount++, this.name, this.doUniformUpdate, this.samplerMap.size(), this.samplerNames, this.samplerMap.keySet());
+            }
+
+            // Bind textures from samplerMap ONLY (VulkanMod ShaderInstanceM.java:134-153)
             for (int j = 0; j < this.samplerLocations.size(); ++j) {
                 String samplerName = this.samplerNames.get(j);
                 if (this.samplerMap.get(samplerName) != null) {
@@ -231,17 +233,37 @@ public class ShaderInstanceMixin implements ShaderMixed {
                     Object samplerObject = this.samplerMap.get(samplerName);
                     int texId = -1;
 
+                    // DEBUG: Log what type of object is in samplerMap
+                    if (bindCount < 100) {
+                        LOGGER.info("[SAMPLER_OBJECT_DEBUG {}] Shader='{}', Sampler='{}', Object type='{}', Object={}",
+                            bindCount, this.name, samplerName, samplerObject.getClass().getName(), samplerObject);
+                    }
+
                     if (samplerObject instanceof RenderTarget) {
                         texId = ((RenderTarget) samplerObject).getColorTextureId();
                     } else if (samplerObject instanceof AbstractTexture) {
                         texId = ((AbstractTexture) samplerObject).getId();
                     } else if (samplerObject instanceof Integer) {
                         texId = (Integer) samplerObject;
+                    } else if (samplerObject instanceof java.util.function.IntSupplier) {
+                        texId = ((java.util.function.IntSupplier) samplerObject).getAsInt();
                     }
 
                     if (texId != -1) {
                         RenderSystem.bindTexture(texId);
                         RenderSystem.setShaderTexture(j, texId);
+
+                        // DEBUG: Log first 50 texture bindings from samplerMap
+                        if (bindCount < 50) {
+                            LOGGER.info("[SAMPLER_TEXTURE_BIND {}] Slot={}, TexID={}, Sampler='{}', Shader='{}', Type={}",
+                                bindCount++, j, texId, samplerName, this.name, samplerObject.getClass().getSimpleName());
+                        }
+                    } else {
+                        // DEBUG: Log when texId is -1
+                        if (bindCount < 100) {
+                            LOGGER.warn("[SAMPLER_TEXID_FAIL {}] Shader='{}', Sampler='{}', texId=-1, Object type='{}'",
+                                bindCount++, this.name, samplerName, samplerObject.getClass().getName());
+                        }
                     }
                 }
             }
@@ -360,68 +382,10 @@ public class ShaderInstanceMixin implements ShaderMixed {
         // Bind the pipeline
         this.pipeline.bind();
 
-        // Bind textures/samplers
-        bindShaderTextures();
-
         // Upload uniforms if dirty
         if (this.uniformBuffer != null) {
             this.uniformBuffer.uploadIfDirty(this.pipeline);
         }
-    }
-
-    /**
-     * Bind shader textures and samplers.
-     */
-    @Unique
-    private void bindShaderTextures() {
-        // CRITICAL: VulkanMod pattern - get textures from RenderSystem, not samplerMap
-        // Minecraft sets textures at render time via RenderSystem.setShaderTexture()
-        // We must retrieve them via RenderSystem.getShaderTexture()
-
-        int activeTexture = com.mojang.blaze3d.platform.GlStateManager._getActiveTexture();
-
-        for (int j = 0; j < this.samplerLocations.size(); j++) {
-            String samplerName = this.samplerNames.get(j);
-
-            // CRITICAL FIX: Get texture ID from RenderSystem (VulkanMod line 74)
-            // This retrieves the texture that Minecraft set via RenderSystem.setShaderTexture()
-            int texId = RenderSystem.getShaderTexture(j);
-
-            // DEBUG: Log first 50 texture bindings to diagnose panorama issue
-            if (bindCount < 50) {
-                LOGGER.info("[SHADER_TEXTURE_DEBUG {}] Slot={}, TexID={}, Sampler='{}', Shader='{}'",
-                    bindCount++, j, texId, samplerName, this.name);
-            }
-
-            if (texId != 0) {
-                // Bind the texture (this calls our D3D11Texture.bindTexture)
-                RenderSystem.activeTexture(33984 + j);
-                RenderSystem.bindTexture(texId);
-                LOGGER.debug("[SHADER_TEXTURE] Bound texture ID={} to sampler '{}' (slot {})", texId, samplerName, j);
-            } else {
-                // Fallback: Try samplerMap if RenderSystem doesn't have a texture
-                if (this.samplerMap.get(samplerName) != null) {
-                    RenderSystem.activeTexture(33984 + j);
-                    Object textureObj = this.samplerMap.get(samplerName);
-                    int fallbackTexId = -1;
-
-                    if (textureObj instanceof RenderTarget) {
-                        fallbackTexId = ((RenderTarget)textureObj).getColorTextureId();
-                    } else if (textureObj instanceof AbstractTexture) {
-                        fallbackTexId = ((AbstractTexture)textureObj).getId();
-                    } else if (textureObj instanceof Integer) {
-                        fallbackTexId = (Integer)textureObj;
-                    }
-
-                    if (fallbackTexId != -1) {
-                        RenderSystem.bindTexture(fallbackTexId);
-                        LOGGER.debug("[SHADER_TEXTURE_FALLBACK] Bound texture ID={} from samplerMap to '{}'", fallbackTexId, samplerName);
-                    }
-                }
-            }
-        }
-
-        com.mojang.blaze3d.platform.GlStateManager._activeTexture(activeTexture);
     }
 
     /**
@@ -514,11 +478,11 @@ public class ShaderInstanceMixin implements ShaderMixed {
 
             LOGGER.info("[SHADER_COMPILE] Runtime compiling HLSL shader '{}' for format {}", this.name, formatToString(format));
 
-            // The loaded shaders are ALREADY in HLSL format (from vitra:shaders/hlsl/)
+            // The loaded shaders are ALREADY in HLSL format (from vitra:shaders/core/)
             // Load cbuffer_common.hlsli and inline it to resolve #include directives
             String cbufferCommon = "";
             try {
-                ResourceLocation cbufferLocation = ResourceLocation.parse("vitra:shaders/hlsl/cbuffer_common.hlsli");
+                ResourceLocation cbufferLocation = ResourceLocation.parse("vitra:shaders/core/cbuffer_common.hlsli");
                 cbufferCommon = ShaderLoadUtil.loadShaderSource(resourceProvider, cbufferLocation);
                 LOGGER.info("[SHADER_COMPILE] Loaded cbuffer_common.hlsli: {} characters", cbufferCommon.length());
             } catch (Exception e) {
@@ -583,25 +547,25 @@ public class ShaderInstanceMixin implements ShaderMixed {
             this.pipeline = new D3D11Pipeline(this.name, vsHandle, psHandle, pipelineHandle, format);
 
             // CRITICAL FIX: Create standard uniform buffer for cbuffer b0 (DynamicTransforms)
-            // Layout from cbuffer_common.hlsli:
-            // - ModelViewMat: mat4 (64 bytes, offset 0)
-            // - ColorModulator: vec4 (16 bytes, offset 64)
-            // - ModelOffset: vec3 (12 bytes, offset 80) + padding (4 bytes)
-            // - TextureMat: mat4 (64 bytes, offset 96)
-            // - LineWidth: float (4 bytes, offset 160) + padding (12 bytes)
-            // Total: 176 bytes (aligned to 16)
+            // Layout from cbuffer_common.hlsli (with MVP added):
+            // - MVP: mat4 (64 bytes, offset 0)              <-- ADDED
+            // - ModelViewMat: mat4 (64 bytes, offset 64)    <-- UPDATED OFFSET
+            // - ColorModulator: vec4 (16 bytes, offset 128) <-- UPDATED OFFSET
+            // - ModelOffset: vec3 (12 bytes, offset 144) + padding (4 bytes)
+            // - TextureMat: mat4 (64 bytes, offset 160)
+            // - LineWidth: float (4 bytes, offset 224) + padding (12 bytes)
+            // Total: 240 bytes (aligned to 16)
 
-            // However, the actual uniform buffer size should match Vitra's VRenderSystem UBO
-            // which uses 208 bytes for vertex UBO (b0)
-            this.uniformBuffer = new D3D11UniformBuffer(0, 208);  // b0 register, 208 bytes
+            // NOTE: MVP is uploaded by VRenderSystem, not via Minecraft uniforms
+            this.uniformBuffer = new D3D11UniformBuffer(0, 240);  // b0 register, 240 bytes
 
             // Add standard Minecraft uniforms to buffer
-            // These match the uniforms in cbuffer_common.hlsli
-            addStandardUniform("ModelViewMat", "mat4", 0);
-            addStandardUniform("ColorModulator", "vec4", 64);
-            addStandardUniform("TextureMat", "mat4", 96);
-            addStandardUniform("ChunkOffset", "vec3", 80);  // aka ModelOffset
-            addStandardUniform("LineWidth", "float", 160);
+            // CRITICAL: Offsets MUST match cbuffer_common.hlsli exactly!
+            addStandardUniform("ModelViewMat", "mat4", 64);    // After MVP
+            addStandardUniform("ColorModulator", "vec4", 128); // After ModelViewMat
+            addStandardUniform("TextureMat", "mat4", 160);     // After ModelOffset+padding
+            addStandardUniform("ChunkOffset", "vec3", 144);    // aka ModelOffset
+            addStandardUniform("LineWidth", "float", 224);
 
             setupUniformSuppliers();
 
@@ -629,9 +593,9 @@ public class ShaderInstanceMixin implements ShaderMixed {
             LOGGER.info("[SHADER_VARIANT] Shader '{}' redirected to variant '{}'", this.name, shaderVariant);
         }
 
-        // Set paths to Vitra HLSL shaders, not Minecraft GLSL shaders
-        this.vsPath = "vitra:shaders/hlsl/" + shaderVariant;
-        this.fsPath = "vitra:shaders/hlsl/" + shaderVariant;
+        // Set paths to Vitra HLSL shaders using VulkanMod-style directory structure
+        this.vsPath = "vitra:shaders/core/" + shaderVariant + "/" + shaderVariant;
+        this.fsPath = "vitra:shaders/core/" + shaderVariant + "/" + shaderVariant;
 
         // Create shader using legacy path (which loads HLSL)
         createLegacyShader(resourceProvider, format);
@@ -668,11 +632,10 @@ public class ShaderInstanceMixin implements ShaderMixed {
         }
 
         int size = getUniformSize(type);
-        UniformInfo uniformInfo = new UniformInfo(type, name, 0);
 
-        // Use reflection to set the offset since UniformInfo doesn't expose it
-        // Or just create directly in D3D11UniformBuffer
-        this.uniformBuffer.addUniform(uniformInfo);
+        // CRITICAL FIX: Actually use the offset parameter!
+        // addUniform() auto-calculates offsets, so we need to use addUniformAt() instead
+        this.uniformBuffer.addUniformAt(name, type, offset);
 
         LOGGER.debug("Added standard uniform: {} (type={}, offset={}, size={})", name, type, offset, size);
     }

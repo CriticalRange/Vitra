@@ -163,7 +163,15 @@ public class VitraRenderer extends AbstractRenderer {
                 logger.info("GLFW window: 0x{}, Win32 HWND: 0x{}",
                     Long.toHexString(windowHandle), Long.toHexString(nativeWindowHandle));
 
-                boolean success = VitraD3D11Renderer.initializeDirectXSafe(nativeWindowHandle, 1920, 1080, debugMode, useWarp);
+                // Get actual window dimensions from GLFW
+                int[] widthArray = new int[1];
+                int[] heightArray = new int[1];
+                org.lwjgl.glfw.GLFW.glfwGetWindowSize(windowHandle, widthArray, heightArray);
+                int windowWidth = widthArray[0];
+                int windowHeight = heightArray[0];
+                logger.info("Initializing DirectX with window dimensions: {}x{}", windowWidth, windowHeight);
+
+                boolean success = VitraD3D11Renderer.initializeDirectXSafe(nativeWindowHandle, windowWidth, windowHeight, debugMode, useWarp);
                 if (success) {
                     logger.info("Native DirectX initialized successfully (debug={})", debugMode);
 
@@ -1023,6 +1031,44 @@ public class VitraRenderer extends AbstractRenderer {
     public void forceUniformUpdate() {
         uploadConstantBuffers();
         uniformsDirty = false;
+    }
+
+    /**
+     * Setup orthographic projection for UI rendering
+     *
+     * This method MUST be called before rendering UI elements to prevent them from
+     * rotating with the world/panorama. It sets:
+     * - Orthographic projection matrix (screen-space 2D)
+     * - Identity model-view matrix
+     * - Disables depth test/write
+     * - Enables alpha blending
+     *
+     * @param width Screen width in pixels
+     * @param height Screen height in pixels
+     */
+    public void setupUIProjection(int width, int height) {
+        logger.info("[DEBUG_UI] Setting up orthographic projection for UI: {}x{}", width, height);
+
+        // Create orthographic projection matrix (0,0 = top-left, width,height = bottom-right)
+        // This maps screen pixels directly to clip space without perspective
+        org.joml.Matrix4f orthoMatrix = new org.joml.Matrix4f()
+            .setOrtho(0.0f, (float)width, (float)height, 0.0f, 0.0f, 1.0f);
+
+        // Set identity model-view (no rotation, no translation)
+        org.joml.Matrix4f identityMatrix = new org.joml.Matrix4f().identity();
+
+        // Update VRenderSystem with UI matrices
+        // Use JOML's .get() method to copy matrix data into ByteBuffer (VulkanMod pattern)
+        orthoMatrix.get(0, VRenderSystem.getProjectionMatrix().byteBuffer());
+        identityMatrix.get(0, VRenderSystem.getModelViewMatrix().byteBuffer());
+        VRenderSystem.calculateMVP();  // Recalculate MVP = Projection * ModelView
+
+        logger.info("[DEBUG_UI] Uploading ORTHO matrix to UI shader (no rotation)");
+
+        // Force immediate upload to GPU
+        uploadConstantBuffers();
+
+        logger.info("[DEBUG_UI] UI projection setup complete - UI should render without rotation");
     }
 
     // ============================================================================

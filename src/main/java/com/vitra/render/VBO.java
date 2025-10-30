@@ -197,8 +197,8 @@ public class VBO {
             shaderInstance.getName(), Long.toHexString(this.vertexBufferHandle), this.vertexCount, this.indexCount, this.mode);
 
         if (this.indexCount == 0 || this.vertexBufferHandle == 0) {
-            LOGGER.warn("[VBO_DRAW_WITH_SHADER] EARLY RETURN: indexCount={}, vertexBufferHandle=0x{}",
-                this.indexCount, Long.toHexString(this.vertexBufferHandle));
+            LOGGER.warn("[VBO_DRAW_WITH_SHADER] EARLY RETURN: indexCount={}, vertexCount={}, vertexBufferHandle=0x{}",
+                this.indexCount, this.vertexCount, Long.toHexString(this.vertexBufferHandle));
             return;
         }
 
@@ -250,6 +250,10 @@ public class VBO {
             LOGGER.warn("[VBO_DRAW] EARLY RETURN: vertexBufferHandle is 0!");
             return;
         }
+
+        // CRITICAL FIX: Auto-bind correct pipeline for vertex format
+        // This fixes UI rendering where position_tex is bound but position-only data is drawn
+        bindCorrectPipelineForFormat();
 
         // Encode vertex format for native
         int[] vertexFormatDesc = encodeVertexFormat(this.vertexFormat);
@@ -493,4 +497,56 @@ public class VBO {
             return (vertexCount - 2) * 3; // N vertices -> (N-2) triangles -> (N-2)*3 indices
         }
     }
+
+    /**
+     * Binds the correct pipeline for the current vertex format.
+     * Prevents shader/format mismatches (e.g., position_tex shader with position-only data).
+     */
+    private void bindCorrectPipelineForFormat() {
+        // Determine required shader name based on vertex format
+        String requiredShaderName = getShaderNameForFormat();
+        if (requiredShaderName == null) {
+            LOGGER.warn("[PIPELINE_AUTO_BIND] Could not determine shader name for format");
+            return; // Unknown format, continue with current pipeline
+        }
+
+        LOGGER.info("[PIPELINE_AUTO_BIND] Format requires shader: '{}'", requiredShaderName);
+
+        // Get the required pipeline from registry
+        com.vitra.render.d3d11.D3D11Pipeline requiredPipeline =
+            com.vitra.render.d3d11.D3D11ProgramRegistry.getPipelineByName(requiredShaderName);
+
+        if (requiredPipeline == null) {
+            LOGGER.warn("[PIPELINE_AUTO_BIND] Pipeline '{}' not found in registry!", requiredShaderName);
+            return;
+        }
+
+        // Bind the pipeline if different from current
+        requiredPipeline.bind();
+        LOGGER.info("[PIPELINE_AUTO_BIND] Successfully bound pipeline '{}'", requiredShaderName);
+    }
+
+    /**
+     * Determines shader name based on vertex format elements.
+     */
+    private String getShaderNameForFormat() {
+        boolean hasPosition = false, hasColor = false, hasUV = false;
+
+        for (com.mojang.blaze3d.vertex.VertexFormatElement element : this.vertexFormat.getElements()) {
+            switch (element.usage()) {
+                case POSITION -> hasPosition = true;
+                case COLOR -> hasColor = true;
+                case UV -> hasUV = true;
+            }
+        }
+
+        // Match Minecraft's core shader naming
+        if (hasPosition && hasUV && hasColor) return "position_tex_color";
+        if (hasPosition && hasUV) return "position_tex";
+        if (hasPosition && hasColor) return "position_color";
+        if (hasPosition) return "position";
+
+        return null;
+    }
+
 }

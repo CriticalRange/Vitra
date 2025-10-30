@@ -1,0 +1,10 @@
+﻿{
+    "vertex": "minecraft:core/rendertype_tripwire",
+    "fragment": "minecraft:core/rendertype_tripwire",
+    "samplers": [
+        { "name": "Sampler0" },
+        { "name": "Sampler2" }
+    ],
+    "uniforms": [
+    ]
+}

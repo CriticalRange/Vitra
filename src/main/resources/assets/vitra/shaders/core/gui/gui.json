@@ -1,0 +1,7 @@
+﻿{
+    "vertex": "gui",
+    "fragment": "gui",
+    "samplers": [ ],
+    "uniforms": [
+    ]
+}

@@ -1,0 +1,7 @@
+﻿{
+    "vertex": "blit",
+    "fragment": "blit",
+    "samplers": [ ],
+    "uniforms": [
+    ]
+}

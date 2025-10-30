@@ -70,6 +70,9 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
+	// Disable incremental compilation to ensure changes are always recompiled
+	// This prevents stale class files from being used during development
+	it.options.incremental = false
 }
 
 java {
@@ -363,8 +366,16 @@ task copyNative(type: Copy) {
 	include "*.dll"
 
 	doFirst {
-		// Ensure the target directory exists
-		file("$buildDir/resources/main/native/windows").mkdirs()
+		// Delete old DLL files to ensure fresh copies are used
+		def targetDir = file("$buildDir/resources/main/native/windows")
+		targetDir.mkdirs()
+
+		// Delete specific DLL files
+		delete fileTree(targetDir) {
+			include 'vitra-d3d11.dll'
+			include 'vitra-d3d12.dll'
+		}
+		println "Deleted old native DLLs from $targetDir"
 	}
 }
 
@@ -379,8 +390,16 @@ task copyNativeToSrc(type: Copy) {
 	include "*.dll"
 
 	doFirst {
-		// Ensure the target directory exists
-		file("src/main/resources/native/windows").mkdirs()
+		// Delete old DLL files to ensure fresh copies are used
+		def targetDir = file("src/main/resources/native/windows")
+		targetDir.mkdirs()
+
+		// Delete specific DLL files
+		delete fileTree(targetDir) {
+			include 'vitra-d3d11.dll'
+			include 'vitra-d3d12.dll'
+		}
+		println "Deleted old native DLLs from $targetDir"
 	}
 }
 

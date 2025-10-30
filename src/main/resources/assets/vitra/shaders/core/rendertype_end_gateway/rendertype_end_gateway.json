@@ -1,0 +1,9 @@
+﻿{
+    "vertex": "minecraft:core/rendertype_end_gateway",
+    "fragment": "minecraft:core/rendertype_end_gateway",
+    "samplers": [
+        { "name": "Sampler0" }
+    ],
+    "uniforms": [
+    ]
+}

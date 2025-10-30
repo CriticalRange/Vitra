@@ -231,8 +231,21 @@ uint64_t generateHandle() {
     return dis(gen);
 }
 
-// Forward declaration
+// Forward declarations
 void logToJava(JNIEnv* env, const char* message);
+bool validateTextureFormatSupport(DXGI_FORMAT format);
+bool validateShaderCompatibility(ID3DBlob* vsBlob, ID3DBlob* psBlob);
+jlong createDefaultShaderPipeline();
+
+// Forward declare ShaderPipeline struct (defined later in shader compilation section)
+struct ShaderPipeline {
+    ComPtr<ID3D11VertexShader> vertexShader;
+    ComPtr<ID3D11PixelShader> pixelShader;
+    ComPtr<ID3D11InputLayout> inputLayout;
+    uint64_t vertexShaderHandle;
+    uint64_t pixelShaderHandle;
+};
+static std::unordered_map<uint64_t, ShaderPipeline> g_shaderPipelines;
 
 // VulkanMod-style: Check if currently bound index buffer has enough capacity
 // Returns the buffer COM pointer if valid, nullptr if check/resize failed
@@ -1794,8 +1807,11 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
     g_d3d11.context->OMSetRenderTargets(1, g_d3d11.renderTargetView.GetAddressOf(), g_d3d11.depthStencilView.Get());
 
     // Clear backbuffer with stored clear color (set by Minecraft)
-    // Don't override with test colors - let Minecraft control background
-    g_d3d11.context->ClearRenderTargetView(g_d3d11.renderTargetView.Get(), g_d3d11.clearColor);
+    // CRITICAL FIX: Clear to BLACK at frame start, not stored clearColor
+    // The stored clearColor may be Mojang red (0.937, 0.196, 0.239) from logo screen
+    // Minecraft expects each frame to start with black background, then UI renders on top
+    float blackClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    g_d3d11.context->ClearRenderTargetView(g_d3d11.renderTargetView.Get(), blackClearColor);
 
     // CRITICAL DEBUG: Log viewport dimensions using JNI (so it actually appears in logs!)
     static int frameCount = 0;
@@ -1826,6 +1842,10 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
     if (g_d3d11.depthStencilView) {
         g_d3d11.context->ClearDepthStencilView(g_d3d11.depthStencilView.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
     }
+
+    // VulkanMod Pattern: Depth state is set per-pipeline, not globally at frame start
+    // UI shaders will call disableDepthTest() when binding their pipelines
+    // 3D world shaders will call enableDepthTest() when binding their pipelines
 
     // Log state info (first 2 frames)
     if (frameCount < 2) {
@@ -1860,6 +1880,47 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
         if (g_d3d11.defaultTextureSRV) {
             g_d3d11.context->PSSetShaderResources(0, 1, g_d3d11.defaultTextureSRV.GetAddressOf());
         }
+    }
+
+    // CRITICAL FIX: Bind default blend state for UI rendering
+    // UI elements require alpha blending to be visible
+    // Without this, UI elements render with wrong transparency
+    if (!g_d3d11.blendState) {
+        // Create default blend state with alpha blending enabled
+        D3D11_BLEND_DESC blendDesc = {};
+        blendDesc.AlphaToCoverageEnable = FALSE;
+        blendDesc.IndependentBlendEnable = FALSE;
+        blendDesc.RenderTarget[0].BlendEnable = TRUE;
+        blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+        blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+        blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+        blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+        g_d3d11.device->CreateBlendState(&blendDesc, &g_d3d11.blendState);
+    }
+
+    if (g_d3d11.blendState) {
+        float blendFactor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        g_d3d11.context->OMSetBlendState(g_d3d11.blendState.Get(), blendFactor, 0xFFFFFFFF);
+    }
+
+    // CRITICAL FIX: Bind default depth/stencil state for proper depth testing
+    if (!g_d3d11.depthStencilState) {
+        // Create default depth/stencil state with depth testing enabled
+        D3D11_DEPTH_STENCIL_DESC depthDesc = {};
+        depthDesc.DepthEnable = TRUE;
+        depthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        depthDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+        depthDesc.StencilEnable = FALSE;
+
+        g_d3d11.device->CreateDepthStencilState(&depthDesc, &g_d3d11.depthStencilState);
+    }
+
+    if (g_d3d11.depthStencilState) {
+        g_d3d11.context->OMSetDepthStencilState(g_d3d11.depthStencilState.Get(), 0);
     }
 
     // NOTE: Projection matrix should be set by Minecraft's RenderSystem
@@ -2683,6 +2744,25 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_drawWithVert
     // so this vertex format descriptor should match what the shader expects.
     // However, we still need to create and bind the input layout HERE based on actual vertex data.
 
+    // CRITICAL: Detect vertex format to select compatible shader
+    // Analyze the vertex format to determine what attributes it has
+    bool hasUV = false;
+    bool hasColor = false;
+
+    // Java format: [elementCount, usage1, type1, count1, offset1, usage2, type2, count2, offset2, ...]
+    // First int is element count, then 4 ints per element
+    int elementCount = formatDesc[0];  // First element is the count
+
+    for (int i = 0; i < elementCount; i++) {
+        int baseIdx = 1 + i * 4;  // Skip first element (count), then 4 ints per element
+        int usage = formatDesc[baseIdx];  // usage is first int in each element descriptor
+        if (usage == 3) hasUV = true;    // UV usage = 3
+        if (usage == 2) hasColor = true; // COLOR usage = 2
+    }
+
+    sprintf_s(msg, "[D3D11_DRAW] Format analysis: elements=%d, hasUV=%d, hasColor=%d", elementCount, hasUV, hasColor);
+    logToJava(env, msg);
+
     // Get vertex shader blob for input layout creation
     auto blobIt = g_shaderBlobs.find(g_d3d11.boundVertexShader);
     if (blobIt == g_shaderBlobs.end()) {
@@ -2693,6 +2773,11 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_drawWithVert
     }
 
     ID3DBlob* vertexShaderBlob = blobIt->second.Get();
+
+    // NOTE: Removed manual shader/format mismatch check
+    // D3D11 will validate input layout compatibility automatically
+    // The previous check was too strict and blocked valid draw calls where
+    // missing vertex attributes get default values (e.g., UV=0,0 for position-only geometry)
 
     // Check if we have an input layout cached for this format+shader combination
     auto layoutIt = g_vertexFormatInputLayouts.find(cacheKey);
@@ -5091,6 +5176,34 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createGLPro
         ComPtr<ID3DBlob> signatureBlob;
         HRESULT hr2 = D3DGetBlobPart(bytes, size, D3D_BLOB_INPUT_SIGNATURE_BLOB, 0, &signatureBlob);
 
+        // LOG: Parse shader input signature to debug vertex format mismatches
+        ID3D11ShaderReflection* pReflection = nullptr;
+        if (SUCCEEDED(D3DReflect(bytes, size, IID_ID3D11ShaderReflection, (void**)&pReflection)) && pReflection) {
+            D3D11_SHADER_DESC shaderDesc;
+            pReflection->GetDesc(&shaderDesc);
+
+            char logMsg[512];
+            snprintf(logMsg, sizeof(logMsg),
+                    "[VS_CREATED] Bytecode=%d bytes, InputParams=%d, BlobSize=%zu",
+                    size, shaderDesc.InputParameters,
+                    signatureBlob ? signatureBlob->GetBufferSize() : 0);
+            logToJava(env, logMsg);
+
+            // Log each input parameter
+            for (UINT i = 0; i < shaderDesc.InputParameters; i++) {
+                D3D11_SIGNATURE_PARAMETER_DESC paramDesc;
+                pReflection->GetInputParameterDesc(i, &paramDesc);
+
+                char paramMsg[256];
+                snprintf(paramMsg, sizeof(paramMsg),
+                        "[VS_INPUT_%d] %s%d (Mask=0x%X)",
+                        i, paramDesc.SemanticName, paramDesc.SemanticIndex, paramDesc.Mask);
+                logToJava(env, paramMsg);
+            }
+
+            pReflection->Release();
+        }
+
         if (FAILED(hr2)) {
             // Fallback: If we can't extract signature, store the full bytecode
             // This might happen with older shader models or malformed shaders
@@ -6237,6 +6350,35 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_precompileS
                           D3D_BLOB_INPUT_SIGNATURE_BLOB, 0, &storedBlob);
             if (storedBlob) {
                 g_shaderBlobs[handle] = storedBlob;  // Store for input layout creation
+
+                // LOG: Parse and display shader input signature to debug mismatch issues
+                ID3D11ShaderReflection* pReflection = nullptr;
+                hr = D3DReflect(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(),
+                               IID_ID3D11ShaderReflection, (void**)&pReflection);
+                if (SUCCEEDED(hr) && pReflection) {
+                    D3D11_SHADER_DESC shaderDesc;
+                    pReflection->GetDesc(&shaderDesc);
+
+                    char inputSigLog[512];
+                    snprintf(inputSigLog, sizeof(inputSigLog),
+                            "[SHADER_COMPILE_VS] Compiled vertex shader - InputParams: %d, BlobSize: %zu bytes",
+                            shaderDesc.InputParameters, storedBlob->GetBufferSize());
+                    logToJava(env, inputSigLog);
+
+                    // Log each input parameter
+                    for (UINT i = 0; i < shaderDesc.InputParameters; i++) {
+                        D3D11_SIGNATURE_PARAMETER_DESC paramDesc;
+                        pReflection->GetInputParameterDesc(i, &paramDesc);
+
+                        char paramLog[256];
+                        snprintf(paramLog, sizeof(paramLog),
+                                "[SHADER_INPUT_%d] %s%d (Mask: 0x%X)",
+                                i, paramDesc.SemanticName, paramDesc.SemanticIndex, paramDesc.Mask);
+                        logToJava(env, paramLog);
+                    }
+
+                    pReflection->Release();
+                }
             }
 
             char shaderName[64];
@@ -8705,17 +8847,7 @@ static std::string g_lastShaderError;
 // Resource tracking for new shader system
 // Note: g_shaderBlobs is declared at top of file (line ~25)
 // Note: g_constantBuffers and g_boundConstantBuffers* are declared at top of file (line ~32-34)
-
-// Shader pipeline structure
-struct ShaderPipeline {
-    ComPtr<ID3D11VertexShader> vertexShader;
-    ComPtr<ID3D11PixelShader> pixelShader;
-    ComPtr<ID3D11InputLayout> inputLayout;
-    uint64_t vertexShaderHandle;
-    uint64_t pixelShaderHandle;
-};
-
-static std::unordered_map<uint64_t, ShaderPipeline> g_shaderPipelines;
+// Note: ShaderPipeline struct and g_shaderPipelines declared at top of file (line ~241-248)
 
 /**
  * Compile HLSL shader from source (ByteBuffer version)
@@ -9211,35 +9343,14 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindShaderPi
     // with vertex data that has different attributes (e.g., shader expects TEXCOORD but
     // vertex buffer only has POSITION+COLOR).
     //
-    // CRITICAL FIX: -style ATOMIC pipeline state binding
-    // All pipeline state must be bound together to prevent UI rendering failures
-    //  binds input layout, shaders, and resources as one atomic operation
+    // The input layout will be created and bound by drawWithVertexFormat() based on the
+    // actual vertex data format, ensuring shader inputs match buffer data.
 
-    if (pipeline.inputLayout) {
-        g_d3d11.context->IASetInputLayout(pipeline.inputLayout.Get());
-    }
-
-    if (pipeline.vertexShader) {
-        g_d3d11.context->VSSetShader(pipeline.vertexShader.Get(), nullptr, 0);
-    }
-
-    if (pipeline.pixelShader) {
-        g_d3d11.context->PSSetShader(pipeline.pixelShader.Get(), nullptr, 0);
-    }
-
-    // CRITICAL FIX: -style comprehensive resource binding
-    // Ensure ALL resources are available to BOTH shader stages
+    // NOTE: Shaders were already bound at lines 9206-9207 above, so don't duplicate
+    // Just bind constant buffers to ensure resources are available to both shader stages
     if (g_d3d11.constantBuffers[0]) {
         g_d3d11.context->VSSetConstantBuffers(0, 1, g_d3d11.constantBuffers[0].GetAddressOf());
         g_d3d11.context->PSSetConstantBuffers(0, 1, g_d3d11.constantBuffers[0].GetAddressOf());
-    }
-
-    //  approach: Ensure input layout is available when pixel shader changes
-    // Some rendering paths may require input layout re-validation
-    if (pipeline.inputLayout && pipeline.pixelShader) {
-        // Re-validate input layout binding to ensure consistency with new pixel shader
-        // This matches 's robust state management approach
-        g_d3d11.context->IASetInputLayout(pipeline.inputLayout.Get());
     }
     if (g_d3d11.constantBuffers[1]) {
         g_d3d11.context->VSSetConstantBuffers(1, 1, g_d3d11.constantBuffers[1].GetAddressOf());

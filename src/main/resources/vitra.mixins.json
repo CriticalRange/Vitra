@@ -36,7 +36,6 @@
     "render.frame.MinecraftMixin",
     "render.target.MainTargetMixin",
     "render.target.RenderTargetMixin",
-    "texture.MAbstractTexture",
     "texture.MTextureUtil",
     "texture.mip.MipmapGeneratorMixin",
     "texture.image.NativeImageAccessor",

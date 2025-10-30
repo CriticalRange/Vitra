@@ -1,0 +1,9 @@
+﻿{
+    "vertex": "position_tex_color_normal",
+    "fragment": "position_tex_color_normal",
+    "samplers": [
+        { "name": "Sampler0" }
+    ],
+    "uniforms": [
+    ]
+}

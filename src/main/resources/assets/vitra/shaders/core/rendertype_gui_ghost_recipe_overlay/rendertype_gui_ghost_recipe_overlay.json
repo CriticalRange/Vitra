@@ -1,0 +1,7 @@
+﻿{
+    "vertex": "minecraft:core/rendertype_gui_ghost_recipe_overlay",
+    "fragment": "minecraft:core/rendertype_gui_ghost_recipe_overlay",
+    "samplers": [ ],
+    "uniforms": [
+    ]
+}

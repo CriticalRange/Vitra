@@ -37,9 +37,10 @@ public class D3D11ShaderManager extends AbstractShaderManager {
 
         try {
             // NEW: Load HLSL source and compile at runtime (NO MORE .cso files!)
-            // Path: /assets/vitra/shaders/hlsl/<name>.vsh or .fsh
+            // Path: /assets/vitra/shaders/core/<name>/<name>.vsh or .fsh
+            // This matches VulkanMod's structure where each shader has its own directory
             String shaderTypeExt = (type == VitraD3D11Renderer.SHADER_TYPE_VERTEX) ? ".vsh" : ".fsh";
-            String resourcePath = "/assets/vitra/shaders/hlsl/" + name + shaderTypeExt;
+            String resourcePath = "/assets/vitra/shaders/core/" + name + "/" + name + shaderTypeExt;
 
             InputStream is = getClass().getResourceAsStream(resourcePath);
 
@@ -63,13 +64,17 @@ public class D3D11ShaderManager extends AbstractShaderManager {
             }
 
             // Compile HLSL at runtime using D3DCompile
+            logger.info("[SHADER_COMPILE] Compiling {} shader '{}' from {} ({} chars)",
+                type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "VERTEX" : "PIXEL",
+                name, resourcePath, hlslSource.length());
+
             long handle = VitraD3D11Renderer.precompileShaderForDirectX11(hlslSource, type);
 
             if (handle != 0) {
                 shaderCache.put(cacheKey, handle);
-                logger.info("Compiled {} shader at runtime: {} (handle: 0x{}, source: {} chars)",
-                    type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "vertex" : "pixel",
-                    name, Long.toHexString(handle), hlslSource.length());
+                logger.info("[SHADER_COMPILE_OK] {} shader '{}' compiled successfully (handle: 0x{})",
+                    type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "VERTEX" : "PIXEL",
+                    name, Long.toHexString(handle));
             } else {
                 logger.error("Failed to compile DirectX shader from HLSL source: {}", name);
             }

@@ -1,0 +1,10 @@
+﻿{
+    "vertex": "position_color_tex_lightmap",
+    "fragment": "position_color_tex_lightmap",
+    "samplers": [
+        { "name": "Sampler0" },
+        { "name": "Sampler2" }
+    ],
+    "uniforms": [
+    ]
+}

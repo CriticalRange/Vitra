@@ -1,6 +1,8 @@
 package com.vitra.mixin.screen;
 
 import com.vitra.render.VitraRenderer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -23,6 +25,25 @@ public class ScreenMixin {
         if (renderer != null) {
             // Clear depth buffer (256 = GL_DEPTH_BUFFER_BIT)
             renderer.clearAttachments(256);
+        }
+    }
+
+    /**
+     * Setup orthographic projection for UI rendering
+     * CRITICAL: This prevents UI from rotating with panorama/world
+     */
+    @Inject(method = "render", at = @At("HEAD"))
+    private void setupUIProjection(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
+        VitraRenderer renderer = VitraRenderer.getInstance();
+        if (renderer != null) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.getWindow() != null) {
+                int width = mc.getWindow().getGuiScaledWidth();
+                int height = mc.getWindow().getGuiScaledHeight();
+
+                // Setup orthographic projection (prevents rotation)
+                renderer.setupUIProjection(width, height);
+            }
         }
     }
 }

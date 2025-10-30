@@ -1,0 +1,7 @@
+﻿{
+    "vertex": "sky",
+    "fragment": "sky",
+    "samplers": [ ],
+    "uniforms": [
+    ]
+}

@@ -1,0 +1,9 @@
+﻿{
+    "vertex": "glint",
+    "fragment": "glint",
+    "samplers": [
+        { "name": "Sampler0" }
+    ],
+    "uniforms": [
+    ]
+}

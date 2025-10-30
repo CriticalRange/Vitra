@@ -107,4 +107,21 @@ public class D3D11ProgramRegistry {
     public static boolean hasRegisteredPipeline(int programId) {
         return programToPipeline.containsKey(programId);
     }
+
+    /**
+     * Get a pipeline by name (e.g., "position", "position_tex").
+     * Useful for auto-selecting correct pipeline based on vertex format.
+     *
+     * @param name The shader/pipeline name
+     * @return The pipeline with matching name, or null if not found
+     */
+    public static D3D11Pipeline getPipelineByName(String name) {
+        for (D3D11Pipeline pipeline : programToPipeline.values()) {
+            if (pipeline.getName().equals(name)) {
+                return pipeline;
+            }
+        }
+        LOGGER.debug("No pipeline found with name: {}", name);
+        return null;
+    }
 }

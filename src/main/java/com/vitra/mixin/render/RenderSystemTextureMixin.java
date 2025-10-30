@@ -26,19 +26,19 @@ public class RenderSystemTextureMixin {
 
     @Inject(method = "_setShaderTexture(ILnet/minecraft/resources/ResourceLocation;)V", at = @At("HEAD"), remap = false)
     private static void logSetShaderTexture(int slot, ResourceLocation resourceLocation, CallbackInfo ci) {
-        if (setTextureCount < 30) {
+        if (setTextureCount < 200) {
             TextureManager textureManager = Minecraft.getInstance().getTextureManager();
             AbstractTexture texture = textureManager.getTexture(resourceLocation);
             int texId = texture != null ? texture.getId() : -1;
-            
-            LOGGER.info("[SET_SHADER_TEXTURE {}] Slot={}, ResourceLocation='{}', Resolved TexID={}", 
+
+            LOGGER.info("[SET_SHADER_TEXTURE {}] Slot={}, ResourceLocation='{}', Resolved TexID={}",
                 setTextureCount++, slot, resourceLocation, texId);
         }
     }
 
     @Inject(method = "_setShaderTexture(II)V", at = @At("HEAD"), remap = false)
     private static void logSetShaderTextureById(int slot, int textureId, CallbackInfo ci) {
-        if (setTextureCount < 30) {
+        if (setTextureCount < 200) {
             LOGGER.info("[SET_SHADER_TEXTURE_ID {}] Slot={}, TexID={}",
                 setTextureCount++, slot, textureId);
         }

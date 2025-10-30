@@ -1,0 +1,7 @@
+﻿{
+    "vertex": "position",
+    "fragment": "position",
+    "samplers": [ ],
+    "uniforms": [
+    ]
+}

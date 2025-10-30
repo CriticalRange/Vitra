@@ -1,0 +1,9 @@
+﻿{
+    "vertex": "panorama",
+    "fragment": "panorama",
+    "samplers": [
+        { "name": "Sampler0" }
+    ],
+    "uniforms": [
+    ]
+}

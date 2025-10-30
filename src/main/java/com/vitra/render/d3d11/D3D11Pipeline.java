@@ -39,11 +39,36 @@ public class D3D11Pipeline {
     /**
      * Bind this pipeline to the rendering context.
      * CRITICAL FIX: Also set input layout from vertex format to prevent linkage errors.
+     *
+     * VulkanMod Pattern: Apply depth state based on shader type when binding pipeline.
+     * UI shaders should render with depth testing disabled to ensure they appear on top.
      */
     public void bind() {
         if (pipelineHandle != 0) {
             LOGGER.info("[PIPELINE_BIND] Binding pipeline '{}' with vertex format: {}", name, formatToString(vertexFormat));
             LOGGER.debug("Binding pipeline '{}' with handle: 0x{}", name, Long.toHexString(pipelineHandle));
+
+            // VulkanMod Pattern: Configure depth state and blend state based on shader name
+            // UI shaders render with depth test DISABLED and blending ENABLED
+            // 3D world shaders render with depth test ENABLED and blending based on material
+            boolean isUIShader = isUIShader(name);
+            if (isUIShader) {
+                LOGGER.debug("[DEPTH_STATE] Configuring UI shader '{}': disabling depth test AND depth writes", name);
+
+                // CRITICAL FIX: Disable BOTH depth test AND depth writes for UI
+                // VulkanMod approach: UI renders with depthTestEnable=false, depthWriteMask=false
+                // This prevents UI from being occluded by panorama depth values
+                VitraD3D11Renderer.disableDepthTest();
+                VitraD3D11Renderer.depthMask(false);  // CRITICAL: Also disable depth WRITES
+
+                LOGGER.debug("[BLEND_STATE] Enabling alpha blending for UI shader '{}'", name);
+                VitraD3D11Renderer.enableBlend();
+            } else {
+                LOGGER.debug("[DEPTH_STATE] Enabling depth test for 3D shader '{}'", name);
+                VitraD3D11Renderer.enableDepthTest();
+                VitraD3D11Renderer.depthMask(true);  // Re-enable depth writes for 3D
+                // Blending for 3D is managed by RenderSystem state
+            }
 
             // CRITICAL: Set input layout from pipeline's vertex format BEFORE binding shaders
             // This fixes the "TEXCOORD0 linkage error" when draw() is called without vertex format
@@ -57,6 +82,25 @@ public class D3D11Pipeline {
         } else {
             LOGGER.error("Cannot bind pipeline '{}': invalid pipeline handle", name);
         }
+    }
+
+    /**
+     * Check if a shader is a UI shader that should render with depth testing disabled.
+     * Based on VulkanMod's shader classification.
+     */
+    private static boolean isUIShader(String shaderName) {
+        return shaderName.equals("position") ||
+               shaderName.equals("position_color") ||
+               shaderName.equals("position_tex") ||
+               shaderName.equals("position_color_tex") ||
+               shaderName.equals("position_tex_color") ||
+               shaderName.equals("rendertype_gui") ||
+               shaderName.equals("rendertype_gui_overlay") ||
+               shaderName.equals("rendertype_gui_ghost_recipe_overlay") ||
+               shaderName.equals("rendertype_text") ||
+               shaderName.equals("rendertype_text_background") ||
+               shaderName.equals("rendertype_text_see_through") ||
+               shaderName.equals("blit_screen");  // Panorama also uses depth test disabled
     }
 
     /**

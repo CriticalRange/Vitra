@@ -69,6 +69,9 @@ public class GlStateManagerMixin {
     @Overwrite(remap = false)
     public static void _bindTexture(int i) {
         RenderSystem.assertOnRenderThreadOrInit();
+        // CRITICAL FIX: Set active texture unit to 0 before binding
+        // Without this, textures bind to wrong slot causing texture cycling
+        com.vitra.render.jni.VitraD3D11Renderer.setActiveTextureUnit(0);
         // CRITICAL: Bind through D3D11Texture to map OpenGL ID → DirectX handle
         // This is the fix for the yellow screen issue!
         com.vitra.render.D3D11Texture.bindTexture(i);

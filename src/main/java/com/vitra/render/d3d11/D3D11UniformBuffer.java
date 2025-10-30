@@ -126,6 +126,26 @@ public class D3D11UniformBuffer {
     }
 
     /**
+     * Add a uniform at a specific offset (for explicit cbuffer layouts).
+     *
+     * @param name Uniform name
+     * @param glslType GLSL type string (e.g., "vec4", "mat4")
+     * @param offset Explicit byte offset in the buffer
+     * @return The created UniformEntry
+     */
+    public UniformEntry addUniformAt(String name, String glslType, int offset) {
+        UniformType type = UniformType.fromGLSLType(glslType);
+
+        UniformEntry entry = new UniformEntry(name, offset, type.size, type);
+        uniforms.put(name, entry);
+
+        LOGGER.debug("Added uniform '{}' of type {} at offset {} (size: {})",
+                     name, type, offset, type.size);
+
+        return entry;
+    }
+
+    /**
      * Calculate the next aligned offset for a new uniform.
      */
     private int calculateOffset() {

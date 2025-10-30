@@ -1,0 +1,10 @@
+﻿{
+    "vertex": "terrain",
+    "fragment": "terrain",
+    "samplers": [
+        { "name": "Sampler0" },
+        { "name": "Sampler2" }
+    ],
+    "uniforms": [
+    ]
+}

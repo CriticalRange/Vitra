@@ -101,6 +101,7 @@ public class D3D11Texture implements IVitraTexture {
         // CRITICAL: Only bind to D3D11 if texture has been allocated (has native handle)
         // The actual binding happens in texImage2D after texture creation
         if (boundTexture.nativeHandle != 0) {
+            // Use single-parameter version that respects currentTextureUnit
             VitraD3D11Renderer.bindTexture(id);
             LOGGER.info("[TEXTURE_BIND] Bound texture ID={} (handle={})", id, boundTexture.nativeHandle);
         } else {
