@@ -217,7 +217,28 @@ public class ShaderInstanceMixin implements ShaderMixed {
     public void apply() {
         RenderSystem.assertOnRenderThread();
 
-        // Upload uniforms if needed (VulkanMod pattern)
+        // CRITICAL FIX: Proper ordering for DirectX 11 rendering
+        // 1. Bind shader pipeline
+        // 2. Upload uniforms (constant buffers)
+        // 3. Bind textures (MUST be after PSSetShader which clears bindings)
+
+        // Step 1: Bind the shader pipeline
+        if (this.programId != lastProgramId) {
+            ProgramManager.glUseProgram(this.programId);
+            lastProgramId = this.programId;
+        }
+        bindPipeline();
+
+        // Step 2: Upload uniforms IMMEDIATELY after binding pipeline
+        // This ensures constant buffers are populated before drawing
+        if (this.doUniformUpdate) {
+            // Upload uniform values (VulkanMod ShaderInstanceM.java:155-158)
+            for (com.mojang.blaze3d.shaders.Uniform uniform : this.uniforms) {
+                uniform.upload();
+            }
+        }
+
+        // Step 3: NOW bind textures AFTER shaders are set (DirectX 11 clears texture bindings on PSSetShader)
         if (this.doUniformUpdate) {
             // DEBUG: Log samplerMap on first apply call
             if (bindCount < 3) {
@@ -249,6 +270,7 @@ public class ShaderInstanceMixin implements ShaderMixed {
                         texId = ((java.util.function.IntSupplier) samplerObject).getAsInt();
                     }
 
+                    // VulkanMod pattern: Skip binding if texId is -1 (no texture set)
                     if (texId != -1) {
                         RenderSystem.bindTexture(texId);
                         RenderSystem.setShaderTexture(j, texId);
@@ -258,31 +280,16 @@ public class ShaderInstanceMixin implements ShaderMixed {
                             LOGGER.info("[SAMPLER_TEXTURE_BIND {}] Slot={}, TexID={}, Sampler='{}', Shader='{}', Type={}",
                                 bindCount++, j, texId, samplerName, this.name, samplerObject.getClass().getSimpleName());
                         }
-                    } else {
-                        // DEBUG: Log when texId is -1
-                        if (bindCount < 100) {
-                            LOGGER.warn("[SAMPLER_TEXID_FAIL {}] Shader='{}', Sampler='{}', texId=-1, Object type='{}'",
-                                bindCount++, this.name, samplerName, samplerObject.getClass().getName());
-                        }
                     }
+                    // Don't log -1 as an error - it's normal for some shaders (VulkanMod behavior)
                 }
             }
-
-            // Upload uniform values (VulkanMod ShaderInstanceM.java:155-158)
-            for (com.mojang.blaze3d.shaders.Uniform uniform : this.uniforms) {
-                uniform.upload();
-            }
         }
 
-        // Bind shader program if changed (VulkanMod ShaderInstanceM.java:161-164)
-        if (this.programId != lastProgramId) {
-            ProgramManager.glUseProgram(this.programId);
-            lastProgramId = this.programId;
-        }
-
-        // Bind D3D11 pipeline (VulkanMod ShaderInstanceM.java:166)
-        // This calls bindShaderTextures() which binds from RenderSystem.shaderTextures[]
-        bindPipeline();
+        // NOTE: Texture binding happens in two places:
+        // 1. Above loop (lines 240-275): Binds from samplerMap and calls setShaderTexture()
+        // 2. RenderSystemTextureMixin intercepts setShaderTexture() and binds to D3D11
+        // No need for additional binding here - RenderSystemTextureMixin handles it
     }
 
     /**
@@ -412,6 +419,7 @@ public class ShaderInstanceMixin implements ShaderMixed {
 
     /**
      * Setup uniform suppliers for uniform buffer.
+     * VulkanMod pattern: Map shader-declared uniforms to Minecraft's uniform values.
      */
     @Unique
     private void setupUniformSuppliers() {
@@ -422,17 +430,15 @@ public class ShaderInstanceMixin implements ShaderMixed {
         for (D3D11UniformBuffer.UniformEntry entry : this.uniformBuffer.getUniforms()) {
             Uniform mcUniform = this.uniformMap.get(entry.name);
             if (mcUniform == null) {
-                LOGGER.warn("Uniform '{}' not found in Minecraft uniform map - using default value", entry.name);
+                // VulkanMod uses .error() here because if the shader declares a uniform
+                // but Minecraft doesn't provide it, it's a real problem
+                LOGGER.error("Error: field '{}' not present in uniform map for shader '{}'", entry.name, this.name);
 
-                // CRITICAL FIX: Set default values for missing uniforms
-                // ColorModulator defaults to (1,1,1,1) instead of (0,0,0,0)
-                if (entry.name.equals("ColorModulator")) {
-                    ByteBuffer defaultColorMod = ByteBuffer.allocateDirect(16).order(ByteOrder.nativeOrder());
-                    defaultColorMod.asFloatBuffer().put(new float[]{1.0f, 1.0f, 1.0f, 1.0f});
-                    defaultColorMod.flip();
-                    entry.setSupplier(() -> defaultColorMod);
-                    LOGGER.info("Set default ColorModulator to (1,1,1,1) for shader '{}'", this.name);
-                }
+                // Allocate zeroed buffer as fallback (VulkanMod approach)
+                int size = entry.size;
+                ByteBuffer fallbackBuffer = MemoryUtil.memAlloc(size);
+                MemoryUtil.memSet(fallbackBuffer, 0);
+                entry.setSupplier(() -> fallbackBuffer);
                 continue;
             }
 
@@ -559,13 +565,24 @@ public class ShaderInstanceMixin implements ShaderMixed {
             // NOTE: MVP is uploaded by VRenderSystem, not via Minecraft uniforms
             this.uniformBuffer = new D3D11UniformBuffer(0, 240);  // b0 register, 240 bytes
 
-            // Add standard Minecraft uniforms to buffer
+            // Add standard Minecraft uniforms to buffer ONLY if they exist in Minecraft's uniformMap
             // CRITICAL: Offsets MUST match cbuffer_common.hlsli exactly!
-            addStandardUniform("ModelViewMat", "mat4", 64);    // After MVP
-            addStandardUniform("ColorModulator", "vec4", 128); // After ModelViewMat
-            addStandardUniform("TextureMat", "mat4", 160);     // After ModelOffset+padding
-            addStandardUniform("ChunkOffset", "vec3", 144);    // aka ModelOffset
-            addStandardUniform("LineWidth", "float", 224);
+            // VulkanMod pattern: Only register uniforms that Minecraft actually provides
+            if (this.uniformMap.containsKey("ModelViewMat")) {
+                addStandardUniform("ModelViewMat", "mat4", 64);    // After MVP
+            }
+            if (this.uniformMap.containsKey("ColorModulator")) {
+                addStandardUniform("ColorModulator", "vec4", 128); // After ModelViewMat
+            }
+            if (this.uniformMap.containsKey("TextureMat")) {
+                addStandardUniform("TextureMat", "mat4", 160);     // After ModelOffset+padding
+            }
+            if (this.uniformMap.containsKey("ChunkOffset")) {
+                addStandardUniform("ChunkOffset", "vec3", 144);    // aka ModelOffset
+            }
+            if (this.uniformMap.containsKey("LineWidth")) {
+                addStandardUniform("LineWidth", "float", 224);
+            }
 
             setupUniformSuppliers();
 
@@ -712,6 +729,12 @@ public class ShaderInstanceMixin implements ShaderMixed {
             if (debugName.contains("rendertype_outline") || debugName.contains("rendertype_text_intensity")) {
                 LOGGER.info("[MIXIN] HLSL Lines 110-120 (checking for swizzle errors):");
                 for (int i = 109; i < Math.min(120, lines.length); i++) {
+                    LOGGER.info("[MIXIN]   Line {}: {}", i + 1, lines[i]);
+                }
+            } else if (debugName.contains("position_tex")) {
+                // For position_tex, log lines 149-162 to verify MVP matrix usage
+                LOGGER.info("[MIXIN] HLSL Lines 149-162 (checking MVP matrix usage):");
+                for (int i = 148; i < Math.min(162, lines.length); i++) {
                     LOGGER.info("[MIXIN]   Line {}: {}", i + 1, lines[i]);
                 }
             } else {

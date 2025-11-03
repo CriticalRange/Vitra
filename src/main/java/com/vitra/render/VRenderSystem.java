@@ -1,6 +1,7 @@
 package com.vitra.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.vitra.VitraMod;
 import com.vitra.util.MappedBuffer;
 import org.joml.Matrix4f;
 
@@ -213,7 +214,10 @@ public class VRenderSystem {
      * CRITICAL: This is called from RenderSystemMixin after every modelview matrix change
      */
     public static void setModelViewMatrix(Matrix4f matrix) {
-        matrix.get(0, modelViewMatrix.byteBuffer());
+        // JOML's get() uses column-major, but HLSL mul(matrix, vector) expects row-major
+        // Transpose before storing
+        Matrix4f transposed = new Matrix4f(matrix).transpose();
+        transposed.get(0, modelViewMatrix.byteBuffer());
 
         // DEBUG: Log first 30 matrix sets to see values
         if (matrixSetCount < 30) {
@@ -241,7 +245,20 @@ public class VRenderSystem {
      * CRITICAL: This is called from RenderSystemMixin after every projection matrix change
      */
     public static void setProjectionMatrix(Matrix4f matrix) {
-        matrix.get(0, projectionMatrix.byteBuffer());
+        // JOML's get() uses column-major, but HLSL mul(matrix, vector) expects row-major
+        // Transpose before storing
+        Matrix4f transposed = new Matrix4f(matrix).transpose();
+        transposed.get(0, projectionMatrix.byteBuffer());
+
+        // DEBUG: Log projection matrix to diagnose z=11055 far plane issue
+        // Log first 50 to capture both menu (ortho) and world (perspective) transitions
+        if (matrixSetCount < 50) {
+            String type = (matrix.m23() == 1.0f && matrix.m33() == 0.0f) ? "PERSPECTIVE" : "ORTHOGRAPHIC";
+            System.out.println(String.format("[PROJECTION_MATRIX %d] TYPE=%s m22=%.6f, m23=%.6f, m32=%.6f, m33=%.6f",
+                matrixSetCount, type, matrix.m22(), matrix.m23(), matrix.m32(), matrix.m33()));
+            matrixSetCount++;
+        }
+
         updateMVP();
     }
 
@@ -286,8 +303,38 @@ public class VRenderSystem {
         // Compute MVP = Projection * ModelView
         Matrix4f mvp = new Matrix4f(proj).mul(mv);
 
-        // Store result
+        // CRITICAL FIX: Transpose for DirectX (HLSL mul(matrix, vector) expects row-major)
+        // JOML stores column-major, HLSL mul() interprets first operand as row-major
+        mvp.transpose();
+
+        // Store transposed result
         mvp.get(0, MVP.byteBuffer());
+
+        // DEBUG: Log full MVP matrix to diagnose black triangles issue
+        // Only log every 60 frames to avoid spam (once per second at 60fps)
+        if (System.getProperty("vitra.debug.mvp") != null) {
+            long frameCount = System.currentTimeMillis() / 16; // Approx frame counter
+            if (frameCount % 60 == 0) {
+                org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("Vitra");
+                logger.info("[MVP_DEBUG] Full MVP Matrix:");
+                logger.info("  [{}, {}, {}, {}]", mvp.m00(), mvp.m01(), mvp.m02(), mvp.m03());
+                logger.info("  [{}, {}, {}, {}]", mvp.m10(), mvp.m11(), mvp.m12(), mvp.m13());
+                logger.info("  [{}, {}, {}, {}]", mvp.m20(), mvp.m21(), mvp.m22(), mvp.m23());
+                logger.info("  [{}, {}, {}, {}]", mvp.m30(), mvp.m31(), mvp.m32(), mvp.m33());
+
+                logger.info("[MVP_DEBUG] Projection Matrix:");
+                logger.info("  [{}, {}, {}, {}]", proj.m00(), proj.m01(), proj.m02(), proj.m03());
+                logger.info("  [{}, {}, {}, {}]", proj.m10(), proj.m11(), proj.m12(), proj.m13());
+                logger.info("  [{}, {}, {}, {}]", proj.m20(), proj.m21(), proj.m22(), proj.m23());
+                logger.info("  [{}, {}, {}, {}]", proj.m30(), proj.m31(), proj.m32(), proj.m33());
+
+                logger.info("[MVP_DEBUG] ModelView Matrix:");
+                logger.info("  [{}, {}, {}, {}]", mv.m00(), mv.m01(), mv.m02(), mv.m03());
+                logger.info("  [{}, {}, {}, {}]", mv.m10(), mv.m11(), mv.m12(), mv.m13());
+                logger.info("  [{}, {}, {}, {}]", mv.m20(), mv.m21(), mv.m22(), mv.m23());
+                logger.info("  [{}, {}, {}, {}]", mv.m30(), mv.m31(), mv.m32(), mv.m33());
+            }
+        }
     }
 
     /**

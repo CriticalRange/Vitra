@@ -1,7 +1,0 @@
-﻿{
-    "vertex": "blit_screen",
-    "fragment": "blit_screen",
-    "samplers": [ ],
-    "uniforms": [
-    ]
-}

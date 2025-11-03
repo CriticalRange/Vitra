@@ -1,7 +1,0 @@
-﻿{
-    "vertex": "minecraft:core/rendertype_lightning",
-    "fragment": "minecraft:core/rendertype_lightning",
-    "samplers": [ ],
-    "uniforms": [
-    ]
-}

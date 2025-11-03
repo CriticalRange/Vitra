@@ -28,13 +28,6 @@ public class D3D11ShaderManager extends AbstractShaderManager {
      * @return Shader handle, or 0 on failure
      */
     public long loadShader(String name, int type) {
-        String cacheKey = name + "_" + type;
-
-        Long cached = shaderCache.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-
         try {
             // NEW: Load HLSL source and compile at runtime (NO MORE .cso files!)
             // Path: /assets/vitra/shaders/core/<name>/<name>.vsh or .fsh
@@ -55,26 +48,49 @@ public class D3D11ShaderManager extends AbstractShaderManager {
                 return 0;
             }
 
-            String hlslSource = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            byte[] shaderBytes = is.readAllBytes();
             is.close();
 
-            if (hlslSource.isEmpty()) {
+            if (shaderBytes == null || shaderBytes.length == 0) {
                 logger.error("Empty shader source: {}", resourcePath);
                 return 0;
             }
 
+            // CRITICAL FIX: Include shader source hash in cache key to detect changes
+            // This ensures shaders are recompiled when source code changes
+            int sourceHash = java.util.Arrays.hashCode(shaderBytes);
+            String cacheKey = name + "_" + type + "_" + Integer.toHexString(sourceHash);
+
+            Long cached = shaderCache.get(cacheKey);
+            if (cached != null) {
+                logger.info("[SHADER_CACHE_HIT] Using cached shader '{}' (hash: {})", name, Integer.toHexString(sourceHash));
+                return cached;
+            }
+
+            logger.info("[SHADER_COMPILE] Loaded {} shader bytes for '{}' from {} (hash: {})",
+                shaderBytes.length, name, resourcePath, Integer.toHexString(sourceHash));
+
+            // CRITICAL FIX: Use intern() to ensure string is in string pool and prevent JVM corruption
+            // JBR (JetBrains Runtime) has issues with dynamically created strings in JNI calls
+            String hlslSource = new String(shaderBytes, java.nio.charset.StandardCharsets.UTF_8).intern();
+
+            if (hlslSource.isEmpty()) {
+                logger.error("Empty shader source after conversion: {}", resourcePath);
+                return 0;
+            }
+
             // Compile HLSL at runtime using D3DCompile
-            logger.info("[SHADER_COMPILE] Compiling {} shader '{}' from {} ({} chars)",
+            logger.info("[SHADER_COMPILE] Compiling {} shader '{}' ({} chars)",
                 type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "VERTEX" : "PIXEL",
-                name, resourcePath, hlslSource.length());
+                name, hlslSource.length());
 
             long handle = VitraD3D11Renderer.precompileShaderForDirectX11(hlslSource, type);
 
             if (handle != 0) {
                 shaderCache.put(cacheKey, handle);
-                logger.info("[SHADER_COMPILE_OK] {} shader '{}' compiled successfully (handle: 0x{})",
+                logger.info("[SHADER_COMPILE_OK] {} shader '{}' compiled successfully (handle: 0x{}, hash: {})",
                     type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "VERTEX" : "PIXEL",
-                    name, Long.toHexString(handle));
+                    name, Long.toHexString(handle), Integer.toHexString(sourceHash));
             } else {
                 logger.error("Failed to compile DirectX shader from HLSL source: {}", name);
             }
@@ -151,7 +167,7 @@ public class D3D11ShaderManager extends AbstractShaderManager {
             "particle", "glint",
 
             // GUI and menus
-            "gui", "blit_screen", "panorama",
+            "gui", "blit_screen",
 
             // Text rendering
             "rendertype_text", "rendertype_text_background", "rendertype_text_see_through",

@@ -1,7 +1,0 @@
-﻿{
-    "vertex": "minecraft:core/rendertype_text_background_see_through",
-    "fragment": "minecraft:core/rendertype_text_background_see_through",
-    "samplers": [ ],
-    "uniforms": [
-    ]
-}

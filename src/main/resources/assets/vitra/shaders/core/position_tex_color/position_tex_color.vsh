@@ -29,13 +29,11 @@ struct VS_OUTPUT {
 VS_OUTPUT main(VS_INPUT input) {
     VS_OUTPUT output;
 
-    // CRITICAL FIX: With column_major matrices in HLSL, multiply as: position * matrix
-    // NOT matrix * position (that's for row_major)
-    // This matches GLSL behavior: vec4 * mat4
+    // Transform vertex position using MVP matrix
     float4 position = float4(input.Position, 1.0);
     output.gl_Position = mul(MVP, position);
 
-    // Pass texture coordinates and vertex color to pixel shader
+    // Pass through texture coordinates and vertex color
     output.texCoord0 = input.UV0;
     output.vertexColor = input.Color;
 

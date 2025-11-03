@@ -1,9 +1,0 @@
-﻿{
-    "vertex": "minecraft:core/rendertype_crumbling",
-    "fragment": "minecraft:core/rendertype_crumbling",
-    "samplers": [
-        { "name": "Sampler0" }
-    ],
-    "uniforms": [
-    ]
-}

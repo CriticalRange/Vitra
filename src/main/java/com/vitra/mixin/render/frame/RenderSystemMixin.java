@@ -437,9 +437,11 @@ public abstract class RenderSystemMixin {
             float[] projArray = new float[16];
 
             // Read from VRenderSystem's computed matrices
-            VRenderSystem.getMVP().byteBuffer().asFloatBuffer().get(mvpArray);
-            VRenderSystem.getModelViewMatrix().byteBuffer().asFloatBuffer().get(mvArray);
-            VRenderSystem.getProjectionMatrix().byteBuffer().asFloatBuffer().get(projArray);
+            // CRITICAL FIX: Must reset buffer position before each read!
+            // asFloatBuffer() creates a view but .get() moves the position, leaving garbage for subsequent reads
+            VRenderSystem.getMVP().byteBuffer().asFloatBuffer().get(0, mvpArray);
+            VRenderSystem.getModelViewMatrix().byteBuffer().asFloatBuffer().get(0, mvArray);
+            VRenderSystem.getProjectionMatrix().byteBuffer().asFloatBuffer().get(0, projArray);
 
             // Upload all three matrices to native constant buffer
             // CRITICAL: This is the FIX - we're now sending the COMPUTED MVP, not just projection!

@@ -144,7 +144,7 @@ public class VitraCore {
         }
 
         // Load basic shaders for common Minecraft rendering
-        loadAndRegisterShader("basic");              // Basic position shader
+        // NOTE: "basic" shader removed - use "position" as the simplest shader instead
         loadAndRegisterShader("position");           // Position only
         loadAndRegisterShader("position_color");     // Position + color
         loadAndRegisterShader("position_tex");       // Position + texture

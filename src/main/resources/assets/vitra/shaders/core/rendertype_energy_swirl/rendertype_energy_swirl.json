@@ -1,9 +1,0 @@
-﻿{
-    "vertex": "minecraft:core/rendertype_energy_swirl",
-    "fragment": "minecraft:core/rendertype_energy_swirl",
-    "samplers": [
-        { "name": "Sampler0" }
-    ],
-    "uniforms": [
-    ]
-}

@@ -169,9 +169,11 @@ public class D3D11GlTexture {
 
             // Create DirectX texture
             long d3d11Handle;
+            byte[] pixelData = null;  // Declare outside for checksum calculation
+
             if (pixels != null && pixels.remaining() > 0) {
                 // Extract pixel data
-                byte[] pixelData = new byte[pixels.remaining()];
+                pixelData = new byte[pixels.remaining()];
                 pixels.get(pixelData);
                 pixels.rewind();
 
@@ -207,8 +209,18 @@ public class D3D11GlTexture {
             // Store mapping
             textureHandles.put(textureId, d3d11Handle);
 
-            LOGGER.info("Created DirectX texture: ID={}, size={}x{}, format=0x{}, handle=0x{}",
-                textureId, width, height, Integer.toHexString(dxgiFormat), Long.toHexString(d3d11Handle));
+            // Calculate simple checksum for verification (first 64 bytes or available)
+            int checksum = 0;
+            if (pixelData != null && pixelData.length > 0) {
+                int bytesToCheck = Math.min(64, pixelData.length);
+                for (int i = 0; i < bytesToCheck; i++) {
+                    checksum = checksum * 31 + (pixelData[i] & 0xFF);
+                }
+            }
+
+            LOGGER.info("Created DirectX texture: ID={}, size={}x{}, format=0x{}, handle=0x{}, checksum=0x{}",
+                textureId, width, height, Integer.toHexString(dxgiFormat), Long.toHexString(d3d11Handle),
+                Integer.toHexString(checksum));
 
             // Re-bind if this texture is currently bound
             if (boundTextureIds[activeTextureSlot] == textureId) {

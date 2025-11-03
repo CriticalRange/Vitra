@@ -1,9 +1,0 @@
-﻿{
-    "vertex": "minecraft:core/rendertype_eyes",
-    "fragment": "minecraft:core/rendertype_eyes",
-    "samplers": [
-        { "name": "Sampler0" }
-    ],
-    "uniforms": [
-    ]
-}

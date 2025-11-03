@@ -1,7 +1,0 @@
-﻿{
-    "vertex": "position_color_normal",
-    "fragment": "position_color_normal",
-    "samplers": [ ],
-    "uniforms": [
-    ]
-}

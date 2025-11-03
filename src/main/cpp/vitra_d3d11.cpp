@@ -1041,15 +1041,18 @@ void createDefaultRenderStates() {
     } else {
     }
 
-    // CRITICAL: Set default scissor rectangle to full viewport
-    // Since ScissorEnable=TRUE now, this scissor rect will be active
-    // Set to full screen so nothing is clipped by default
-    D3D11_RECT defaultScissor;
-    defaultScissor.left = 0;
-    defaultScissor.top = 0;
-    defaultScissor.right = g_d3d11.width;
-    defaultScissor.bottom = g_d3d11.height;
-    g_d3d11.context->RSSetScissorRects(1, &defaultScissor);
+    // CRITICAL FIX: Set ALL 16 scissor rectangles to full viewport
+    // DirectX 11 has 16 scissor slots (D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE = 16)
+    // If ScissorEnable=TRUE but some slots have 0x0 rects, those slots clip everything!
+    // We must initialize ALL slots to prevent red (0x0) scissor rects in RenderDoc
+    D3D11_RECT scissorRects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    for (int i = 0; i < D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE; i++) {
+        scissorRects[i].left = 0;
+        scissorRects[i].top = 0;
+        scissorRects[i].right = g_d3d11.width;
+        scissorRects[i].bottom = g_d3d11.height;
+    }
+    g_d3d11.context->RSSetScissorRects(D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE, scissorRects);
 
     // Logging disabled
 }
@@ -1855,31 +1858,35 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
         logToJava(env, msg);
     }
 
-    // CRITICAL FIX: Bind default shaders every frame!
-    // DirectX 11 REQUIRES a vertex shader and pixel shader to be bound before any draw operations
-    // Without this, all draw calls fail silently, causing black screen
-    if (g_d3d11.defaultVertexShader && g_d3d11.defaultPixelShader) {
-        g_d3d11.context->VSSetShader(g_d3d11.defaultVertexShader.Get(), nullptr, 0);
-        g_d3d11.context->PSSetShader(g_d3d11.defaultPixelShader.Get(), nullptr, 0);
+    // REMOVED: Do NOT bind default shaders in beginFrame()!
+    // Shaders are set by bindShaderPipeline() and must persist across frames.
+    // Binding default shaders here causes shader/input layout mismatch:
+    // - bindPipeline() sets correct shader + input layout (e.g., position_tex_color)
+    // - beginFrame() was overwriting with default shader every frame
+    // - Result: All rendering uses wrong shader/input layout
+    //
+    // if (g_d3d11.defaultVertexShader && g_d3d11.defaultPixelShader) {
+    //     g_d3d11.context->VSSetShader(g_d3d11.defaultVertexShader.Get(), nullptr, 0);
+    //     g_d3d11.context->PSSetShader(g_d3d11.defaultPixelShader.Get(), nullptr, 0);
+    //
+    //     // CRITICAL FIX: Restore default input layout binding for UI rendering
+    //     // Based on  and  analysis - UI elements fail without input layout
+    //     if (g_d3d11.defaultInputLayout) {
+    //         g_d3d11.context->IASetInputLayout(g_d3d11.defaultInputLayout.Get());
+    //     }
+    // }
 
-        // CRITICAL FIX: Restore default input layout binding for UI rendering
-        // Based on  and  analysis - UI elements fail without input layout
-        if (g_d3d11.defaultInputLayout) {
-            g_d3d11.context->IASetInputLayout(g_d3d11.defaultInputLayout.Get());
-        }
+    // Set default primitive topology
+    g_d3d11.context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        // Set default primitive topology
-        g_d3d11.context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    // Set default sampler state
+    if (g_d3d11.defaultSamplerState) {
+        g_d3d11.context->PSSetSamplers(0, 1, g_d3d11.defaultSamplerState.GetAddressOf());
+    }
 
-        // Set default sampler state
-        if (g_d3d11.defaultSamplerState) {
-            g_d3d11.context->PSSetSamplers(0, 1, g_d3d11.defaultSamplerState.GetAddressOf());
-        }
-
-        // Bind default white texture to slot 0 to prevent undefined texture sampling
-        if (g_d3d11.defaultTextureSRV) {
-            g_d3d11.context->PSSetShaderResources(0, 1, g_d3d11.defaultTextureSRV.GetAddressOf());
-        }
+    // Bind default white texture to slot 0 to prevent undefined texture sampling
+    if (g_d3d11.defaultTextureSRV) {
+        g_d3d11.context->PSSetShaderResources(0, 1, g_d3d11.defaultTextureSRV.GetAddressOf());
     }
 
     // CRITICAL FIX: Bind default blend state for UI rendering
@@ -2357,69 +2364,18 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_draw
         return;
     }
 
-    // CRITICAL FIX:  +  style shader variant selection
-    // UI elements typically use POSITION + COLOR + UV format
-    // Select appropriate shader variant based on what's available
-
-    bool useUVShader = (g_d3d11.defaultVertexShaderWithUV && g_d3d11.defaultPixelShaderWithUV);
-    bool useColorShader = (g_d3d11.defaultVertexShaderWithoutUV && g_d3d11.defaultPixelShaderWithoutUV);
-
-    if (useUVShader) {
-        // CRITICAL FIX: -style ATOMIC shader pipeline binding
-        // Bind all pipeline state together to prevent UI rendering failures
-
-        // Bind shaders
-        g_d3d11.context->VSSetShader(g_d3d11.defaultVertexShaderWithUV.Get(), nullptr, 0);
-        g_d3d11.context->PSSetShader(g_d3d11.defaultPixelShaderWithUV.Get(), nullptr, 0);
-
-        // Bind input layout ( ensures consistency with pixel shader)
-        if (g_d3d11.defaultInputLayoutWithUV) {
-            g_d3d11.context->IASetInputLayout(g_d3d11.defaultInputLayoutWithUV.Get());
-        }
-
-        //  approach: Re-validate input layout after pixel shader change
-        // This ensures consistency between vertex format and pixel shader expectations
-        if (g_d3d11.defaultInputLayoutWithUV) {
-            g_d3d11.context->IASetInputLayout(g_d3d11.defaultInputLayoutWithUV.Get());
-        }
-
-    } else if (useColorShader) {
-        // CRITICAL FIX: -style ATOMIC shader pipeline binding
-        // For solid color UI elements (backgrounds, borders)
-
-        // Bind shaders
-        g_d3d11.context->VSSetShader(g_d3d11.defaultVertexShaderWithoutUV.Get(), nullptr, 0);
-        g_d3d11.context->PSSetShader(g_d3d11.defaultPixelShaderWithoutUV.Get(), nullptr, 0);
-
-        // Bind input layout ( ensures consistency with pixel shader)
-        if (g_d3d11.defaultInputLayoutWithoutUV) {
-            g_d3d11.context->IASetInputLayout(g_d3d11.defaultInputLayoutWithoutUV.Get());
-        }
-
-        //  approach: Re-validate input layout after pixel shader change
-        if (g_d3d11.defaultInputLayoutWithoutUV) {
-            g_d3d11.context->IASetInputLayout(g_d3d11.defaultInputLayoutWithoutUV.Get());
-        }
-
-    } else {
-        logToJava(env, "[SHADER_ERROR] No valid shader variants available for UI rendering");
-        return;
-    }
-
-    // CRITICAL FIX: DO NOT set input layout here!
-    // The input layout must be set based on the actual vertex buffer format,
-    // not a hardcoded default layout. The correct input layout should have been
-    // set by the caller (either bindShaderPipeline with drawWithVertexFormat, or
-    // by previous rendering setup).
+    // REMOVED: Do NOT bind default shaders in draw()!
+    // Shaders are set by bindShaderPipeline() and must NOT be overwritten.
+    // Binding default shaders here causes shader/input layout mismatch:
+    // - bindPipeline() sets correct shader + input layout
+    // - draw() was overwriting with default shaders
+    // - Result: Wrong shader/input layout used for rendering
     //
-    // Setting defaultInputLayout here causes "Input Assembler linkage error" because
-    // the default layout might not match the actual vertex data being rendered.
+    // The correct pipeline state (shaders + input layout) is set by:
+    // 1. D3D11Pipeline.bind() → setInputLayoutFromVertexFormat() + bindShaderPipeline()
+    // 2. These bindings must persist until the next pipeline bind
     //
-    // CRITICAL FIX: Restore input layout binding for UI elements
-    // Combined  +  analysis shows UI fails without input layout
-    if (g_d3d11.defaultInputLayout && g_d3d11.defaultInputLayout.Get()) {
-        g_d3d11.context->IASetInputLayout(g_d3d11.defaultInputLayout.Get());
-    }
+    // This draw() function should only perform the actual draw call, not modify pipeline state.
 
     // CRITICAL FIX: -style constant buffer binding to BOTH shaders
     // UI shaders need constant buffers in both vertex and pixel shaders
@@ -3128,14 +3084,19 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_drawMeshData
         g_d3d11.context->OMSetRenderTargets(1, g_d3d11.renderTargetView.GetAddressOf(), g_d3d11.depthStencilView.Get());
     }
 
-    // CRITICAL: Ensure shaders are bound before every draw call
-    // This is the fix for black screen - shaders MUST be set!
-    if (g_d3d11.defaultVertexShader) {
-        g_d3d11.context->VSSetShader(g_d3d11.defaultVertexShader.Get(), nullptr, 0);
-    }
-    if (g_d3d11.defaultPixelShader) {
-        g_d3d11.context->PSSetShader(g_d3d11.defaultPixelShader.Get(), nullptr, 0);
-    }
+    // REMOVED: Do NOT bind default shaders here!
+    // Shaders are set by bindShaderPipeline() and must NOT be overwritten.
+    // Binding default shaders here causes shader/input layout mismatch:
+    // - bindPipeline() sets correct shader + input layout (e.g., position_tex_color with POSITION+TEXCOORD+COLOR)
+    // - drawMeshData() was overwriting with default shader (only POSITION)
+    // - Result: RenderDoc shows only POSITION in input layout, TEXCOORD/COLOR undefined
+    //
+    // if (g_d3d11.defaultVertexShader) {
+    //     g_d3d11.context->VSSetShader(g_d3d11.defaultVertexShader.Get(), nullptr, 0);
+    // }
+    // if (g_d3d11.defaultPixelShader) {
+    //     g_d3d11.context->PSSetShader(g_d3d11.defaultPixelShader.Get(), nullptr, 0);
+    // }
 
     // REMOVED: Do not set default input layout - it must match actual vertex data
     // if (g_d3d11.defaultInputLayout) {
@@ -3739,7 +3700,16 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setScissorRe
     g_d3d11.scissorRect.bottom = y + height;
     g_d3d11.scissorEnabled = true;
 
-    g_d3d11.context->RSSetScissorRects(1, &g_d3d11.scissorRect);
+    // CRITICAL FIX: Set ALL 16 scissor rects to prevent 0x0 rects in other slots
+    D3D11_RECT scissorRects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    scissorRects[0] = g_d3d11.scissorRect;
+    for (int i = 1; i < D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE; i++) {
+        scissorRects[i].left = 0;
+        scissorRects[i].top = 0;
+        scissorRects[i].right = g_d3d11.width;
+        scissorRects[i].bottom = g_d3d11.height;
+    }
+    g_d3d11.context->RSSetScissorRects(D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE, scissorRects);
 }
 
 // ==================== DEBUG LAYER IMPLEMENTATION ====================
@@ -4434,9 +4404,31 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setTransform
         // Copy ColorModulator to offset 128 (16 bytes)
         memcpy(bufferData + 128, g_d3d11.shaderColor, 16);
 
-        // ModelOffset at offset 144 (12 bytes) - leave as zeros for now
-        // TextureMat at offset 160 (64 bytes) - leave as identity for now
-        // LineWidth at offset 224 (4 bytes) - leave as default for now
+        // CRITICAL FIX: Zero-initialize remaining fields to prevent garbage values
+        // D3D11_MAP_WRITE_DISCARD gives UNINITIALIZED memory (0xCCCCCCCC pattern)!
+        // We must explicitly zero unused fields or they'll contain garbage
+
+        // ModelOffset at offset 144 (12 bytes) - initialize to (0,0,0)
+        memset(bufferData + 144, 0, 12);
+
+        // _pad0 at offset 156 (4 bytes) - zero padding
+        memset(bufferData + 156, 0, 4);
+
+        // TextureMat at offset 160 (64 bytes) - initialize to identity matrix
+        float identityMatrix[16] = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+        memcpy(bufferData + 160, identityMatrix, 64);
+
+        // LineWidth at offset 224 (4 bytes) - initialize to 1.0
+        float defaultLineWidth = 1.0f;
+        memcpy(bufferData + 224, &defaultLineWidth, 4);
+
+        // _pad1 at offset 228 (12 bytes) - zero remaining padding to complete 240-byte buffer
+        memset(bufferData + 228, 0, 12);
 
         g_d3d11.context->Unmap(g_d3d11.constantBuffers[0].Get(), 0);
         g_d3d11.context->VSSetConstantBuffers(0, 1, g_d3d11.constantBuffers[0].GetAddressOf());
@@ -5117,24 +5109,23 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_useProgram
 
     if (!g_d3d11.initialized) return;
 
-    // For DirectX 11, programs are mapped to shader pipelines
-    // This is a simplified implementation - in a real scenario, you'd need to track
-    // vertex/pixel shader pairs and switch between them
+    // REMOVED: Do NOT bind default shaders in useProgram()!
+    // Shaders are set by bindShaderPipeline() and must NOT be overwritten.
+    // useProgram() is called by OpenGL compatibility layer, but we use DirectX pipelines instead.
+    // Binding default shaders here causes shader/input layout mismatch.
+    //
+    // For DirectX 11, programs are managed via D3D11Pipeline.bind() which calls bindShaderPipeline().
+    // This function is kept as a no-op for OpenGL compatibility.
 
-    // For now, we'll use the default shader pipeline when any program is set
-    if (program != 0) {
-        // Use default shaders (simplified approach)
-        g_d3d11.context->VSSetShader(g_d3d11.defaultVertexShader.Get(), nullptr, 0);
-        g_d3d11.context->PSSetShader(g_d3d11.defaultPixelShader.Get(), nullptr, 0);
-        // REMOVED: Do not set default input layout - it must match actual vertex data
-        // g_d3d11.context->IASetInputLayout(g_d3d11.defaultInputLayout.Get());
-    } else {
-        // No program bound - clear shaders
-        g_d3d11.context->VSSetShader(nullptr, nullptr, 0);
-        g_d3d11.context->PSSetShader(nullptr, nullptr, 0);
-        // Keep input layout as-is (don't clear it)
-        // g_d3d11.context->IASetInputLayout(nullptr);
-    }
+    // if (program != 0) {
+    //     // Use default shaders (simplified approach)
+    //     g_d3d11.context->VSSetShader(g_d3d11.defaultVertexShader.Get(), nullptr, 0);
+    //     g_d3d11.context->PSSetShader(g_d3d11.defaultPixelShader.Get(), nullptr, 0);
+    // } else {
+    //     // No program bound - clear shaders
+    //     g_d3d11.context->VSSetShader(nullptr, nullptr, 0);
+    //     g_d3d11.context->PSSetShader(nullptr, nullptr, 0);
+    // }
 }
 
 // ==================== DIRECT OPENGL → DIRECTX 11 TRANSLATION (VULKANMOD APPROACH) ====================
@@ -5220,9 +5211,17 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createGLPro
 
         shaderHandle = generateHandle();
 
+        // CRITICAL FIX: Store FULL bytecode, not just signature!
+        // CreateInputLayout() requires the full shader bytecode to validate input layout.
+        // Storing only the signature blob causes input layout validation failures.
+        ComPtr<ID3DBlob> fullBytecodeBlob;
+        if (SUCCEEDED(D3DCreateBlob(size, &fullBytecodeBlob))) {
+            memcpy(fullBytecodeBlob->GetBufferPointer(), bytes, size);
+        }
+
         // CRITICAL: Store in maps BEFORE logging
         g_vertexShaders[shaderHandle] = vertexShader;
-        g_shaderBlobs[shaderHandle] = signatureBlob;  // Store signature, not full bytecode
+        g_shaderBlobs[shaderHandle] = fullBytecodeBlob ? fullBytecodeBlob : signatureBlob;  // Store full bytecode for input layout
 
         // Verify storage immediately
         auto verifyIt = g_vertexShaders.find(shaderHandle);
@@ -6277,6 +6276,13 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_precompileS
     (JNIEnv* env, jclass clazz, jstring shaderSource, jint shaderType) {
 
     if (!g_d3d11.initialized) return 0;
+
+    // CRITICAL: Check for null Java string before calling GetStringUTFChars
+    // This prevents JVM access violation when shaderSource is null
+    if (shaderSource == nullptr) {
+        OutputDebugStringA("[precompileShaderForDirectX11] ERROR: shaderSource is null!");
+        return 0;
+    }
 
     // Get HLSL source code from Java string
     const char* hlslSource = env->GetStringUTFChars(shaderSource, nullptr);
@@ -7334,8 +7340,22 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindTexture_
         return; // Double-check - should never reach here but safety first
     }
 
+    // ENHANCED LOGGING: Log function entry with parameters
+    static int entryLogCount = 0;
+    if (entryLogCount < 50) {  // Log first 50 calls
+        char msg[128];
+        snprintf(msg, sizeof(msg), "[BIND_ENTRY %d] bindTexture called: ID=%d, currentUnit=%d",
+            entryLogCount, textureId, g_glState.currentTextureUnit);
+        logToJava(env, msg);
+        entryLogCount++;
+    }
+
     // CRITICAL: Validate texture unit is in range BEFORE array access!
     if (g_glState.currentTextureUnit < 0 || g_glState.currentTextureUnit >= 32) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "[TEXTURE_ERROR] Invalid texture unit: %d (valid range: 0-31)",
+            g_glState.currentTextureUnit);
+        logToJava(env, msg);
         return; // Invalid texture unit - safe no-op
     }
 
@@ -7370,14 +7390,22 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindTexture_
             ID3D11ShaderResourceView* srvArray[1] = { srv };
             ctx->PSSetShaderResources(g_glState.currentTextureUnit, 1, srvArray);
 
-            // Log first 5 successful texture bindings
+            // ENHANCED LOGGING: Log ALL texture bindings (no limit) to diagnose UI issue
             static int bindCount = 0;
-            if (bindCount < 5) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "[TEXTURE_BIND %d] Successfully bound texture ID=%d to slot %d, SRV=0x%p",
+                bindCount, textureId, g_glState.currentTextureUnit, srv);
+            logToJava(env, msg);
+            bindCount++;
+        } else {
+            // CRITICAL: Texture found in map but SRV pointer is NULL!
+            static int nullSrvCount = 0;
+            if (nullSrvCount < 20) {
                 char msg[128];
-                snprintf(msg, sizeof(msg), "[TEXTURE_BIND %d] Successfully bound texture ID=%d to slot %d, SRV=0x%p",
-                    bindCount, textureId, g_glState.currentTextureUnit, srv);
+                snprintf(msg, sizeof(msg), "[TEXTURE_ERROR] Texture ID=%d found in map but SRV is NULL! Slot=%d",
+                    textureId, g_glState.currentTextureUnit);
                 logToJava(env, msg);
-                bindCount++;
+                nullSrvCount++;
             }
         }
     } else {
@@ -8014,15 +8042,17 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_resetScissor
     if (!g_d3d11.initialized) return;
     g_glState.scissorEnabled = false;
 
-    // CRITICAL FIX: Set scissor rect to full viewport when disabling scissor test
-    // D3D11 requires a valid scissor rect even when ScissorEnable=FALSE
-    // Otherwise, the default 0x0 rect clips everything!
-    D3D11_RECT fullScreenScissor;
-    fullScreenScissor.left = 0;
-    fullScreenScissor.top = 0;
-    fullScreenScissor.right = g_d3d11.width;
-    fullScreenScissor.bottom = g_d3d11.height;
-    g_d3d11.context->RSSetScissorRects(1, &fullScreenScissor);
+    // CRITICAL FIX: Set ALL 16 scissor rects to full viewport when disabling scissor test
+    // D3D11 requires valid scissor rects even when ScissorEnable=FALSE
+    // Must set ALL 16 slots to prevent 0x0 rects from clipping everything
+    D3D11_RECT fullScreenScissors[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    for (int i = 0; i < D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE; i++) {
+        fullScreenScissors[i].left = 0;
+        fullScreenScissors[i].top = 0;
+        fullScreenScissors[i].right = g_d3d11.width;
+        fullScreenScissors[i].bottom = g_d3d11.height;
+    }
+    g_d3d11.context->RSSetScissorRects(D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE, fullScreenScissors);
 
     D3D11_RASTERIZER_DESC rastDesc = {};
     rastDesc.FillMode = D3D11_FILL_SOLID;
@@ -8053,12 +8083,22 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setScissor
         logToJava(env, msg);
     }
 
-    D3D11_RECT scissorRect;
-    scissorRect.left = x;
-    scissorRect.top = y;
-    scissorRect.right = x + width;
-    scissorRect.bottom = y + height;
-    g_d3d11.context->RSSetScissorRects(1, &scissorRect);
+    // CRITICAL FIX: Set ALL 16 scissor rects to prevent 0x0 rects in other slots
+    // Slot 0 gets the requested scissor rect, slots 1-15 get full screen
+    D3D11_RECT scissorRects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    scissorRects[0].left = x;
+    scissorRects[0].top = y;
+    scissorRects[0].right = x + width;
+    scissorRects[0].bottom = y + height;
+
+    // Fill remaining slots with full screen scissor to prevent clipping
+    for (int i = 1; i < D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE; i++) {
+        scissorRects[i].left = 0;
+        scissorRects[i].top = 0;
+        scissorRects[i].right = g_d3d11.width;
+        scissorRects[i].bottom = g_d3d11.height;
+    }
+    g_d3d11.context->RSSetScissorRects(D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE, scissorRects);
 
     // Enable scissor in rasterizer state
     D3D11_RASTERIZER_DESC rastDesc = {};
@@ -9320,9 +9360,17 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindShaderPi
         return;
     }
 
-    // Log binding (only first 3 times to avoid spam)
+    // CRITICAL FIX: VulkanMod pattern - only bind if pipeline changed!
+    // This prevents other code from overriding our pipeline binding
+    static uint64_t s_boundPipelineHandle = 0;
+    if (s_boundPipelineHandle == pipelineHandle) {
+        // Pipeline already bound, skip redundant bind
+        return;
+    }
+
+    // Log binding (only first 10 times to see different pipelines)
     static int bindCount = 0;
-    if (bindCount < 3) {
+    if (bindCount < 10) {
         char msg[256];
         snprintf(msg, sizeof(msg), "[SHADER_BIND %d] Pipeline 0x%llx: VS=0x%p, PS=0x%p, InputLayout=0x%p",
             bindCount, (unsigned long long)pipelineHandle,
@@ -9336,6 +9384,7 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindShaderPi
     g_d3d11.context->PSSetShader(pipeline.pixelShader.Get(), nullptr, 0);
     g_d3d11.boundVertexShader = pipeline.vertexShaderHandle;
     g_d3d11.boundPixelShader = pipeline.pixelShaderHandle;
+    s_boundPipelineHandle = pipelineHandle;  // Track bound pipeline
 
     // CRITICAL FIX: Do NOT bind input layout here!
     // Input layout must be set based on the ACTUAL vertex buffer format during draw calls,
