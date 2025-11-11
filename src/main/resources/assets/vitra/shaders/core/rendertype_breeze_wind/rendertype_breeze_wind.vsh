@@ -6,7 +6,6 @@
 // D3DCompile with D3D_COMPILE_STANDARD_FILE_INCLUDE can't resolve includes from JAR resources
 // Only including the cbuffers actually used by shaders
 
-#pragma pack_matrix(column_major)
 
 cbuffer DynamicTransforms : register(b0) {
     float4x4 MVP;             // Pre-multiplied MVP matrix
@@ -165,7 +164,7 @@ VS_OUTPUT main(VS_INPUT input) {
 
     // Transform position through Model-View-Projection pipeline
     float4 position = float4(input.Position, 1.0);
-    output.gl_Position = mul(position, MVP);
+    output.gl_Position = mul(MVP, position);
 
     // Calculate fog distance using FogShape (0 = spherical, 1 = cylindrical)
     output.vertexDistance = fog_distance(input.Position, FogShape);

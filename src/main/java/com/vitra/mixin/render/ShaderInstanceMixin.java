@@ -217,28 +217,13 @@ public class ShaderInstanceMixin implements ShaderMixed {
     public void apply() {
         RenderSystem.assertOnRenderThread();
 
-        // CRITICAL FIX: Proper ordering for DirectX 11 rendering
-        // 1. Bind shader pipeline
-        // 2. Upload uniforms (constant buffers)
-        // 3. Bind textures (MUST be after PSSetShader which clears bindings)
+        // CRITICAL FIX: Match VulkanMod's EXACT ordering (ShaderInstanceM.java:131-167)
+        // VulkanMod Order:
+        // 1. Bind textures to CPU state (RenderSystem.setShaderTexture)
+        // 2. Upload uniforms
+        // 3. Use program + bind pipeline (which then binds textures to GPU)
 
-        // Step 1: Bind the shader pipeline
-        if (this.programId != lastProgramId) {
-            ProgramManager.glUseProgram(this.programId);
-            lastProgramId = this.programId;
-        }
-        bindPipeline();
-
-        // Step 2: Upload uniforms IMMEDIATELY after binding pipeline
-        // This ensures constant buffers are populated before drawing
-        if (this.doUniformUpdate) {
-            // Upload uniform values (VulkanMod ShaderInstanceM.java:155-158)
-            for (com.mojang.blaze3d.shaders.Uniform uniform : this.uniforms) {
-                uniform.upload();
-            }
-        }
-
-        // Step 3: NOW bind textures AFTER shaders are set (DirectX 11 clears texture bindings on PSSetShader)
+        // Step 1: Bind textures to CPU state FIRST (VulkanMod pattern)
         if (this.doUniformUpdate) {
             // DEBUG: Log samplerMap on first apply call
             if (bindCount < 3) {
@@ -275,6 +260,9 @@ public class ShaderInstanceMixin implements ShaderMixed {
                         RenderSystem.bindTexture(texId);
                         RenderSystem.setShaderTexture(j, texId);
 
+                        // FIX: Also bind to D3D11TextureSelector (VulkanMod VTextureSelector pattern)
+                        com.vitra.render.texture.D3D11TextureSelector.bindTextureToUnit(j, texId);
+
                         // DEBUG: Log first 50 texture bindings from samplerMap
                         if (bindCount < 50) {
                             LOGGER.info("[SAMPLER_TEXTURE_BIND {}] Slot={}, TexID={}, Sampler='{}', Shader='{}', Type={}",
@@ -284,12 +272,46 @@ public class ShaderInstanceMixin implements ShaderMixed {
                     // Don't log -1 as an error - it's normal for some shaders (VulkanMod behavior)
                 }
             }
+
+            // CRITICAL FIX: Also bind textures from RenderSystem.getShaderTexture() (VulkanMod pattern)
+            // VulkanMod binds from BOTH samplerMap AND RenderSystem shader textures
+            // This catches textures set via RenderSystem.setShaderTexture() but not in samplerMap
+            // (e.g., lightmap at slot 2, overlay at slot 3)
+            for (int slot = 0; slot < 16; slot++) {
+                int shaderTexId = RenderSystem.getShaderTexture(slot);
+                if (shaderTexId > 0) {
+                    // Only bind if not already bound from samplerMap
+                    com.vitra.render.texture.D3D11TextureSelector.bindTextureToUnit(slot, shaderTexId);
+                    LOGGER.trace("[SHADER_TEXTURE_BIND] Bound RenderSystem texture ID={} to slot {}", shaderTexId, slot);
+                }
+            }
+
         }
 
-        // NOTE: Texture binding happens in two places:
-        // 1. Above loop (lines 240-275): Binds from samplerMap and calls setShaderTexture()
-        // 2. RenderSystemTextureMixin intercepts setShaderTexture() and binds to D3D11
-        // No need for additional binding here - RenderSystemTextureMixin handles it
+        // Step 2: Upload uniforms SECOND (VulkanMod pattern)
+        if (this.doUniformUpdate) {
+            for (com.mojang.blaze3d.shaders.Uniform uniform : this.uniforms) {
+                uniform.upload();
+            }
+        }
+
+        // Step 3: Use program + bind pipeline LAST (VulkanMod pattern)
+        if (this.programId != lastProgramId) {
+            ProgramManager.glUseProgram(this.programId);
+            lastProgramId = this.programId;
+        }
+
+        // CRITICAL: VulkanMod Double UBO Upload Pattern
+        // VulkanMod WorldRenderer.java:325-329:
+        //   renderer.uploadAndBindUBOs(pipeline);  // FIRST upload
+        //   drawBuffers.bindBuffers(...);          // Modifies GPU state
+        //   renderer.uploadAndBindUBOs(pipeline);  // SECOND upload (critical!)
+        //
+        // We do the FIRST upload before bindPipeline()
+        com.vitra.render.VitraRenderer.getInstance().uploadConstantBuffersPublic();
+
+        // Now bind pipeline which will upload uniforms AGAIN (second upload) and bind textures to GPU
+        bindPipeline();
     }
 
     /**
@@ -361,6 +383,14 @@ public class ShaderInstanceMixin implements ShaderMixed {
         }
 
         RenderSystem.setupShaderLights((ShaderInstance)(Object)this);
+
+        // CRITICAL: Upload constant buffers AFTER all uniforms are set
+        // VulkanMod pattern: matrices are already in VRenderSystem (set via RenderSystemMixin)
+        // Just upload the constant buffers now
+        com.vitra.render.IVitraRenderer renderer = com.vitra.VitraMod.getCore().getRenderer();
+        if (renderer instanceof com.vitra.render.VitraRenderer) {
+            ((com.vitra.render.VitraRenderer) renderer).uploadConstantBuffersPublic();
+        }
     }
 
     /**
@@ -376,6 +406,9 @@ public class ShaderInstanceMixin implements ShaderMixed {
     /**
      * Bind renderer pipeline and upload uniforms.
      * Uses VulkanMod-style direct pipeline binding.
+     *
+     * CRITICAL: VulkanMod calls uploadAndBindUBOs() AFTER pipeline binding to ensure
+     * constant buffers are correctly bound to the shader stages.
      */
     @Unique
     private void bindPipeline() {
@@ -389,10 +422,26 @@ public class ShaderInstanceMixin implements ShaderMixed {
         // Bind the pipeline
         this.pipeline.bind();
 
-        // Upload uniforms if dirty
-        if (this.uniformBuffer != null) {
-            this.uniformBuffer.uploadIfDirty(this.pipeline);
-        }
+        // CRITICAL: Bind textures to GPU AFTER pipeline is bound (VulkanMod pattern)
+        // VulkanMod calls VTextureSelector.bindShaderTextures(pipeline) here
+        // D3D11: PSSetShader clears texture bindings, so we must bind textures AFTER pipeline
+        com.vitra.render.texture.D3D11TextureSelector.bindShaderTextures();
+
+        // CRITICAL: VulkanMod Pattern - Upload UBOs AFTER pipeline binding
+        // VulkanMod: Renderer.uploadAndBindUBOs(pipeline) called after bindPipeline()
+        // This ensures constant buffers are bound to the correct shader stages
+        // Reference: VulkanMod WorldRenderer.java:325-329
+        com.vitra.render.VitraRenderer.getInstance().uploadConstantBuffersPublic();
+
+        // CRITICAL FIX: Disable old D3D11UniformBuffer system - uniforms are now handled by
+        // the new UBO system in VitraRenderer.uploadConstantBuffers() which is called from beginFrame()
+        // The old system was creating 240-byte constant buffers WITHOUT MVP, overwriting the
+        // new system's 256-byte buffers that INCLUDE MVP at offset 0
+        // This was causing all-zero MVP matrices to reach the GPU despite correct uploads from new system
+        // if (this.uniformBuffer != null) {
+        //     this.uniformBuffer.updateAllFromSuppliers(); // Pull data from VRenderSystem
+        //     this.uniformBuffer.uploadIfDirty(this.pipeline); // Upload to GPU
+        // }
     }
 
     /**
@@ -552,39 +601,12 @@ public class ShaderInstanceMixin implements ShaderMixed {
 
             this.pipeline = new D3D11Pipeline(this.name, vsHandle, psHandle, pipelineHandle, format);
 
-            // CRITICAL FIX: Create standard uniform buffer for cbuffer b0 (DynamicTransforms)
-            // Layout from cbuffer_common.hlsli (with MVP added):
-            // - MVP: mat4 (64 bytes, offset 0)              <-- ADDED
-            // - ModelViewMat: mat4 (64 bytes, offset 64)    <-- UPDATED OFFSET
-            // - ColorModulator: vec4 (16 bytes, offset 128) <-- UPDATED OFFSET
-            // - ModelOffset: vec3 (12 bytes, offset 144) + padding (4 bytes)
-            // - TextureMat: mat4 (64 bytes, offset 160)
-            // - LineWidth: float (4 bytes, offset 224) + padding (12 bytes)
-            // Total: 240 bytes (aligned to 16)
+            // DEPRECATED: Old D3D11UniformBuffer system disabled - now using UBO system in VitraRenderer
+            // The old system created 240-byte constant buffers WITHOUT MVP, causing conflicts
+            // All uniforms are now handled by VitraRenderer.uploadConstantBuffers() via UBO descriptors
 
-            // NOTE: MVP is uploaded by VRenderSystem, not via Minecraft uniforms
-            this.uniformBuffer = new D3D11UniformBuffer(0, 240);  // b0 register, 240 bytes
-
-            // Add standard Minecraft uniforms to buffer ONLY if they exist in Minecraft's uniformMap
-            // CRITICAL: Offsets MUST match cbuffer_common.hlsli exactly!
-            // VulkanMod pattern: Only register uniforms that Minecraft actually provides
-            if (this.uniformMap.containsKey("ModelViewMat")) {
-                addStandardUniform("ModelViewMat", "mat4", 64);    // After MVP
-            }
-            if (this.uniformMap.containsKey("ColorModulator")) {
-                addStandardUniform("ColorModulator", "vec4", 128); // After ModelViewMat
-            }
-            if (this.uniformMap.containsKey("TextureMat")) {
-                addStandardUniform("TextureMat", "mat4", 160);     // After ModelOffset+padding
-            }
-            if (this.uniformMap.containsKey("ChunkOffset")) {
-                addStandardUniform("ChunkOffset", "vec3", 144);    // aka ModelOffset
-            }
-            if (this.uniformMap.containsKey("LineWidth")) {
-                addStandardUniform("LineWidth", "float", 224);
-            }
-
-            setupUniformSuppliers();
+            // this.uniformBuffer = new D3D11UniformBuffer(0, 240);  // DISABLED
+            // setupUniformSuppliers();  // DISABLED
 
             this.doUniformUpdate = true;
 

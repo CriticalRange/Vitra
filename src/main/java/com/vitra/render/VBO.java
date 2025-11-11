@@ -64,15 +64,8 @@ public class VBO {
         this.vertexFormat = parameters.format();
         this.vertexSize = parameters.format().getVertexSize();
 
-        LOGGER.info("[VBO_UPLOAD] BEFORE: vertexCount={}, indexCount={}, mode={}, format={}",
-            this.vertexCount, this.indexCount, this.mode, this.vertexFormat);
-
         this.uploadVertexBuffer(parameters, meshData.vertexBuffer());
         this.uploadIndexBuffer(meshData.indexBuffer());
-
-        LOGGER.info("[VBO_UPLOAD] AFTER: vertexCount={}, indexCount={}, autoIndexed={}, vbHandle=0x{}, ibHandle=0x{}",
-            this.vertexCount, this.indexCount, this.autoIndexed,
-            Long.toHexString(this.vertexBufferHandle), Long.toHexString(this.indexBufferHandle));
 
         meshData.close();
     }
@@ -241,11 +234,11 @@ public class VBO {
 
     /**
      * Draw without shader (uses currently bound shader/pipeline)
+     *
+     * VULKANMOD PATTERN: Uniforms are uploaded in ShaderInstance.apply()
+     * which is called before this method. We just issue the draw command here.
      */
     public void draw() {
-        LOGGER.info("[VBO_DRAW] CALLED: vbHandle=0x{}, vertexCount={}, indexCount={}, autoIndexed={}, mode={}",
-            Long.toHexString(this.vertexBufferHandle), this.vertexCount, this.indexCount, this.autoIndexed, this.mode);
-
         if (this.vertexBufferHandle == 0) {
             LOGGER.warn("[VBO_DRAW] EARLY RETURN: vertexBufferHandle is 0!");
             return;
@@ -255,34 +248,45 @@ public class VBO {
         // This fixes UI rendering where position_tex is bound but position-only data is drawn
         bindCorrectPipelineForFormat();
 
+        // NOTE: Constant buffer re-binding NOT needed here
+        // CBs are uploaded in:
+        // 1. beginFrame() - at frame start
+        // 2. D3D11Pipeline.bind() → updateAndBindConstantBuffers() - after shader bind
+        // Adding a third upload here would be redundant and hurt performance
+
         // Encode vertex format for native
         int[] vertexFormatDesc = encodeVertexFormat(this.vertexFormat);
 
         // Draw using current shader state
-        if (this.indexBufferHandle != 0 && !this.autoIndexed) {
-            // Explicit index buffer - indexed draw
+        if (this.indexBufferHandle != 0) {
+            // Indexed draw (either explicit index buffer or auto-indexed for QUADS/TRIANGLE_FAN/etc.)
             if (this.indexCount == 0) {
-                LOGGER.warn("[VBO_DRAW] EARLY RETURN: indexCount is 0 (explicit index buffer)!");
+                LOGGER.warn("[VBO_DRAW] EARLY RETURN: indexCount is 0 (index buffer present but no indices)!");
                 return;
             }
-            LOGGER.info("[VBO_DRAW] Calling native drawWithVertexFormat (indexed): vb=0x{}, ib=0x{}, indexCount={}",
-                Long.toHexString(this.vertexBufferHandle), Long.toHexString(this.indexBufferHandle), this.indexCount);
+
+            // CRITICAL FIX: Auto-indexed buffers (QUADS, TRIANGLE_FAN, etc.) ARE real DirectX index buffers!
+            // They were created by AutoIndexBuffer.getQuadsBuffer() and stored in indexBufferHandle at line 159.
+            // We must use indexed draw for them, not non-indexed draw.
+            LOGGER.debug("[VBO_DRAW] Indexed draw: vb=0x{}, ib=0x{}, indexCount={}, autoIndexed={}",
+                Long.toHexString(this.vertexBufferHandle), Long.toHexString(this.indexBufferHandle),
+                this.indexCount, this.autoIndexed);
+
             VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, this.indexBufferHandle,
                 0, 0, this.indexCount, 1, vertexFormatDesc);
         } else {
-            // Non-indexed draw or auto-indexed (no actual index buffer in DirectX)
+            // Non-indexed draw (TRIANGLES, DEBUG_LINES modes that don't need index buffers)
             if (this.vertexCount == 0) {
                 LOGGER.warn("[VBO_DRAW] EARLY RETURN: vertexCount is 0!");
                 return;
             }
-            LOGGER.info("[VBO_DRAW] Calling native drawWithVertexFormat (non-indexed): vb=0x{}, vertexCount={}, autoIndexed={}",
-                Long.toHexString(this.vertexBufferHandle), this.vertexCount, this.autoIndexed);
+
+            LOGGER.debug("[VBO_DRAW] Non-indexed draw: vb=0x{}, vertexCount={}",
+                Long.toHexString(this.vertexBufferHandle), this.vertexCount);
+
             VitraD3D11Renderer.drawWithVertexFormat(this.vertexBufferHandle, 0,
                 0, 0, this.vertexCount, 1, vertexFormatDesc);
         }
-
-        LOGGER.info("[VBO_DRAW] SUCCESS: Drew vertices={}, indices={}, mode={}, autoIndexed={}",
-            this.vertexCount, this.indexCount, this.mode, this.autoIndexed);
     }
 
     /**
@@ -506,11 +510,8 @@ public class VBO {
         // Determine required shader name based on vertex format
         String requiredShaderName = getShaderNameForFormat();
         if (requiredShaderName == null) {
-            LOGGER.warn("[PIPELINE_AUTO_BIND] Could not determine shader name for format");
             return; // Unknown format, continue with current pipeline
         }
-
-        LOGGER.info("[PIPELINE_AUTO_BIND] Format requires shader: '{}'", requiredShaderName);
 
         // Get the required pipeline from registry
         com.vitra.render.d3d11.D3D11Pipeline requiredPipeline =
@@ -523,7 +524,6 @@ public class VBO {
 
         // Bind the pipeline if different from current
         requiredPipeline.bind();
-        LOGGER.info("[PIPELINE_AUTO_BIND] Successfully bound pipeline '{}'", requiredShaderName);
     }
 
     /**

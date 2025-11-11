@@ -58,27 +58,27 @@ public abstract class AlignedStruct {
     // ==================== BUILDER PATTERN ====================
 
     /**
-     * Builder for creating std140-aligned constant buffer layouts
+     * Builder for creating std140-aligned constant buffer layouts (VulkanMod pattern)
      */
     public static class Builder {
         protected List<Uniform.Info> uniforms = new ArrayList<>();
-        protected int currentOffset = 0;  // Current offset in bytes
+        protected int currentOffset = 0;  // Current offset in FLOATS (VulkanMod pattern)
 
         /**
-         * Add uniform field to constant buffer
+         * Add uniform field to constant buffer (VulkanMod pattern - float units)
          *
          * Automatically computes std140 alignment offset.
          *
-         * @param uniformInfo Uniform descriptor (type, name, size, alignment)
+         * @param uniformInfo Uniform descriptor (type, name, size, alignment in FLOATS)
          */
         public void addUniformInfo(Uniform.Info uniformInfo) {
-            // Compute std140-aligned offset for this uniform
+            // CRITICAL: VulkanMod pattern - compute std140-aligned offset in FLOAT units
             this.currentOffset = uniformInfo.computeAlignmentOffset(this.currentOffset);
 
             // Add to uniform list
             this.uniforms.add(uniformInfo);
 
-            // Advance offset by uniform size
+            // Advance offset by uniform size (in floats)
             this.currentOffset += uniformInfo.size;
         }
 
@@ -106,7 +106,9 @@ public abstract class AlignedStruct {
         }
 
         /**
-         * Get current total size in bytes
+         * Get current total size in FLOATS (VulkanMod pattern)
+         *
+         * To convert to bytes: getCurrentSize() * 4
          */
         public int getCurrentSize() {
             return currentOffset;

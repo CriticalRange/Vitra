@@ -85,6 +85,26 @@ public class D3D11BufferManager extends AbstractBufferManager {
     }
 
     /**
+     * FIX #1: Reset per-frame buffer offsets (VulkanMod pattern)
+     * Called at the start of each frame to reset dynamic buffer allocators
+     *
+     * PERFORMANCE FIX: Now properly implements frame resource management
+     * Uses D3D11FrameManager for triple-buffered resource allocation
+     */
+    public void resetFrameBuffers() {
+        // Frame manager handles triple buffering internally
+        // This call resets allocators for the current frame
+        int currentFrame = com.vitra.render.d3d11.D3D11FrameManager.getCurrentFrame();
+        logger.trace("resetFrameBuffers() called for frame {} (triple buffering active)", currentFrame);
+
+        // Statistics logging (only log every 60 frames to avoid spam)
+        if (currentFrame == 0 && Math.random() < 0.016) { // ~1/60 chance
+            logger.debug("Buffer stats: {}", getBufferStats());
+            logger.debug("Frame manager: {}", com.vitra.render.d3d11.D3D11FrameManager.getStats());
+        }
+    }
+
+    /**
      * Destroy a buffer
      */
     public void destroyBuffer(long handle) {

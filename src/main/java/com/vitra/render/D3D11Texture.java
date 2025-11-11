@@ -103,7 +103,12 @@ public class D3D11Texture implements IVitraTexture {
         if (boundTexture.nativeHandle != 0) {
             // Use single-parameter version that respects currentTextureUnit
             VitraD3D11Renderer.bindTexture(id);
-            LOGGER.info("[TEXTURE_BIND] Bound texture ID={} (handle={})", id, boundTexture.nativeHandle);
+
+            // FIX: CRITICAL - Register with D3D11TextureSelector (VulkanMod VkGlTexture pattern)
+            // This is where VulkanMod calls VTextureSelector.bindTexture(activeTexture, vulkanImage)
+            com.vitra.render.texture.D3D11TextureSelector.bindTextureToUnit(activeTextureUnit, id);
+
+            LOGGER.info("[TEXTURE_BIND] Bound texture ID={} (handle={}) to unit {}", id, boundTexture.nativeHandle, activeTextureUnit);
         } else {
             // Texture exists in Java map but not created yet on native side
             // Will be bound in texImage2D after creation
@@ -139,6 +144,22 @@ public class D3D11Texture implements IVitraTexture {
      */
     public static D3D11Texture getTexture(int id) {
         return textureMap.get(id);
+    }
+
+    /**
+     * Get or create a texture by ID (VulkanMod pattern for AbstractTextureMixin)
+     * Creates a placeholder D3D11Texture if it doesn't exist yet.
+     * The actual native texture will be created on first texImage2D call.
+     */
+    public static D3D11Texture getOrCreateTexture(int id) {
+        D3D11Texture texture = textureMap.get(id);
+        if (texture == null) {
+            // Create placeholder (matches VulkanMod VkGlTexture.getOrCreateTexture pattern)
+            texture = new D3D11Texture(id);
+            textureMap.put(id, texture);
+            LOGGER.debug("[TEXTURE_AUTOCREATE] Created placeholder for texture ID={} via AbstractTextureMixin", id);
+        }
+        return texture;
     }
 
     /**
@@ -248,6 +269,28 @@ public class D3D11Texture implements IVitraTexture {
         }
     }
 
+    /**
+     * Update texture sampler based on Minecraft's blur/clamp/mipmap parameters
+     * Following VulkanMod's pattern: updateTextureSampler(blur, clamp, mipmap)
+     */
+    public static void updateTextureSampler(boolean blur, boolean clamp, boolean mipmap) {
+        if (boundTexture == null || boundTexture.nativeHandle == 0) {
+            return;
+        }
+
+        // Set filter mode based on blur parameter
+        int filter = blur ? GL11.GL_LINEAR : GL11.GL_NEAREST;
+        VitraD3D11Renderer.setTextureParameter(boundTexture.nativeHandle, GL11.GL_TEXTURE_MIN_FILTER, filter);
+        VitraD3D11Renderer.setTextureParameter(boundTexture.nativeHandle, GL11.GL_TEXTURE_MAG_FILTER, filter);
+
+        // Set wrap mode based on clamp parameter
+        int wrapMode = clamp ? 0x812F : 0x2901; // GL_CLAMP_TO_EDGE : GL_REPEAT
+        VitraD3D11Renderer.setTextureParameter(boundTexture.nativeHandle, GL11.GL_TEXTURE_WRAP_S, wrapMode);
+        VitraD3D11Renderer.setTextureParameter(boundTexture.nativeHandle, GL11.GL_TEXTURE_WRAP_T, wrapMode);
+
+        // TODO: Handle mipmap parameter if needed
+    }
+
     private D3D11Texture(int id) {
         this.id = id;
         this.nativeHandle = 0;
@@ -274,7 +317,10 @@ public class D3D11Texture implements IVitraTexture {
 
         if (success) {
             this.nativeHandle = id;
-            // Logging disabled for performance
+
+            // FIX: Register with D3D11TextureSelector for texture binding system
+            com.vitra.render.texture.D3D11TextureSelector.registerTexture(id, id);
+            LOGGER.debug("Registered texture with D3D11TextureSelector: ID={}", id);
         } else {
             LOGGER.error("Failed to create D3D11 texture: ID={}", id);
         }
@@ -295,6 +341,10 @@ public class D3D11Texture implements IVitraTexture {
      */
     public void release() {
         if (this.nativeHandle != 0) {
+            // FIX: Unregister from D3D11TextureSelector before releasing
+            com.vitra.render.texture.D3D11TextureSelector.unregisterTexture(this.id);
+            LOGGER.debug("Unregistered texture from D3D11TextureSelector: ID={}", this.id);
+
             VitraD3D11Renderer.releaseTexture(this.nativeHandle);
             // Logging disabled for performance
             this.nativeHandle = 0;
@@ -363,7 +413,11 @@ public class D3D11Texture implements IVitraTexture {
         // This ensures newly created textures are bound immediately after creation
         if (texture.nativeHandle != 0) {
             VitraD3D11Renderer.bindTexture(texture.id);
-            LOGGER.info("[TEXTURE_BIND_AFTER_CREATE] Bound texture ID={} after creation", texture.id);
+
+            // FIX: CRITICAL - Register with D3D11TextureSelector (VulkanMod VkGlTexture pattern)
+            com.vitra.render.texture.D3D11TextureSelector.bindTextureToUnit(activeTextureUnit, texture.id);
+
+            LOGGER.info("[TEXTURE_BIND_AFTER_CREATE] Bound texture ID={} to unit {} after creation", texture.id, activeTextureUnit);
         }
 
         // Upload texture data
@@ -434,6 +488,10 @@ public class D3D11Texture implements IVitraTexture {
             if (success) {
                 // Store the ID as the handle (DirectX manages the actual texture)
                 this.nativeHandle = id;
+
+                // FIX: Register with D3D11TextureSelector for texture binding system
+                com.vitra.render.texture.D3D11TextureSelector.registerTexture(id, id);
+                LOGGER.debug("Registered texture with D3D11TextureSelector: ID={}", id);
             } else {
                 LOGGER.error("Failed to allocate D3D11 texture: ID={}, size={}x{}, format={}", id, width, height, format);
             }

@@ -2,9 +2,10 @@
 // Common constant buffer definitions for Minecraft 1.21.1 GLSL to HLSL conversion
 // This file should be included by all HLSL shaders
 
-// CRITICAL FIX: Keep column-major to match JOML/Minecraft matrices
-// We will NOT transpose in C++ - just copy matrices as-is
-#pragma pack_matrix(column_major)
+// CRITICAL: Use column_major (HLSL default without pragma)
+// JOML stores matrices in column-major format in memory
+// HLSL's default column_major matches JOML's output from matrix.get(byteBuffer)
+// #pragma pack_matrix(column_major)  // This is the default, no pragma needed
 
 // ============================================================================
 // Buffer 0: DynamicTransforms (register b0)

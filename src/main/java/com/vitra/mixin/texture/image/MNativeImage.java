@@ -119,8 +119,9 @@ public abstract class MNativeImage {
         D3D11Texture.pixelStorei(0x0CF4, 0);  // GL_UNPACK_SKIP_PIXELS = 0
         D3D11Texture.pixelStorei(0x0CF2, 0);  // GL_UNPACK_ROW_LENGTH = 0
 
-        // Handle texture parameters (blur/clamp/mipmap) if needed
-        // TODO: Implement updateTextureSampler in D3D11Texture
+        // CRITICAL: Update texture sampler with blur/clamp/mipmap parameters (VulkanMod pattern)
+        // This sets CLAMP vs REPEAT wrapping, which fixes red triangle/hole artifacts
+        D3D11Texture.updateTextureSampler(blur, clamp, mipmap);
 
         if (autoClose) {
             this.close();

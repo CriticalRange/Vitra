@@ -34,10 +34,17 @@ public class VitraRenderer extends AbstractRenderer {
 
     // Constant buffer system (VulkanMod-style uniform management)
     private D3D11ConstantBuffer vertexConstantBuffer;     // b0 - vertex shader uniforms
-    private D3D11ConstantBuffer fragmentConstantBuffer;   // b1 - fragment shader uniforms
+    private D3D11ConstantBuffer fragmentConstantBuffer;   // b1 - fragment shader uniforms (Projection)
+    private D3D11ConstantBuffer fogConstantBuffer;        // b2 - fog parameters
+    private D3D11ConstantBuffer globalsConstantBuffer;    // b3 - global parameters (screen size, game time)
+    private D3D11ConstantBuffer lightingConstantBuffer;   // b4 - lighting direction vectors
     private UBO vertexUBO;                                // Vertex UBO descriptor
     private UBO fragmentUBO;                              // Fragment UBO descriptor
+    private UBO fogUBO;                                   // Fog UBO descriptor
+    private UBO globalsUBO;                               // Globals UBO descriptor
+    private UBO lightingUBO;                              // Lighting UBO descriptor
     private boolean uniformsDirty = false;                // Dirty flag for uniform updates
+    private int cbUploadDebugCount = 0;                   // Debug counter for CB uploads
 
     public VitraRenderer() {
         super(VitraRenderer.class);
@@ -175,6 +182,11 @@ public class VitraRenderer extends AbstractRenderer {
                 if (success) {
                     logger.info("Native DirectX initialized successfully (debug={})", debugMode);
 
+                    // Initialize render state tracking (prevents redundant state changes)
+                    logger.info("Initializing render state tracker...");
+                    com.vitra.render.d3d11.D3D11RenderState.setDefaultState();
+                    logger.info("Render state tracker initialized with OpenGL-compatible defaults");
+
                     // Initialize uniform system (VulkanMod-style supplier-based architecture)
                     logger.info("Initializing uniform system...");
                     initializeUniformSystem();
@@ -240,6 +252,15 @@ public class VitraRenderer extends AbstractRenderer {
             // Cleanup VRenderSystem
             VRenderSystem.cleanup();
             logger.info("VRenderSystem cleaned up");
+
+            // Cleanup auto-index buffers
+            AutoIndexBuffer.cleanupAll();
+            logger.info("Auto-index buffers cleaned up");
+
+            // Cleanup frame manager (wait for GPU idle first)
+            com.vitra.render.d3d11.D3D11FrameManager.waitForIdle();
+            com.vitra.render.d3d11.D3D11FrameManager.cleanup();
+            logger.info("Frame manager cleaned up");
 
             // Clear shader and buffer caches
             if (shaderManager != null) {
@@ -324,17 +345,46 @@ public class VitraRenderer extends AbstractRenderer {
                 resizePending = false;
             }
 
-            // Update constant buffers EVERY frame for DirectX
-            // DirectX may unbind constant buffers during pipeline changes,
-            // so we need to rebind them every frame to be safe
-            uploadConstantBuffers();
-            uniformsDirty = false;
+            // PERFORMANCE FIX: Reset state tracking for new frame
+            // This marks all state dirty so next apply() will push to D3D11
+            com.vitra.render.d3d11.D3D11RenderState.resetState();
+            logger.trace("[BEGIN_FRAME] Reset state tracker (all state marked dirty)");
+
+            // PERFORMANCE FIX: Advance to next frame for triple buffering
+            // VulkanMod pattern: prevents GPU/CPU race conditions
+            com.vitra.render.d3d11.D3D11FrameManager.beginFrame();
+            logger.trace("[BEGIN_FRAME] Advanced to frame {} (triple buffering)",
+                com.vitra.render.d3d11.D3D11FrameManager.getCurrentFrame());
+
+            // CRITICAL FIX: VulkanMod uploads uniforms BOTH at frame start AND during pipeline binding
+            // Analysis from VulkanMod shows:
+            // 1. beginFrame() → resetDescriptors() clears descriptor pool
+            // 2. shader.apply() → uploadAndBindUBOs() uploads uniforms to current offset
+            // 3. bindPipeline() → uploadAndBindUBOs() uploads AGAIN after PSSetShader
+            //
+            // We were WRONG to remove this - constant buffers MUST be uploaded every frame
+            // because D3D11 command buffers are asynchronous and previous frame's data may be stale
+            try {
+                // CRITICAL: Upload constant buffers at frame start (VulkanMod pattern)
+                // This ensures uniforms are current before any shader.apply() calls
+                uploadConstantBuffers();
+                logger.trace("[BEGIN_FRAME] Uploaded constant buffers at frame start");
+            } catch (Exception e) {
+                logger.error("[BEGIN_FRAME] Failed to upload constant buffers", e);
+            }
         }
 
         // For D3D11, activeRenderer == this, so call native directly
         if (activeRenderer == this) {
             if (isFullyInitialized()) {
+                // CRITICAL: Reset pipeline state (VulkanMod Renderer.resetDescriptors() pattern)
+                // This clears bound pipeline and forces constant buffer rebind
+                resetPipelineState();
+
                 VitraD3D11Renderer.beginFrame();
+
+                // FIX #2: Begin main render pass (VulkanMod pattern)
+                beginMainPass();
             }
         } else {
             // For D3D12, delegate to active renderer
@@ -342,9 +392,77 @@ public class VitraRenderer extends AbstractRenderer {
         }
     }
 
+    /**
+     * CRITICAL: Reset pipeline state each frame (VulkanMod Renderer.resetDescriptors() pattern)
+     *
+     * VulkanMod does this in Renderer.java:444-452:
+     * - Resets descriptor pool index for all used pipelines
+     * - Clears usedPipelines set
+     * - Clears boundPipeline/boundPipelineHandle
+     *
+     * D3D11 equivalent:
+     * - Clear bound pipeline tracking
+     * - Force constant buffer rebind on next shader.apply()
+     * - Reset dynamic state (depth bias, line width, etc.)
+     */
+    private void resetPipelineState() {
+        // Clear last bound program ID to force rebind
+        lastBoundProgramId = -1;
+
+        // Reset dynamic state (VulkanMod Renderer.resetDynamicState())
+        if (isFullyInitialized()) {
+            VitraD3D11Renderer.resetDynamicState();
+        }
+
+        logger.trace("[FRAME_RESET] Pipeline state reset for new frame");
+    }
+
+    private int lastBoundProgramId = -1;  // Track last bound pipeline for reset
+
+    /**
+     * FIX #2: Begin main render pass (VulkanMod pattern)
+     * Called at the start of each frame to set up rendering to main framebuffer
+     *
+     * VulkanMod does this in:
+     * - Renderer.beginFrame() → beginRenderPass() → mainPass.begin()
+     */
+    public void beginMainPass() {
+        if (inRenderPass) {
+            // Already in a render pass, end it first
+            logger.debug("Ending previous render pass before starting main pass");
+            endRenderPass();
+        }
+
+        // Mark that we're now in the main render pass
+        inRenderPass = true;
+        currentFramebuffer = 0;
+
+        logger.trace("Began main render pass");
+    }
+
+    /**
+     * FIX #2: End current render pass (VulkanMod pattern)
+     * Called when switching render targets or at frame end
+     */
+    public void endRenderPass() {
+        if (!inRenderPass) {
+            logger.trace("endRenderPass() called but not in render pass");
+            return;
+        }
+
+        // Mark render pass as ended
+        inRenderPass = false;
+        logger.trace("Ended render pass for framebuffer: {}", currentFramebuffer);
+    }
+
     @Override
     public void endFrame() {
         if (activeRenderer == null || !activeRenderer.isInitialized()) return;
+
+        // FIX #2: End render pass before submitting frame (VulkanMod pattern)
+        if (inRenderPass) {
+            endRenderPass();
+        }
 
         // For D3D11, activeRenderer == this, so call native directly
         if (activeRenderer == this) {
@@ -607,6 +725,62 @@ public class VitraRenderer extends AbstractRenderer {
     }
 
     private boolean resizePending = false;
+    private boolean inPreInitFrame = false;  // Prevent recursive calls
+
+    // FIX #2: Render pass lifecycle tracking (VulkanMod pattern)
+    private boolean inRenderPass = false;
+    private long currentFramebuffer = 0;  // Track active framebuffer (0 = main framebuffer)
+
+    /**
+     * FIX #1: Pre-frame initialization (VulkanMod pattern)
+     * Called BEFORE beginFrame() to prepare resources and prevent race conditions
+     *
+     * VulkanMod does this in Renderer.preInitFrame():
+     * - Waits for fences if recursive call detected
+     * - Resets per-frame buffers
+     * - Uploads terrain sections
+     * - Submits pending uploads
+     */
+    public void preInitFrame() {
+        if (!isFullyInitialized()) return;
+
+        // Prevent recursive calls (VulkanMod pattern)
+        if (inPreInitFrame) {
+            logger.warn("Recursive preInitFrame() call detected - waiting for GPU idle");
+            VitraD3D11Renderer.waitForIdle();
+            return;
+        }
+
+        inPreInitFrame = true;
+        try {
+            // 1. Wait for any pending GPU operations from previous frame
+            // This is equivalent to VulkanMod's fence wait
+            // (For D3D11, we use queries/events instead of Vulkan fences)
+
+            // 2. Reset per-frame buffer offsets
+            // VulkanMod resets vertex/index/uniform buffer allocators here
+            // For D3D11, we'll let the buffer manager handle this
+            if (bufferManager != null) {
+                bufferManager.resetFrameBuffers();
+            }
+
+            // 3. Submit pending texture/buffer uploads
+            // VulkanMod calls UploadManager.submitUploads() here
+            // For D3D11, deferred uploads happen via staging buffers
+            if (isFullyInitialized()) {
+                VitraD3D11Renderer.submitPendingUploads();
+            }
+
+            // 4. Process any pending resize operations
+            if (resizePending) {
+                logger.debug("Processing pending resize in preInitFrame");
+                // Actual resize will be handled by resize() method
+            }
+
+        } finally {
+            inPreInitFrame = false;
+        }
+    }
 
     // Helper methods for parameter conversion
     private int getPrimitiveModeFromObject(Object mode) {
@@ -942,21 +1116,33 @@ public class VitraRenderer extends AbstractRenderer {
                 Uniforms.vec3f_uniformMap.size() + Uniforms.vec1f_uniformMap.size() +
                 Uniforms.vec1i_uniformMap.size());
 
-            // Create standard Minecraft UBO descriptors
-            vertexUBO = UBO.createStandardVertexUBO();      // b0: ModelViewMat, ProjMat, TextureMat, ChunkOffset
-            fragmentUBO = UBO.createStandardFragmentUBO();  // b1: ColorModulator, FogColor, FogStart, FogEnd, FogShape
+            // Create standard Minecraft UBO descriptors (b0-b4)
+            vertexUBO = UBO.createStandardVertexUBO();      // b0: MVP, ModelViewMat, ColorModulator, ModelOffset, TextureMat, LineWidth
+            fragmentUBO = UBO.createStandardFragmentUBO();  // b1: ProjMat
+            fogUBO = UBO.createFogUBO();                    // b2: FogColor, FogStart, FogEnd, FogShape, etc.
+            globalsUBO = UBO.createGlobalsUBO();            // b3: ScreenSize, GlintAlpha, GameTime, MenuBlurRadius
+            lightingUBO = UBO.createLightingUBO();          // b4: Light0_Direction, Light1_Direction
 
             logger.info("UBO descriptors created:");
-            logger.info("  Vertex UBO: {}", vertexUBO);
-            logger.info("  Fragment UBO: {}", fragmentUBO);
+            logger.info("  b0 Vertex UBO: {}", vertexUBO);
+            logger.info("  b1 Fragment UBO: {}", fragmentUBO);
+            logger.info("  b2 Fog UBO: {}", fogUBO);
+            logger.info("  b3 Globals UBO: {}", globalsUBO);
+            logger.info("  b4 Lighting UBO: {}", lightingUBO);
 
             // Create GPU constant buffers
             vertexConstantBuffer = new D3D11ConstantBuffer(vertexUBO);
             fragmentConstantBuffer = new D3D11ConstantBuffer(fragmentUBO);
+            fogConstantBuffer = new D3D11ConstantBuffer(fogUBO);
+            globalsConstantBuffer = new D3D11ConstantBuffer(globalsUBO);
+            lightingConstantBuffer = new D3D11ConstantBuffer(lightingUBO);
 
             logger.info("GPU constant buffers allocated:");
             logger.info("  {}", vertexConstantBuffer);
             logger.info("  {}", fragmentConstantBuffer);
+            logger.info("  {}", fogConstantBuffer);
+            logger.info("  {}", globalsConstantBuffer);
+            logger.info("  {}", lightingConstantBuffer);
 
             // Initial uniform upload (ensures constant buffers are initialized)
             uploadConstantBuffers();
@@ -983,25 +1169,50 @@ public class VitraRenderer extends AbstractRenderer {
      * 6. D3D11ConstantBuffer.bind() binds constant buffers to shader stages
      */
     private void uploadConstantBuffers() {
-        if (vertexConstantBuffer == null || fragmentConstantBuffer == null) {
+        if (vertexConstantBuffer == null || fragmentConstantBuffer == null ||
+            fogConstantBuffer == null || globalsConstantBuffer == null || lightingConstantBuffer == null) {
             logger.warn("Constant buffers not initialized, skipping upload");
             return;
         }
 
         try {
+            // DEBUG: Log first 5 calls to verify this method is being called per-frame
+            if (cbUploadDebugCount < 5) {
+                logger.info("[CB_UPLOAD_FRAME {}] uploadConstantBuffers() called - uploading all 5 constant buffers (b0-b4)", cbUploadDebugCount);
+                cbUploadDebugCount++;
+            }
+
             // Sync VRenderSystem from Minecraft's RenderSystem
             // This copies current uniform values from RenderSystem to VRenderSystem
             VRenderSystem.syncFromRenderSystem();
 
-            // Update and bind vertex constant buffer (b0)
-            vertexConstantBuffer.updateAndBind(vertexUBO);
-
-            // Update and bind fragment constant buffer (b1)
-            fragmentConstantBuffer.updateAndBind(fragmentUBO);
+            // Update and bind ALL constant buffers (b0-b4)
+            // CRITICAL: Upload ALL buffers to prevent garbage in pixel shader CBs
+            vertexConstantBuffer.updateAndBind(vertexUBO);        // b0: Vertex transforms
+            fragmentConstantBuffer.updateAndBind(fragmentUBO);    // b1: Projection matrix
+            fogConstantBuffer.updateAndBind(fogUBO);              // b2: Fog parameters
+            globalsConstantBuffer.updateAndBind(globalsUBO);      // b3: Screen size, game time
+            lightingConstantBuffer.updateAndBind(lightingUBO);    // b4: Light directions
 
         } catch (Exception e) {
             logger.error("Failed to upload constant buffers", e);
         }
+    }
+
+    /**
+     * Public wrapper for uploadConstantBuffers() - called from ShaderInstanceMixin.apply()
+     *
+     * VulkanMod Pattern: This is called TWICE per shader application:
+     * 1. BEFORE bindPipeline() - first UBO upload
+     * 2. INSIDE bindPipeline() - second UBO upload (after PSSetShader which may unbind CBs)
+     */
+    public void uploadConstantBuffersPublic() {
+        // DEBUG: Log first 10 calls to verify double upload pattern
+        if (cbUploadDebugCount < 10) {
+            logger.info("[CB_UPLOAD_PUBLIC {}] uploadConstantBuffersPublic() called from ShaderInstanceMixin",
+                cbUploadDebugCount);
+        }
+        uploadConstantBuffers();
     }
 
     /**
@@ -1020,17 +1231,6 @@ public class VitraRenderer extends AbstractRenderer {
      */
     public boolean areUniformsDirty() {
         return this.uniformsDirty;
-    }
-
-    /**
-     * Force immediate constant buffer update
-     *
-     * Normally uniforms are updated lazily at beginFrame().
-     * This method forces an immediate update (useful for debugging).
-     */
-    public void forceUniformUpdate() {
-        uploadConstantBuffers();
-        uniformsDirty = false;
     }
 
     /**

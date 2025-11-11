@@ -12,8 +12,8 @@ public abstract class Matrix4fMixin {
     @Shadow public abstract Matrix4f ortho(float left, float right, float bottom, float top, float zNear, float zFar, boolean zZeroToOne);
 
     /**
-     * @author
-     * @reason
+     * @author Vitra
+     * @reason Use Vulkan/D3D11 depth range [0, 1] (same as VulkanMod)
      */
     @Overwrite(remap = false)
     public Matrix4f setOrtho(float left, float right, float bottom, float top, float zNear, float zFar) {
@@ -21,8 +21,8 @@ public abstract class Matrix4fMixin {
     }
 
     /**
-     * @author
-     * @reason
+     * @author Vitra
+     * @reason Use Vulkan/D3D11 depth range [0, 1] (same as VulkanMod)
      */
     @Overwrite(remap = false)
     public Matrix4f ortho(float left, float right, float bottom, float top, float zNear, float zFar) {
@@ -30,8 +30,8 @@ public abstract class Matrix4fMixin {
     }
 
     /**
-     * @author
-     * @reason
+     * @author Vitra
+     * @reason Use Vulkan/D3D11 depth range [0, 1] (same as VulkanMod)
      */
     @Overwrite(remap = false)
     public Matrix4f perspective(float fovy, float aspect, float zNear, float zFar) {
@@ -39,8 +39,8 @@ public abstract class Matrix4fMixin {
     }
 
     /**
-     * @author
-     * @reason
+     * @author Vitra
+     * @reason Use Vulkan/D3D11 depth range [0, 1] (same as VulkanMod)
      */
     @Overwrite(remap = false)
     public Matrix4f setPerspective(float fovy, float aspect, float zNear, float zFar) {

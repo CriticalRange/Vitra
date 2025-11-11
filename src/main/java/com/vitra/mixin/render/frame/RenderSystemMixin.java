@@ -168,17 +168,15 @@ public abstract class RenderSystemMixin {
         shaderLightDirections[0] = dir0;
         shaderLightDirections[1] = dir1;
 
-        try {
-            VitraRenderer renderer = getRenderer();
-            if (renderer != null) {
-                renderer.setShaderLightDirection(0, dir0.x(), dir0.y(), dir0.z());
-                renderer.setShaderLightDirection(1, dir1.x(), dir1.y(), dir1.z());
-            }
-            // For D3D12 or not initialized: skip (D3D12 handles its own shader state)
-        } catch (Exception e) {
-            // Silent error following VulkanMod pattern
-            LOGGER.warn("Failed to set Vitra shader light directions");
-        }
+        // VulkanMod pattern: write directly to VRenderSystem buffers
+        // Upload happens later in shader apply()
+        VRenderSystem.lightDirection0.buffer.putFloat(0, dir0.x());
+        VRenderSystem.lightDirection0.buffer.putFloat(4, dir0.y());
+        VRenderSystem.lightDirection0.buffer.putFloat(8, dir0.z());
+
+        VRenderSystem.lightDirection1.buffer.putFloat(0, dir1.x());
+        VRenderSystem.lightDirection1.buffer.putFloat(4, dir1.y());
+        VRenderSystem.lightDirection1.buffer.putFloat(8, dir1.z());
     }
 
     /**
@@ -192,16 +190,9 @@ public abstract class RenderSystemMixin {
         shaderColor[2] = b;
         shaderColor[3] = a;
 
-        try {
-            VitraRenderer renderer = getRenderer();
-            if (renderer != null) {
-                renderer.setShaderColor(r, g, b, a);
-            }
-            // For D3D12 or not initialized: skip (D3D12 handles its own shader state)
-        } catch (Exception e) {
-            // Silent error following VulkanMod pattern
-            LOGGER.warn("Failed to set DirectX shader color");
-        }
+        // VulkanMod pattern: write directly to VRenderSystem
+        // Upload happens later in shader apply()
+        VRenderSystem.setShaderColor(r, g, b, a);
     }
 
     /**
@@ -210,16 +201,11 @@ public abstract class RenderSystemMixin {
      */
     @Redirect(method = "flipFrame", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSwapBuffers(J)V"), remap = false)
     private static void endFrame(long window) {
-        // DEBUG: Log that redirect is being called
-        LOGGER.info("[VITRA_PRESENT] endFrame() redirect called! window={}", window);
-
         // Call DirectX Present() via VitraCore renderer
         try {
             com.vitra.core.VitraCore core = com.vitra.VitraMod.getCore();
             if (core != null && core.getRenderer() != null) {
-                LOGGER.info("[VITRA_PRESENT] Calling renderer.endFrame()");
                 core.getRenderer().endFrame();
-                LOGGER.info("[VITRA_PRESENT] renderer.endFrame() returned");
             } else {
                 LOGGER.warn("[VITRA_PRESENT] Core or renderer is null!");
             }
@@ -239,16 +225,9 @@ public abstract class RenderSystemMixin {
         shaderFogColor[2] = h;
         shaderFogColor[3] = i;
 
-        try {
-            VitraRenderer renderer = getRenderer();
-            if (renderer != null) {
-                renderer.setShaderFogColor(f, g, h, i);
-            }
-            // For D3D12 or not initialized: skip (D3D12 handles its own shader state)
-        } catch (Exception e) {
-            // Silent error following VulkanMod pattern
-            LOGGER.warn("Failed to set DirectX shader fog color");
-        }
+        // VulkanMod pattern: write directly to VRenderSystem
+        // Upload happens later in shader apply()
+        VRenderSystem.setShaderFogColor(f, g, h, i);
     }
 
     /**
@@ -261,36 +240,19 @@ public abstract class RenderSystemMixin {
         if (!isOnRenderThread()) {
             recordRenderCall(() -> {
                 RenderSystemMixin.projectionMatrix = matrix4f;
-                // Note: vertexSorting is handled internally by RenderSystem in 1.21.1
+                RenderSystemMixin.vertexSorting = vertexSorting;
 
-                try {
-                    // CRITICAL: VulkanMod pattern - store matrices in VRenderSystem AND send to native
-                    // This ensures MVP calculation and uniform suppliers have correct data
-                    VRenderSystem.applyProjectionMatrix(matrix4f);
-
-                    // CRITICAL FIX: Send ALL three matrices (MVP, ModelView, Projection) to native
-                    // This uploads the COMPUTED MVP from VRenderSystem, not just projection!
-                    uploadTransformMatricesToNative();
-                } catch (Exception e) {
-                    // Silent error following VulkanMod pattern
-                    LOGGER.warn("Failed to set DirectX projection matrix");
-                }
+                // VulkanMod pattern: store in VRenderSystem and recalculate MVP
+                VRenderSystem.applyProjectionMatrix(matrix4f);
+                VRenderSystem.calculateMVP();  // CRITICAL: Recalculate MVP after projection change
             });
         } else {
             RenderSystemMixin.projectionMatrix = matrix4f;
-            // Note: vertexSorting is handled internally by RenderSystem in 1.21.1
+            RenderSystemMixin.vertexSorting = vertexSorting;
 
-            try {
-                // CRITICAL: VulkanMod pattern - store matrices in VRenderSystem AND send to native
-                VRenderSystem.applyProjectionMatrix(matrix4f);
-
-                // CRITICAL FIX: Send ALL three matrices (MVP, ModelView, Projection) to native
-                // This uploads the COMPUTED MVP from VRenderSystem, not just projection!
-                uploadTransformMatricesToNative();
-            } catch (Exception e) {
-                // Silent error following VulkanMod pattern
-                LOGGER.warn("Failed to set DirectX projection matrix");
-            }
+            // VulkanMod pattern: store in VRenderSystem and recalculate MVP
+            VRenderSystem.applyProjectionMatrix(matrix4f);
+            VRenderSystem.calculateMVP();  // CRITICAL: Recalculate MVP after projection change
         }
     }
 
@@ -395,32 +357,15 @@ public abstract class RenderSystemMixin {
         if (!isOnRenderThread()) {
             recordRenderCall(() -> {
                 modelViewMatrix = matrix4f;
-                try {
-                    // CRITICAL: VulkanMod pattern - store matrices in VRenderSystem AND send to native
-                    VRenderSystem.applyModelViewMatrix(matrix4f);
-
-                    // CRITICAL FIX: Send ALL three matrices (MVP, ModelView, Projection) to native
-                    // This uploads the COMPUTED MVP from VRenderSystem, not just model-view!
-                    uploadTransformMatricesToNative();
-                } catch (Exception e) {
-                    // Silent error following VulkanMod pattern
-                    LOGGER.warn("Failed to apply DirectX model view matrix");
-                }
+                // VulkanMod pattern: store in VRenderSystem and recalculate MVP
+                VRenderSystem.applyModelViewMatrix(matrix4f);
+                VRenderSystem.calculateMVP();  // CRITICAL: Recalculate MVP after modelview change
             });
         } else {
             modelViewMatrix = matrix4f;
-
-            try {
-                // CRITICAL: VulkanMod pattern - store matrices in VRenderSystem AND send to native
-                VRenderSystem.applyModelViewMatrix(matrix4f);
-
-                // CRITICAL FIX: Send ALL three matrices (MVP, ModelView, Projection) to native
-                // This uploads the COMPUTED MVP from VRenderSystem, not just model-view!
-                uploadTransformMatricesToNative();
-            } catch (Exception e) {
-                // Silent error following VulkanMod pattern
-                LOGGER.warn("Failed to apply DirectX model view matrix");
-            }
+            // VulkanMod pattern: store in VRenderSystem and recalculate MVP
+            VRenderSystem.applyModelViewMatrix(matrix4f);
+            VRenderSystem.calculateMVP();  // CRITICAL: Recalculate MVP after modelview change
         }
     }
 
@@ -459,20 +404,8 @@ public abstract class RenderSystemMixin {
         projectionMatrix = savedProjectionMatrix;
         vertexSorting = savedVertexSorting;
 
-        try {
-            VitraRenderer renderer = getRenderer();
-            if (renderer != null) {
-                renderer.setProjectionMatrix(new float[]{
-                    projectionMatrix.m00(), projectionMatrix.m01(), projectionMatrix.m02(), projectionMatrix.m03(),
-                    projectionMatrix.m10(), projectionMatrix.m11(), projectionMatrix.m12(), projectionMatrix.m13(),
-                    projectionMatrix.m20(), projectionMatrix.m21(), projectionMatrix.m22(), projectionMatrix.m23(),
-                    projectionMatrix.m30(), projectionMatrix.m31(), projectionMatrix.m32(), projectionMatrix.m33()
-                });
-            }
-            // For D3D12 or not initialized: skip
-        } catch (Exception e) {
-            // Silent error following VulkanMod pattern
-            LOGGER.warn("Failed to restore DirectX projection matrix");
-        }
+        // VulkanMod pattern: restore projection and recalculate MVP
+        VRenderSystem.applyProjectionMatrix(projectionMatrix);
+        VRenderSystem.calculateMVP();  // CRITICAL: Recalculate MVP after restore
     }
 }

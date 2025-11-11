@@ -6,7 +6,6 @@
 // D3DCompile with D3D_COMPILE_STANDARD_FILE_INCLUDE can't resolve includes from JAR resources
 // Only including the cbuffers actually used by shaders
 
-#pragma pack_matrix(column_major)
 
 cbuffer DynamicTransforms : register(b0) {
     float4x4 MVP;             // Pre-multiplied MVP matrix
@@ -144,7 +143,7 @@ VS_OUTPUT main(VS_INPUT input) {
 
     // Apply model offset and transform position
     float3 pos = input.Position + ModelOffset;
- output.Position = mul(float4(pos, 1.0), MVP);
+ output.Position = mul(MVP, float4(pos, 1.0));
 
     // Apply texture matrix transformation to UV coordinates
     output.texCoord0 = mul(float4(input.UV0, 0.0, 1.0), TextureMat).xy;

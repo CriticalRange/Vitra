@@ -6,7 +6,6 @@
 // D3DCompile with D3D_COMPILE_STANDARD_FILE_INCLUDE can't resolve includes from JAR resources
 // Only including the cbuffers actually used by shaders
 
-#pragma pack_matrix(column_major)
 
 cbuffer DynamicTransforms : register(b0) {
     float4x4 MVP;             // Pre-multiplied MVP matrix
@@ -157,8 +156,8 @@ VS_OUTPUT main(VS_INPUT input) {
 
     // Transform line start and end positions to clip space
     // Note: VIEW_SCALE is applied between model-view and projection
-    float4 linePosStart = mul(mul(float4(input.Position, 1.0), MVP), VIEW_SCALE);
-    float4 linePosEnd = mul(mul(float4(input.Position + input.Normal, 1.0), MVP), VIEW_SCALE);
+    float4 linePosStart = mul(mul(MVP, float4(input.Position, 1.0)), VIEW_SCALE);
+    float4 linePosEnd = mul(mul(MVP, float4(input.Position + input.Normal, 1.0)), VIEW_SCALE);
 
     // Convert to normalized device coordinates
     float3 ndc1 = linePosStart.xyz / linePosStart.w;

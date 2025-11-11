@@ -6,7 +6,6 @@
 // D3DCompile with D3D_COMPILE_STANDARD_FILE_INCLUDE can't resolve includes from JAR resources
 // Only including the cbuffers actually used by shaders
 
-#pragma pack_matrix(column_major)
 
 cbuffer DynamicTransforms : register(b0) {
     float4x4 MVP;             // Pre-multiplied MVP matrix

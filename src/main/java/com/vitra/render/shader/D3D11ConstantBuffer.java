@@ -76,6 +76,8 @@ public class D3D11ConstantBuffer {
      *
      * @param ubo UBO descriptor with suppliers
      */
+    private static int debugUpdateCount = 0;
+
     public void update(UBO ubo) {
         if (ubo == null) {
             throw new IllegalArgumentException("UBO descriptor cannot be null");
@@ -86,6 +88,12 @@ public class D3D11ConstantBuffer {
         }
 
         try {
+            // DEBUG: Log first 5 updates with first 64 bytes (4x4 matrix)
+            if (debugUpdateCount < 5) {
+                System.out.println("[D3D11_CB_UPDATE " + debugUpdateCount + "] Updating constant buffer binding=" + binding + ", size=" + size);
+                debugUpdateCount++;
+            }
+
             // Clear staging buffer
             MemoryUtil.memSet(MemoryUtil.memAddress(stagingBuffer), 0, size);
 
@@ -99,6 +107,19 @@ public class D3D11ConstantBuffer {
             byte[] data = new byte[size];
             stagingBuffer.position(0);
             stagingBuffer.get(data);
+
+            // CRITICAL DEBUG: Log ENTIRE buffer (all 256 bytes) for first 3 uploads to catch garbage
+            if (debugUpdateCount <= 3 && size == 256 && binding == 0) {
+                java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+                System.out.println("[CB_JAVA_FULL " + debugUpdateCount + "] binding=" + binding + ", size=" + size);
+                System.out.println("  [0-15]   MVP:         " + formatFloats(bb, 0, 16));
+                System.out.println("  [16-31]  ModelView:   " + formatFloats(bb, 16, 16));
+                System.out.println("  [32-35]  ColorMod:    " + formatFloats(bb, 32, 4));
+                System.out.println("  [36-38]  ModelOffset: " + formatFloats(bb, 36, 3) + " (pad: " + bb.getFloat(39*4) + ")");
+                System.out.println("  [40-55]  TextureMat:  " + formatFloats(bb, 40, 16));
+                System.out.println("  [56]     LineWidth:   " + bb.getFloat(56*4));
+                System.out.println("  [57-59]  Padding:     " + formatFloats(bb, 57, 3));
+            }
 
             // Upload to GPU - the method returns void, throws exception on failure
             VitraD3D11Renderer.updateConstantBuffer(nativeHandle, data);
@@ -162,6 +183,18 @@ public class D3D11ConstantBuffer {
      */
     public long getNativeHandle() {
         return nativeHandle;
+    }
+
+    /**
+     * Format floats for debug logging
+     */
+    private static String formatFloats(java.nio.ByteBuffer bb, int startIndex, int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            if (i > 0 && i % 4 == 0) sb.append("| ");
+            sb.append(String.format("%.3f ", bb.getFloat((startIndex + i) * 4)));
+        }
+        return sb.toString();
     }
 
     /**

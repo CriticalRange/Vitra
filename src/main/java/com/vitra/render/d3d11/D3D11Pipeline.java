@@ -51,6 +51,8 @@ public class D3D11Pipeline {
             // VulkanMod Pattern: Configure depth state and blend state based on shader name
             // UI shaders render with depth test DISABLED and blending ENABLED
             // 3D world shaders render with depth test ENABLED and blending based on material
+            //
+            // PERFORMANCE FIX: Use D3D11RenderState for tracking, then apply immediately
             boolean isUIShader = isUIShader(name);
             if (isUIShader) {
                 LOGGER.debug("[DEPTH_STATE] Configuring UI shader '{}': disabling depth test AND depth writes", name);
@@ -58,17 +60,21 @@ public class D3D11Pipeline {
                 // CRITICAL FIX: Disable BOTH depth test AND depth writes for UI
                 // VulkanMod approach: UI renders with depthTestEnable=false, depthWriteMask=false
                 // This prevents UI from being occluded by panorama depth values
-                VitraD3D11Renderer.disableDepthTest();
-                VitraD3D11Renderer.depthMask(false);  // CRITICAL: Also disable depth WRITES
+                D3D11RenderState.disableDepthTest();
+                D3D11RenderState.depthMask(false);  // CRITICAL: Also disable depth WRITES
 
                 LOGGER.debug("[BLEND_STATE] Enabling alpha blending for UI shader '{}'", name);
-                VitraD3D11Renderer.enableBlend();
+                D3D11RenderState.enableBlend();
             } else {
                 LOGGER.debug("[DEPTH_STATE] Enabling depth test for 3D shader '{}'", name);
-                VitraD3D11Renderer.enableDepthTest();
-                VitraD3D11Renderer.depthMask(true);  // Re-enable depth writes for 3D
+                D3D11RenderState.enableDepthTest();
+                D3D11RenderState.depthMask(true);  // Re-enable depth writes for 3D
                 // Blending for 3D is managed by RenderSystem state
             }
+
+            // CRITICAL: Apply state changes immediately after setting them
+            // This ensures state is active before binding shaders
+            D3D11RenderState.applyAllState();
 
             // CRITICAL: Set input layout from pipeline's vertex format BEFORE binding shaders
             // This fixes the "TEXCOORD0 linkage error" when draw() is called without vertex format
@@ -79,8 +85,39 @@ public class D3D11Pipeline {
 
             VitraD3D11Renderer.bindShaderPipeline(pipelineHandle);
             bound = true;
+
+            // FIX #3: Upload uniforms AFTER pipeline binding (VulkanMod pattern)
+            // This ensures constant buffers are populated with correct data for THIS shader
+            // VulkanMod does: renderer.uploadAndBindUBOs(pipeline) after bindGraphicsPipeline()
+            updateAndBindConstantBuffers();
         } else {
             LOGGER.error("Cannot bind pipeline '{}': invalid pipeline handle", name);
+        }
+    }
+
+    /**
+     * FIX #3: Update and bind constant buffers (VulkanMod pattern)
+     * Called after pipeline binding to upload uniforms for this specific shader
+     *
+     * VulkanMod does this in:
+     * - Pipeline.DescriptorSets.updateUniforms() → copies CPU data to GPU
+     * - Pipeline.DescriptorSets.bindSets() → binds descriptor sets
+     */
+    private void updateAndBindConstantBuffers() {
+        try {
+            // Get renderer instance
+            com.vitra.render.VitraRenderer renderer = com.vitra.render.VitraRenderer.getInstance();
+            if (renderer == null) {
+                LOGGER.warn("Renderer not initialized, skipping uniform upload");
+                return;
+            }
+
+            // Call the public wrapper for uniform upload
+            // This syncs VRenderSystem from RenderSystem and uploads to GPU
+            renderer.uploadConstantBuffersPublic();
+
+        } catch (Exception e) {
+            LOGGER.error("Failed to update constant buffers for pipeline '{}'", name, e);
         }
     }
 
@@ -151,33 +188,22 @@ public class D3D11Pipeline {
     }
 
     /**
-     * Upload constant buffer data to GPU.
-     * @param slot Constant buffer slot (0-3 for b0-b3)
-     * @param data Buffer data to upload
+     * DEPRECATED: Upload constant buffer data to GPU.
+     *
+     * This method is NO LONGER USED - constant buffers are now managed by the UBO system
+     * in VitraRenderer.uploadConstantBuffers() which is called from beginFrame().
+     *
+     * The old D3D11UniformBuffer system that called this method has been disabled.
+     * Keeping this method would cause 240-byte constant buffers to be created,
+     * conflicting with the new 256-byte UBO system.
+     *
+     * @deprecated Use VitraRenderer.uploadConstantBuffers() instead
      */
+    @Deprecated
     public void uploadConstantBuffer(int slot, byte[] data) {
-        if (slot < 0 || slot > 3) {
-            LOGGER.error("Invalid constant buffer slot: {}. Must be 0-3.", slot);
-            return;
-        }
-
-        Long bufferHandle = constantBuffers.get(slot);
-        if (bufferHandle == null) {
-            // Create new constant buffer
-            bufferHandle = VitraD3D11Renderer.createConstantBuffer(data.length);
-            if (bufferHandle == 0) {
-                LOGGER.error("Failed to create constant buffer for slot {}", slot);
-                return;
-            }
-            constantBuffers.put(slot, bufferHandle);
-        }
-
-        // Update buffer data
-        VitraD3D11Renderer.updateConstantBuffer(bufferHandle, data);
-
-        // Bind to both vertex and pixel shader stages
-        VitraD3D11Renderer.bindConstantBufferVS(slot, bufferHandle);
-        VitraD3D11Renderer.bindConstantBufferPS(slot, bufferHandle);
+        LOGGER.warn("uploadConstantBuffer() called but is DEPRECATED - constant buffers are managed by UBO system");
+        // DO NOTHING - this method should not be called anymore
+        // If you see this warning, there's a code path still using the old uniform system
     }
 
     /**

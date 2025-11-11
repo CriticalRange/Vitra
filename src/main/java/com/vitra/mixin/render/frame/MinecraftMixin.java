@@ -52,6 +52,24 @@ public class MinecraftMixin {
 
     @Shadow @Final public Options options;
 
+    /**
+     * FIX #1: Pre-frame initialization (VulkanMod pattern)
+     * Called BEFORE RenderSystem.clear() to prepare for new frame
+     *
+     * This prevents race conditions and ensures all per-frame resources are ready
+     */
+    @Inject(method = "runTick", at = @At("HEAD"))
+    private void preFrameOps(boolean bl, CallbackInfo ci) {
+        try {
+            VitraRenderer renderer = getRenderer();
+            if (renderer != null) {
+                renderer.preInitFrame();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to execute preInitFrame()", e);
+        }
+    }
+
     @Inject(method = "<init>", at = @At(value = "RETURN"))
     private void forceGraphicsMode(GameConfig gameConfig, CallbackInfo ci) {
         var graphicsModeOption = this.options.graphicsMode();
@@ -72,13 +90,6 @@ public class MinecraftMixin {
      */
     @Redirect(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;clear(IZ)V"))
     private void injectBeginFrame(int mask, boolean getError) {
-        // CRITICAL DEBUG: Log that redirect is working
-        int callCount = 0;
-        if (callCount < 3) {
-            System.out.println("[JAVA] MinecraftMixin.injectBeginFrame() CALLED! Count=" + callCount);
-            callCount++;
-        }
-
         try {
             // Call original RenderSystem.clear() first
             RenderSystem.clear(mask, getError);
@@ -88,13 +99,7 @@ public class MinecraftMixin {
             // Only for D3D11 - D3D12 handles frame management internally
             VitraRenderer renderer = getRenderer();
             if (renderer != null) {
-                System.out.println("[JAVA] Calling renderer.beginFrame()...");
                 renderer.beginFrame();
-                System.out.println("[JAVA] renderer.beginFrame() returned");
-                LOGGER.trace("Renderer beginFrame() called for new frame");
-            } else {
-                // D3D12 or not initialized yet - no GL compatibility layer needed
-                LOGGER.trace("Skipping beginFrame() - using D3D12 or renderer not initialized");
             }
 
         } catch (Exception e) {

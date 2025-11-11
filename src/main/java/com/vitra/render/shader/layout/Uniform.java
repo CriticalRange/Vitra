@@ -37,13 +37,15 @@ public class Uniform {
     /**
      * Construct uniform field
      *
-     * @param offset Byte offset in constant buffer (std140 aligned)
-     * @param size Size in bytes
+     * @param info Uniform descriptor with float-based offset/size (VulkanMod pattern)
      */
-    protected Uniform(long offset, int size) {
-        this.offset = offset;
-        this.size = size;
+    protected Uniform(Info info) {
+        // CRITICAL: VulkanMod pattern - convert float units to bytes
+        this.offset = info.offset * 4L;  // Float offset → byte offset
+        this.size = info.size * 4;       // Float size → byte size
     }
+
+    private static int debugUpdateCount = 0;
 
     /**
      * Update constant buffer with current uniform value
@@ -54,21 +56,50 @@ public class Uniform {
         if (bufferSupplier != null) {
             // Vector/matrix data - use zero-copy memcpy
             MappedBuffer src = bufferSupplier.get();
+
+            // DEBUG: Log first 50 matrix updates to see when non-identity arrives
+            if (debugUpdateCount < 50 && size == 64) { // mat4 = 64 bytes
+                if (src == null) {
+                    System.out.println("[UNIFORM_UPDATE " + debugUpdateCount + "] MappedBuffer supplier returned NULL (offset=" + offset + ", size=" + size + ")");
+                } else {
+                    // Read first 16 floats from MappedBuffer
+                    StringBuilder matrixDump = new StringBuilder("[UNIFORM_UPDATE " + debugUpdateCount + "] Matrix at offset " + offset + ": ");
+                    for (int i = 0; i < 16; i++) {
+                        float value = MemoryUtil.memGetFloat(src.address() + (i * 4));
+                        matrixDump.append(String.format("%.3f ", value));
+                        if ((i + 1) % 4 == 0) matrixDump.append("| ");
+                    }
+                    System.out.println(matrixDump.toString());
+                }
+                debugUpdateCount++;
+            }
+
             if (src != null) {
                 MemoryUtil.memCopy(src.address(), ptr + this.offset, this.size);
+            } else {
+                // CRITICAL: If supplier returns null, zero-fill to prevent garbage
+                MemoryUtil.memSet(ptr + this.offset, 0, this.size);
             }
         } else if (intSupplier != null) {
             // Integer scalar - write directly
             Integer value = intSupplier.get();
             if (value != null) {
                 MemoryUtil.memPutInt(ptr + this.offset, value);
+            } else {
+                MemoryUtil.memPutInt(ptr + this.offset, 0);
             }
         } else if (floatSupplier != null) {
             // Float scalar - write directly
             Float value = floatSupplier.get();
             if (value != null) {
                 MemoryUtil.memPutFloat(ptr + this.offset, value);
+            } else {
+                MemoryUtil.memPutFloat(ptr + this.offset, 0.0f);
             }
+        } else {
+            // CRITICAL FIX: No supplier found - zero-fill this uniform to prevent garbage (0xCCCCCCCC)
+            // This happens when shader declares uniform but no supplier is registered in Uniforms.java
+            MemoryUtil.memSet(ptr + this.offset, 0, this.size);
         }
     }
 
@@ -96,9 +127,9 @@ public class Uniform {
     public static class Info {
         public final String type;    // "mat4", "vec4", "vec3", "vec2", "float", "int"
         public final String name;    // Uniform name (e.g., "ModelViewMat")
-        public final int align;      // Alignment in bytes (4, 8, 16)
-        public final int size;       // Size in bytes
-        public int offset;           // Computed std140 offset (in bytes)
+        public final int align;      // Alignment in FLOATS (VulkanMod pattern)
+        public final int size;       // Size in FLOATS (VulkanMod pattern)
+        public int offset;           // Computed std140 offset (in FLOATS)
 
         // Suppliers (set later via setupSupplier())
         Supplier<MappedBuffer> bufferSupplier;
@@ -115,27 +146,33 @@ public class Uniform {
             this.type = type.toLowerCase();
             this.name = name;
 
-            // Determine alignment and size based on type (std140 layout)
+            // CRITICAL: VulkanMod pattern - alignment and size in FLOAT units (not bytes!)
+            // std140 layout rules (in float units):
+            // - Scalars: align=1, size=1 (1 float = 4 bytes)
+            // - vec2: align=2, size=2 (2 floats = 8 bytes)
+            // - vec3: align=4, size=3 (3 floats = 12 bytes, but 16-byte aligned!)
+            // - vec4: align=4, size=4 (4 floats = 16 bytes)
+            // - mat4: align=4, size=16 (16 floats = 64 bytes, treated as 4x vec4)
             switch (this.type) {
                 case "float", "int", "sampler2d" -> {
-                    this.align = 4;   // 4-byte aligned
-                    this.size = 4;    // 4 bytes
+                    this.align = 1;   // 1 float alignment (4 bytes)
+                    this.size = 1;    // 1 float (4 bytes)
                 }
                 case "vec2" -> {
-                    this.align = 8;   // 8-byte aligned
-                    this.size = 8;    // 8 bytes
+                    this.align = 2;   // 2 float alignment (8 bytes)
+                    this.size = 2;    // 2 floats (8 bytes)
                 }
                 case "vec3" -> {
-                    this.align = 16;  // 16-byte aligned (std140 padding!)
-                    this.size = 12;   // 12 bytes (but padded to 16)
+                    this.align = 4;   // 4 float alignment (16 bytes) - std140 padding!
+                    this.size = 3;    // 3 floats (12 bytes, but padded to 16)
                 }
                 case "vec4" -> {
-                    this.align = 16;  // 16-byte aligned
-                    this.size = 16;   // 16 bytes
+                    this.align = 4;   // 4 float alignment (16 bytes)
+                    this.size = 4;    // 4 floats (16 bytes)
                 }
                 case "mat4", "matrix4x4" -> {
-                    this.align = 16;  // 16-byte aligned
-                    this.size = 64;   // 64 bytes (4x vec4)
+                    this.align = 4;   // 4 float alignment (16 bytes)
+                    this.size = 16;   // 16 floats (64 bytes = 4x vec4)
                 }
                 default -> throw new IllegalArgumentException("Unknown uniform type: " + type);
             }
@@ -155,14 +192,15 @@ public class Uniform {
         }
 
         /**
-         * Compute std140 alignment offset
+         * Compute std140 alignment offset (VulkanMod pattern - float units)
          *
          * Aligns the current offset to the uniform's alignment requirement.
          *
-         * @param builderOffset Current offset from builder (in bytes)
-         * @return Aligned offset (in bytes)
+         * @param builderOffset Current offset from builder (in FLOATS)
+         * @return Aligned offset (in FLOATS)
          */
         public int computeAlignmentOffset(int builderOffset) {
+            // CRITICAL: VulkanMod pattern - alignment in float units
             // std140 alignment formula: offset = align_to(current_offset, alignment)
             // align_to(x, n) = x + ((n - (x % n)) % n)
             this.offset = builderOffset + ((align - (builderOffset % align)) % align);
@@ -184,18 +222,24 @@ public class Uniform {
                 case "mat4", "matrix4x4" -> this.bufferSupplier = Uniforms.mat4f_uniformMap.get(this.name);
             }
 
-            // Warn if supplier not found
+            // Warn if supplier not found - CRITICAL for debugging constant buffer corruption
             if (this.floatSupplier == null && this.intSupplier == null && this.bufferSupplier == null) {
-                System.err.println("[Uniform] Warning: No supplier found for uniform '" + this.name +
-                    "' (type: " + this.type + ")");
+                String msg = "[UNIFORM_SUPPLIER_MISSING] ❌ No supplier found for uniform '" + this.name +
+                    "' (type: " + this.type + ") at offset " + this.offset + " - THIS WILL CAUSE GARBAGE DATA!";
+                System.err.println(msg);
+                // Also log to standard out so it's visible in game logs
+                System.out.println(msg);
+            } else {
+                System.out.println("[UNIFORM_SUPPLIER_OK] ✓ Supplier found for '" + this.name + "' (type: " + this.type + ")");
             }
         }
 
         /**
-         * Build Uniform instance from this descriptor
+         * Build Uniform instance from this descriptor (VulkanMod pattern)
          */
         public Uniform build() {
-            Uniform uniform = new Uniform(this.offset, this.size);
+            // CRITICAL: VulkanMod pattern - pass Info object to constructor for float→byte conversion
+            Uniform uniform = new Uniform(this);
             uniform.bufferSupplier = this.bufferSupplier;
             uniform.intSupplier = this.intSupplier;
             uniform.floatSupplier = this.floatSupplier;
@@ -204,8 +248,8 @@ public class Uniform {
 
         @Override
         public String toString() {
-            return String.format("Uniform.Info[type=%s, name=%s, offset=%d, size=%d, align=%d]",
-                type, name, offset, size, align);
+            return String.format("Uniform.Info[type=%s, name=%s, offset=%d floats (%d bytes), size=%d floats (%d bytes), align=%d floats]",
+                type, name, offset, offset * 4, size, size * 4, align);
         }
     }
 }

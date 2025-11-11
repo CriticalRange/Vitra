@@ -6,7 +6,6 @@
 // D3DCompile with D3D_COMPILE_STANDARD_FILE_INCLUDE can't resolve includes from JAR resources
 // Only including the cbuffers actually used by shaders
 
-#pragma pack_matrix(column_major)
 
 cbuffer DynamicTransforms : register(b0) {
     float4x4 MVP;             // Pre-multiplied MVP matrix
@@ -146,8 +145,8 @@ VS_OUTPUT main(VS_INPUT input) {
 
     // CRITICAL FIX: HLSL column-major requires vector * matrix (not matrix * vector!)
     // GLSL: gl_Position = MVP * vec4(Position, 1.0)  → Matrix on LEFT
-    // HLSL: output.Position = mul(position, MVP)     → Vector on LEFT for column-major!
-    output.Position = mul(position, MVP);
+    // HLSL: output.Position = mul(MVP, position)     → Vector on LEFT for column-major!
+    output.Position = mul(MVP, position);
 
     // Pass through vertex color normally
     output.vertexColor = input.Color;

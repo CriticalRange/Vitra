@@ -28,22 +28,8 @@ public class ScreenMixin {
         }
     }
 
-    /**
-     * Setup orthographic projection for UI rendering
-     * CRITICAL: This prevents UI from rotating with panorama/world
-     */
-    @Inject(method = "render", at = @At("HEAD"))
-    private void setupUIProjection(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
-        VitraRenderer renderer = VitraRenderer.getInstance();
-        if (renderer != null) {
-            Minecraft mc = Minecraft.getInstance();
-            if (mc.getWindow() != null) {
-                int width = mc.getWindow().getGuiScaledWidth();
-                int height = mc.getWindow().getGuiScaledHeight();
-
-                // Setup orthographic projection (prevents rotation)
-                renderer.setupUIProjection(width, height);
-            }
-        }
-    }
+    // REMOVED setupUIProjection() injection
+    // Minecraft already handles projection matrix changes correctly.
+    // With per-draw uniform uploads, the correct matrix (perspective for panorama,
+    // orthographic for UI) is automatically used for each draw call.
 }

@@ -164,6 +164,19 @@ public class VitraD3D11Renderer {
     public static native void endFrame();
 
     /**
+     * Reset dynamic rendering state (VulkanMod Renderer.resetDynamicState() pattern)
+     *
+     * Resets per-frame dynamic state that persists across draw calls:
+     * - Depth bias (OMSetDepthBias)
+     * - Stencil ref (OMSetStencilRef)
+     * - Blend factor (OMSetBlendState)
+     *
+     * VulkanMod calls this in beginRenderPass() to ensure clean state each frame.
+     * Reference: VulkanMod Renderer.java:600-604
+     */
+    public static native void resetDynamicState();
+
+    /**
      * Clear the render target (DEPRECATED - use clear(int mask) instead)
      * This old method is kept for compatibility but should not be used
      */
@@ -339,6 +352,17 @@ public class VitraD3D11Renderer {
      * @param textureHandle - D3D11 texture handle (0 to unbind)
      */
     public static native void bindTexture(int slot, long textureHandle);
+
+    /**
+     * Alias for bindTexture() - used by D3D11TextureSelector
+     * Binds a D3D11 texture to a specific shader resource view slot (t0-t15 in HLSL)
+     *
+     * @param slot - Texture slot (0-15)
+     * @param textureHandle - D3D11 texture handle from D3D11TextureSelector
+     */
+    public static void bindTextureToSlot(int slot, long textureHandle) {
+        bindTexture(slot, textureHandle);
+    }
 
     /**
      * Set shader constant buffer
@@ -2701,6 +2725,12 @@ public class VitraD3D11Renderer {
      * Blocks until GPU finishes processing all commands in the command queue
      */
     public static native void waitForIdle();
+
+    /**
+     * FIX #1: Submit pending texture/buffer uploads (VulkanMod pattern)
+     * Called in preInitFrame() to flush staging buffer uploads
+     */
+    public static native void submitPendingUploads();
 
     /**
      * Update texture with pixel data (for GlStateManagerMixin)

@@ -105,6 +105,17 @@ struct D3D11Resources {
     // Shader color state (ColorModulator uniform - CRITICAL FIX for red screen issue)
     float shaderColor[4];  // RGBA multiplier for all fragments
 
+    // FIX #5: Async fence system for frame pipelining (VulkanMod pattern)
+    struct FrameFence {
+        ComPtr<ID3D11Query> disjointQuery;
+        ComPtr<ID3D11Query> timestampStart;
+        ComPtr<ID3D11Query> timestampEnd;
+        bool signaled;
+    };
+    static const int MAX_FRAMES_IN_FLIGHT = 2;
+    FrameFence frameFences[2];  // Double buffering
+    int currentFrameIndex;
+
     bool initialized;
 };
 
@@ -156,6 +167,9 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
     (JNIEnv* env, jclass clazz);
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_endFrame
+    (JNIEnv* env, jclass clazz);
+
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_resetDynamicState
     (JNIEnv* env, jclass clazz);
 
 // REMOVED: Old clear(float, float, float, float) - replaced by clear__I(int mask)
@@ -486,6 +500,9 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setTexturePa
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setTextureParameterf
     (JNIEnv* env, jclass clazz, jint target, jint pname, jfloat param);
 
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setTextureParameter__JII
+    (JNIEnv* env, jclass clazz, jlong textureHandle, jint pname, jint param);
+
 JNIEXPORT jint JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_getTextureParameter
     (JNIEnv* env, jclass clazz, jint target, jint pname);
 
@@ -660,6 +677,10 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_waitForGpuCo
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_waitForIdle
     (JNIEnv* env, jclass clazz);
 
+// FIX #1: Submit pending uploads (VulkanMod pattern)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_submitPendingUploads
+    (JNIEnv* env, jclass clazz);
+
 // Display and Window Management
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_handleDisplayResize
     (JNIEnv* env, jclass clazz, jint width, jint height);
@@ -717,6 +738,10 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindTexture_
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setActiveTextureUnit
     (JNIEnv* env, jclass clazz, jint textureUnit);
+
+// FIX: Bind texture to specific slot (VulkanMod VTextureSelector pattern)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindTextureToSlot__IJ
+    (JNIEnv* env, jclass clazz, jint slot, jlong d3d11Handle);
 
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_deleteTexture__I
     (JNIEnv* env, jclass clazz, jint textureId);

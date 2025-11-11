@@ -6,7 +6,7 @@
 // D3DCompile with D3D_COMPILE_STANDARD_FILE_INCLUDE can't resolve includes from JAR resources
 // Only including the cbuffers actually used by shaders
 
-#pragma pack_matrix(column_major)
+// CRITICAL FIX: Use row_major (HLSL default) to match JOML's column-major memory layout
 
 cbuffer DynamicTransforms : register(b0) {
     float4x4 MVP;             // Pre-multiplied MVP matrix
@@ -129,6 +129,10 @@ float4 projection_from_position(float4 position) {
     return projection;
 }
 
+// Texture and sampler declarations
+Texture2D Sampler2 : register(t2);  // Lightmap texture
+SamplerState Sampler2State : register(s2);
+
 struct VS_INPUT {
     float3 Position : POSITION;
     float4 Color : COLOR0;
@@ -139,6 +143,7 @@ struct VS_INPUT {
 
 struct VS_OUTPUT {
     float4 Position : SV_POSITION;
+    float vertexDistance : TEXCOORD3;
     float4 vertexColor : COLOR0;
     float2 texCoord0 : TEXCOORD0;
     float2 texCoord2 : TEXCOORD2;
@@ -149,10 +154,15 @@ VS_OUTPUT main(VS_INPUT input) {
 
     // Use ModelOffset (same as VulkanMod's ChunkOffset concept)
     // ModelOffset is set per-draw to position chunks relative to camera
-    float4 pos = float4(input.Position + ModelOffset, 1.0);
-    output.Position = mul(pos, MVP);
+    float3 pos = input.Position + ModelOffset;
+    output.Position = mul(MVP, float4(pos, 1.0));
 
-    output.vertexColor = input.Color;
+    // Calculate fog distance from world-space position (VulkanMod pattern)
+    output.vertexDistance = fog_distance(pos, FogShape);
+
+    // Sample lightmap and multiply with vertex color (VulkanMod pattern)
+    output.vertexColor = input.Color * minecraft_sample_lightmap(Sampler2, Sampler2State, input.UV2);
+
     output.texCoord0 = input.UV0;
     output.texCoord2 = input.UV2;
 

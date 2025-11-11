@@ -114,7 +114,17 @@ public class Uniforms {
         vec3f_uniformMap.put("Light1_Direction", () -> VRenderSystem.lightDirection1);
 
         // Model offset (chunk offset for terrain rendering)
+        // CRITICAL: Register BOTH names - HLSL uses "ModelOffset", Minecraft uses "ChunkOffset"
         vec3f_uniformMap.put("ChunkOffset", () -> VRenderSystem.modelOffset);
+        vec3f_uniformMap.put("ModelOffset", () -> VRenderSystem.modelOffset);
+
+        // Padding uniform (for HLSL cbuffer alignment)
+        vec3f_uniformMap.put("_pad1", () -> {
+            // Return zero-filled vec3 for padding
+            MappedBuffer buf = new MappedBuffer(12);
+            buf.putVec3(0, 0.0f, 0.0f, 0.0f);
+            return buf;
+        });
 
         // ==================== VECTOR UNIFORMS (VEC2) ====================
 
@@ -142,6 +152,42 @@ public class Uniforms {
         vec1i_uniformMap.put("Sampler0", () -> 0);
         vec1i_uniformMap.put("Sampler1", () -> 1);
         vec1i_uniformMap.put("Sampler2", () -> 2); // Lightmap
+
+        // ==================== FOG UNIFORMS (b2) ====================
+
+        // Extended fog parameters (for advanced fog rendering)
+        vec1f_uniformMap.put("FogEnvironmentalStart", () -> 0.0f);      // TODO: Get from Minecraft
+        vec1f_uniformMap.put("FogEnvironmentalEnd", () -> 0.0f);
+        vec1f_uniformMap.put("FogRenderDistanceStart", () -> 0.0f);
+        vec1f_uniformMap.put("FogRenderDistanceEnd", () -> 0.0f);
+        vec1f_uniformMap.put("FogSkyEnd", () -> 0.0f);
+        vec1f_uniformMap.put("FogCloudsEnd", () -> 0.0f);
+
+        // Padding for b2
+        vec3f_uniformMap.put("_pad2", () -> {
+            MappedBuffer buf = new MappedBuffer(12);
+            buf.putVec3(0, 0.0f, 0.0f, 0.0f);
+            return buf;
+        });
+
+        // ==================== GLOBALS UNIFORMS (b3) ====================
+
+        // Glint rendering parameters
+        vec1f_uniformMap.put("GlintAlpha", () -> 1.0f);                 // TODO: Get from Minecraft
+        vec1i_uniformMap.put("MenuBlurRadius", () -> 0);                // TODO: Get from Minecraft
+
+        // Padding for b3
+        vec3f_uniformMap.put("_pad3", () -> {
+            MappedBuffer buf = new MappedBuffer(12);
+            buf.putVec3(0, 0.0f, 0.0f, 0.0f);
+            return buf;
+        });
+
+        // ==================== LIGHTING UNIFORMS (b4) ====================
+
+        // Padding floats for b4 (lighting cbuffer alignment)
+        vec1f_uniformMap.put("_pad4", () -> 0.0f);
+        vec1f_uniformMap.put("_pad5", () -> 0.0f);
 
         // ==================== RENDERSYSTEM PASS-THROUGHS ====================
 

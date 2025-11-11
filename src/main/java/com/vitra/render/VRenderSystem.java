@@ -5,6 +5,8 @@ import com.vitra.VitraMod;
 import com.vitra.util.MappedBuffer;
 import org.joml.Matrix4f;
 
+import java.nio.ByteBuffer;
+
 /**
  * DirectX Render System - CPU-side uniform storage
  *
@@ -160,7 +162,16 @@ public class VRenderSystem {
         return textureMatrix;
     }
 
+    private static int getMVPCallCount = 0;
+
     public static MappedBuffer getMVP() {
+        // DEBUG: Log first 10 calls to see what MVP contains when supplier is called
+        if (getMVPCallCount < 10) {
+            java.nio.FloatBuffer fb = MVP.byteBuffer().asFloatBuffer();
+            System.out.println("[GET_MVP_SUPPLIER " + getMVPCallCount + "] Returning MVP, first 4 floats: " +
+                fb.get(0) + ", " + fb.get(1) + ", " + fb.get(2) + ", " + fb.get(3));
+            getMVPCallCount++;
+        }
         return MVP;
     }
 
@@ -206,28 +217,33 @@ public class VRenderSystem {
 
     // ==================== MATRIX SETTERS ====================
 
-    // Debug counter for matrix logging
+    // Debug counters for matrix logging
     private static int matrixSetCount = 0;
+    private static int mvpComputeCount = 0;
 
     /**
      * Set model-view matrix from Minecraft's Matrix4f
      * CRITICAL: This is called from RenderSystemMixin after every modelview matrix change
      */
     public static void setModelViewMatrix(Matrix4f matrix) {
-        // JOML's get() uses column-major, but HLSL mul(matrix, vector) expects row-major
-        // Transpose before storing
-        Matrix4f transposed = new Matrix4f(matrix).transpose();
-        transposed.get(0, modelViewMatrix.byteBuffer());
+        // Store column-major (JOML default)
+        matrix.get(0, modelViewMatrix.byteBuffer());
 
-        // DEBUG: Log first 30 matrix sets to see values
-        if (matrixSetCount < 30) {
-            float m30 = matrix.m30();
-            float m31 = matrix.m31();
-            float m32 = matrix.m32();
-            float m33 = matrix.m33();
-            System.out.println(String.format("[MODELVIEW_SET %d] Row 4: [%.3f, %.3f, %.3f, %.3f]",
-                matrixSetCount++, m30, m31, m32, m33));
+        // DEBUG: Log first 20 matrix sets AND any non-identity matrices
+        boolean isIdentity = matrix.m00() == 1.0f && matrix.m11() == 1.0f && matrix.m22() == 1.0f && matrix.m33() == 1.0f &&
+                             matrix.m01() == 0.0f && matrix.m02() == 0.0f && matrix.m03() == 0.0f &&
+                             matrix.m10() == 0.0f && matrix.m12() == 0.0f && matrix.m13() == 0.0f &&
+                             matrix.m20() == 0.0f && matrix.m21() == 0.0f && matrix.m23() == 0.0f &&
+                             matrix.m30() == 0.0f && matrix.m31() == 0.0f && matrix.m32() == 0.0f;
+
+        if (matrixSetCount < 20 || !isIdentity) {
+            System.out.println("[VRENDERSSYSTEM_SET_MV " + matrixSetCount + (isIdentity ? " IDENTITY" : " NON-IDENTITY") + "] ModelView matrix set:");
+            System.out.println("  Row 0: " + matrix.m00() + ", " + matrix.m01() + ", " + matrix.m02() + ", " + matrix.m03());
+            System.out.println("  Row 1: " + matrix.m10() + ", " + matrix.m11() + ", " + matrix.m12() + ", " + matrix.m13());
+            System.out.println("  Row 2: " + matrix.m20() + ", " + matrix.m21() + ", " + matrix.m22() + ", " + matrix.m23());
+            System.out.println("  Row 3: " + matrix.m30() + ", " + matrix.m31() + ", " + matrix.m32() + ", " + matrix.m33());
         }
+        matrixSetCount++;
 
         updateMVP();
     }
@@ -245,18 +261,16 @@ public class VRenderSystem {
      * CRITICAL: This is called from RenderSystemMixin after every projection matrix change
      */
     public static void setProjectionMatrix(Matrix4f matrix) {
-        // JOML's get() uses column-major, but HLSL mul(matrix, vector) expects row-major
-        // Transpose before storing
-        Matrix4f transposed = new Matrix4f(matrix).transpose();
-        transposed.get(0, projectionMatrix.byteBuffer());
+        // Store column-major (JOML default)
+        matrix.get(0, projectionMatrix.byteBuffer());
 
-        // DEBUG: Log projection matrix to diagnose z=11055 far plane issue
-        // Log first 50 to capture both menu (ortho) and world (perspective) transitions
-        if (matrixSetCount < 50) {
-            String type = (matrix.m23() == 1.0f && matrix.m33() == 0.0f) ? "PERSPECTIVE" : "ORTHOGRAPHIC";
-            System.out.println(String.format("[PROJECTION_MATRIX %d] TYPE=%s m22=%.6f, m23=%.6f, m32=%.6f, m33=%.6f",
-                matrixSetCount, type, matrix.m22(), matrix.m23(), matrix.m32(), matrix.m33()));
-            matrixSetCount++;
+        // DEBUG: Log first projection matrix set
+        if (matrixSetCount < 1) {
+            System.out.println("[VRENDERSYSTEM_SET_PROJ] Projection matrix set:");
+            System.out.println("  Row 0: " + matrix.m00() + ", " + matrix.m01() + ", " + matrix.m02() + ", " + matrix.m03());
+            System.out.println("  Row 1: " + matrix.m10() + ", " + matrix.m11() + ", " + matrix.m12() + ", " + matrix.m13());
+            System.out.println("  Row 2: " + matrix.m20() + ", " + matrix.m21() + ", " + matrix.m22() + ", " + matrix.m23());
+            System.out.println("  Row 3: " + matrix.m30() + ", " + matrix.m31() + ", " + matrix.m32() + ", " + matrix.m33());
         }
 
         updateMVP();
@@ -303,37 +317,27 @@ public class VRenderSystem {
         // Compute MVP = Projection * ModelView
         Matrix4f mvp = new Matrix4f(proj).mul(mv);
 
-        // CRITICAL FIX: Transpose for DirectX (HLSL mul(matrix, vector) expects row-major)
-        // JOML stores column-major, HLSL mul() interprets first operand as row-major
-        mvp.transpose();
+        // DEBUG: Log first 20 MVP computations AND any non-identity MVP
+        boolean mvpIsIdentity = mvp.m00() == 1.0f && mvp.m11() == 1.0f && mvp.m22() == 1.0f && mvp.m33() == 1.0f &&
+                                mvp.m01() == 0.0f && mvp.m02() == 0.0f && mvp.m03() == 0.0f;
+        if (mvpComputeCount < 20 || !mvpIsIdentity) {
+            System.out.println("[MVP_COMPUTE " + mvpComputeCount + (mvpIsIdentity ? " IDENTITY" : " NON-IDENTITY") + "] BEFORE transpose:");
+            System.out.println("  MV row3: " + mv.m30() + ", " + mv.m31() + ", " + mv.m32() + ", " + mv.m33());
+            System.out.println("  Proj row0: " + proj.m00() + ", " + proj.m01() + ", " + proj.m02() + ", " + proj.m03());
+            System.out.println("  MVP row0: " + mvp.m00() + ", " + mvp.m01() + ", " + mvp.m02() + ", " + mvp.m03());
+            System.out.println("  MVP row3: " + mvp.m30() + ", " + mvp.m31() + ", " + mvp.m32() + ", " + mvp.m33());
+        }
+        mvpComputeCount++;
 
-        // Store transposed result
+        // Store column-major (JOML default) - matches HLSL column_major (no pragma)
         mvp.get(0, MVP.byteBuffer());
 
-        // DEBUG: Log full MVP matrix to diagnose black triangles issue
-        // Only log every 60 frames to avoid spam (once per second at 60fps)
-        if (System.getProperty("vitra.debug.mvp") != null) {
-            long frameCount = System.currentTimeMillis() / 16; // Approx frame counter
-            if (frameCount % 60 == 0) {
-                org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("Vitra");
-                logger.info("[MVP_DEBUG] Full MVP Matrix:");
-                logger.info("  [{}, {}, {}, {}]", mvp.m00(), mvp.m01(), mvp.m02(), mvp.m03());
-                logger.info("  [{}, {}, {}, {}]", mvp.m10(), mvp.m11(), mvp.m12(), mvp.m13());
-                logger.info("  [{}, {}, {}, {}]", mvp.m20(), mvp.m21(), mvp.m22(), mvp.m23());
-                logger.info("  [{}, {}, {}, {}]", mvp.m30(), mvp.m31(), mvp.m32(), mvp.m33());
-
-                logger.info("[MVP_DEBUG] Projection Matrix:");
-                logger.info("  [{}, {}, {}, {}]", proj.m00(), proj.m01(), proj.m02(), proj.m03());
-                logger.info("  [{}, {}, {}, {}]", proj.m10(), proj.m11(), proj.m12(), proj.m13());
-                logger.info("  [{}, {}, {}, {}]", proj.m20(), proj.m21(), proj.m22(), proj.m23());
-                logger.info("  [{}, {}, {}, {}]", proj.m30(), proj.m31(), proj.m32(), proj.m33());
-
-                logger.info("[MVP_DEBUG] ModelView Matrix:");
-                logger.info("  [{}, {}, {}, {}]", mv.m00(), mv.m01(), mv.m02(), mv.m03());
-                logger.info("  [{}, {}, {}, {}]", mv.m10(), mv.m11(), mv.m12(), mv.m13());
-                logger.info("  [{}, {}, {}, {}]", mv.m20(), mv.m21(), mv.m22(), mv.m23());
-                logger.info("  [{}, {}, {}, {}]", mv.m30(), mv.m31(), mv.m32(), mv.m33());
-            }
+        // DEBUG: Verify MVP was stored correctly
+        if (mvpComputeCount <= 10 && !mvpIsIdentity) {
+            System.out.println("[MVP_STORED] After storing to MappedBuffer:");
+            System.out.println("  Reading back first 4 floats from MVP buffer:");
+            java.nio.FloatBuffer fb = MVP.byteBuffer().asFloatBuffer();
+            System.out.println("  " + fb.get(0) + ", " + fb.get(1) + ", " + fb.get(2) + ", " + fb.get(3));
         }
     }
 
@@ -485,6 +489,8 @@ public class VRenderSystem {
         float[] color = RenderSystem.getShaderColor();
         setShaderColor(color);
     }
+
+    // ==================== DIRTY TRACKING ====================
 
     // ==================== CLEANUP ====================
 

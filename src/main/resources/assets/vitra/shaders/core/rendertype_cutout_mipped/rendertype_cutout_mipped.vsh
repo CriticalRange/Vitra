@@ -3,7 +3,6 @@
 // D3DCompile with D3D_COMPILE_STANDARD_FILE_INCLUDE can't resolve includes from JAR resources
 // Only including the cbuffers actually used by shaders
 
-#pragma pack_matrix(column_major)
 
 cbuffer DynamicTransforms : register(b0) {
     float4x4 MVP;             // Pre-multiplied MVP matrix
@@ -146,7 +145,7 @@ VS_OUTPUT main(VS_INPUT input) {
 
     // Use ModelOffset (same as VulkanMod's ChunkOffset concept)
     float4 pos = float4(input.Position + ModelOffset, 1.0);
-    output.Position = mul(pos, MVP);
+    output.Position = mul(MVP, pos);
 
     output.vertexColor = input.Color;
     output.texCoord0 = input.UV0;

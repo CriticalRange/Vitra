@@ -183,6 +183,7 @@ std::unordered_map<uint64_t, ComPtr<ID3D11InputLayout>> g_inputLayouts;
 std::unordered_map<uint64_t, ComPtr<ID3D11InputLayout>> g_vertexFormatInputLayouts; // Input layouts keyed by vertex format hash
 std::unordered_map<uint64_t, ComPtr<ID3D11Texture2D>> g_textures;
 std::unordered_map<uint64_t, ComPtr<ID3D11ShaderResourceView>> g_shaderResourceViews;
+std::unordered_map<uint64_t, ComPtr<ID3D11SamplerState>> g_textureSamplers; // Per-texture sampler states
 std::unordered_map<uint64_t, ComPtr<ID3D11Query>> g_queries;
 
 // Constant buffer tracking (for VulkanMod-style uniform system)
@@ -221,6 +222,16 @@ struct GlStateTracking {
     bool colorLogicOpEnabled = false;
 };
 static GlStateTracking g_glState = {};
+
+// Texture sampler parameters (per-texture)
+struct TextureSamplerParams {
+    int minFilter = 0x2601; // GL_LINEAR
+    int magFilter = 0x2601; // GL_LINEAR
+    int wrapS = 0x812F;     // GL_CLAMP_TO_EDGE
+    int wrapT = 0x812F;     // GL_CLAMP_TO_EDGE
+    bool needsUpdate = true;
+};
+std::unordered_map<uint64_t, TextureSamplerParams> g_textureSamplerParams;
 
 // Handle generator
 std::random_device rd;
@@ -616,12 +627,19 @@ bool createInputLayoutFromVertexFormat(JNIEnv* env, const jint* vertexFormatDesc
         }
 
         elementDesc.InputSlot = 0;
-        elementDesc.AlignedByteOffset = offset; // Use actual offset from vertex format!
+        // BGFX PATTERN: First element MUST have offset 0, subsequent elements use D3D11_APPEND_ALIGNED_ELEMENT
+        // This lets D3D11 automatically calculate proper alignment instead of manual offset tracking
+        if (i == 0) {
+            elementDesc.AlignedByteOffset = 0;  // Force first element to 0 (bgfx pattern)
+        } else {
+            elementDesc.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;  // Let D3D11 auto-calculate alignment
+        }
         elementDesc.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
         elementDesc.InstanceDataStepRate = 0;
 
-        sprintf_s(msg, "[INPUT_LAYOUT_CREATE] Element %d mapped: semantic=%s, semanticIndex=%d, format=%d, offset=%d",
-            i, elementDesc.SemanticName, elementDesc.SemanticIndex, elementDesc.Format, elementDesc.AlignedByteOffset);
+        sprintf_s(msg, "[INPUT_LAYOUT_CREATE] Element %d mapped: semantic=%s, semanticIndex=%d, format=%d, offset=%s",
+            i, elementDesc.SemanticName, elementDesc.SemanticIndex, elementDesc.Format,
+            (i == 0) ? "0" : "D3D11_APPEND_ALIGNED_ELEMENT");
         logToJava(env, msg);
 
         inputElements.push_back(elementDesc);
@@ -858,11 +876,13 @@ void setDefaultShaders() {
     }
 
     // Create default sampler state for texture sampling
+    // CRITICAL FIX: Use CLAMP instead of WRAP to prevent UV coordinate wrapping artifacts
+    // Minecraft textures (UI, blocks, panorama) need clamping to avoid seams and holes
     D3D11_SAMPLER_DESC samplerDesc = {};
     samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     samplerDesc.MipLODBias = 0.0f;
     samplerDesc.MaxAnisotropy = 1;
     samplerDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
@@ -1515,6 +1535,23 @@ JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_initiali
     g_d3d11.shaderColor[2] = 1.0f; // B
     g_d3d11.shaderColor[3] = 1.0f; // A
 
+    // FIX #5: Initialize async fence system (VulkanMod pattern)
+    g_d3d11.currentFrameIndex = 0;
+    for (int i = 0; i < g_d3d11.MAX_FRAMES_IN_FLIGHT; i++) {
+        // Create disjoint query for each frame
+        D3D11_QUERY_DESC queryDesc;
+        queryDesc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
+        queryDesc.MiscFlags = 0;
+        g_d3d11.device->CreateQuery(&queryDesc, &g_d3d11.frameFences[i].disjointQuery);
+
+        // Create timestamp queries
+        queryDesc.Query = D3D11_QUERY_TIMESTAMP;
+        g_d3d11.device->CreateQuery(&queryDesc, &g_d3d11.frameFences[i].timestampStart);
+        g_d3d11.device->CreateQuery(&queryDesc, &g_d3d11.frameFences[i].timestampEnd);
+
+        g_d3d11.frameFences[i].signaled = false;
+    }
+
     g_d3d11.initialized = true;
 
     // CRITICAL FIX: Initialize state tracking after successful initialization
@@ -1534,6 +1571,15 @@ void setVertexShader(ID3D11VertexShader* pShader) {
     if (g_committedState.pVertexShader != pShader) {
         g_committedState.pVertexShader = pShader;
         g_d3d11.context->VSSetShader(pShader, nullptr, 0);
+
+        // CRITICAL FIX (bgfx pattern): IMMEDIATELY bind constant buffers after shader change
+        ID3D11Buffer* vsBuffers[4] = {
+            g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+            g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+            g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+            g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+        };
+        g_d3d11.context->VSSetConstantBuffers(0, 4, vsBuffers);
     }
 }
 
@@ -1541,6 +1587,15 @@ void setPixelShader(ID3D11PixelShader* pShader) {
     if (g_committedState.pPixelShader != pShader) {
         g_committedState.pPixelShader = pShader;
         g_d3d11.context->PSSetShader(pShader, nullptr, 0);
+
+        // CRITICAL FIX (bgfx pattern): IMMEDIATELY bind constant buffers after shader change
+        ID3D11Buffer* psBuffers[4] = {
+            g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+            g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+            g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+            g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+        };
+        g_d3d11.context->PSSetConstantBuffers(0, 4, psBuffers);
     }
 }
 
@@ -1674,6 +1729,8 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_shutdown
     g_inputLayouts.clear();
     g_textures.clear();
     g_shaderResourceViews.clear();
+    g_textureSamplers.clear();        // Clear per-texture samplers
+    g_textureSamplerParams.clear();   // Clear sampler parameters
 
     // Release DirectX resources
     g_d3d11.defaultInputLayout.Reset();
@@ -1806,15 +1863,29 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
         return;
     }
 
+    // FIX #5: Wait for fence from previous frame (VulkanMod pattern)
+    // This prevents GPU/CPU race conditions by ensuring frame N-2 is complete
+    // before we start frame N (double buffering)
+    D3D11Resources::FrameFence& fence = g_d3d11.frameFences[g_d3d11.currentFrameIndex];
+    if (fence.signaled) {
+        // Poll timestamp end query (non-blocking check)
+        UINT64 endTime;
+        while (g_d3d11.context->GetData(fence.timestampEnd.Get(), &endTime,
+               sizeof(UINT64), 0) == S_FALSE) {
+            // Query not ready yet, spin-wait (or could use Sleep(0) to yield)
+            // In practice, this should rarely block since we're 2 frames behind
+        }
+        fence.signaled = false;
+    }
+
     // Set render targets
     g_d3d11.context->OMSetRenderTargets(1, g_d3d11.renderTargetView.GetAddressOf(), g_d3d11.depthStencilView.Get());
 
-    // Clear backbuffer with stored clear color (set by Minecraft)
-    // CRITICAL FIX: Clear to BLACK at frame start, not stored clearColor
-    // The stored clearColor may be Mojang red (0.937, 0.196, 0.239) from logo screen
-    // Minecraft expects each frame to start with black background, then UI renders on top
-    float blackClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    g_d3d11.context->ClearRenderTargetView(g_d3d11.renderTargetView.Get(), blackClearColor);
+    // DON'T clear in beginFrame - let Minecraft's RenderSystem.clear() handle it
+    // Clearing here causes issues because:
+    // 1. If we clear to black, we override Minecraft's intended clear color
+    // 2. If we clear to stored color, we clear twice (here + Minecraft's clear)
+    // The correct approach is to NOT clear here at all
 
     // CRITICAL DEBUG: Log viewport dimensions using JNI (so it actually appears in logs!)
     static int frameCount = 0;
@@ -1839,6 +1910,18 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
     // Set viewport
     g_d3d11.context->RSSetViewports(1, &g_d3d11.viewport);
 
+    // CRITICAL: Reset scissor rectangles to full viewport at frame start
+    // If a previous frame set a small scissor (e.g., for GUI), it persists!
+    // Without this, only part of the screen renders (diagonal split artifact)
+    D3D11_RECT scissorRects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    for (int i = 0; i < D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE; i++) {
+        scissorRects[i].left = 0;
+        scissorRects[i].top = 0;
+        scissorRects[i].right = static_cast<LONG>(g_d3d11.viewport.Width);
+        scissorRects[i].bottom = static_cast<LONG>(g_d3d11.viewport.Height);
+    }
+    g_d3d11.context->RSSetScissorRects(D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE, scissorRects);
+
     // CRITICAL: Clear depth buffer at start of each frame
     // Without this, depth testing will fail and geometry will render incorrectly
     // NOTE: We do NOT clear color buffer here - that's handled by explicit clear() calls
@@ -1846,15 +1929,46 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
         g_d3d11.context->ClearDepthStencilView(g_d3d11.depthStencilView.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
     }
 
-    // VulkanMod Pattern: Depth state is set per-pipeline, not globally at frame start
-    // UI shaders will call disableDepthTest() when binding their pipelines
-    // 3D world shaders will call enableDepthTest() when binding their pipelines
+    // ====================================================================
+    // FIX #4: DYNAMIC STATE RESET (VulkanMod Pattern)
+    // Reset ALL pipeline state to prevent stale bindings from previous frame
+    // ====================================================================
+
+    // 1. Reset all texture bindings (unbind all SRVs)
+    // This prevents GUI textures bleeding into 3D world and vice versa
+    ID3D11ShaderResourceView* nullSRVs[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = { nullptr };
+    g_d3d11.context->PSSetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullSRVs);
+    g_d3d11.context->VSSetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullSRVs);
+
+    // 2. Reset all constant buffers (unbind all CBs)
+    // This prevents wrong uniform data from being accessed
+    ID3D11Buffer* nullCBs[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT] = { nullptr };
+    g_d3d11.context->VSSetConstantBuffers(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT, nullCBs);
+    g_d3d11.context->PSSetConstantBuffers(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT, nullCBs);
+
+    // 3. Reset shader bindings
+    // Pipelines will rebind their shaders, so start clean
+    g_d3d11.context->VSSetShader(nullptr, nullptr, 0);
+    g_d3d11.context->PSSetShader(nullptr, nullptr, 0);
+    g_d3d11.context->IASetInputLayout(nullptr);
+
+    // 4. Reset sampler bindings
+    ID3D11SamplerState* nullSamplers[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT] = { nullptr };
+    g_d3d11.context->PSSetSamplers(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT, nullSamplers);
+
+    // CRITICAL FIX: Force depth test DISABLED at frame start for UI rendering
+    // Many UI elements don't explicitly call disableDepthTest(), expecting it to be off by default
+    // This matches OpenGL behavior where depth test is disabled unless explicitly enabled
+    if (g_d3d11.depthStencilStateDisabled) {
+        g_d3d11.context->OMSetDepthStencilState(g_d3d11.depthStencilStateDisabled.Get(), 0);
+        g_glState.depthTestEnabled = false;
+    }
 
     // Log state info (first 2 frames)
     if (frameCount < 2) {
         char msg[128];
-        snprintf(msg, sizeof(msg), "[STATE] DepthStencilState=0x%p, BlendState=0x%p",
-            g_d3d11.depthStencilState.Get(), g_d3d11.blendState.Get());
+        snprintf(msg, sizeof(msg), "[STATE] DepthStencilState=0x%p (DISABLED at frame start), BlendState=0x%p",
+            g_d3d11.depthStencilStateDisabled.Get(), g_d3d11.blendState.Get());
         logToJava(env, msg);
     }
 
@@ -1964,6 +2078,18 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_endFrame
     // This matches VulkanMod's approach of rendering directly to the presentation surface
     // Therefore, we do NOT need to copy/blit anything - just present the backbuffer!
 
+    // FIX #5: Signal fence for this frame (VulkanMod pattern)
+    D3D11Resources::FrameFence& fence = g_d3d11.frameFences[g_d3d11.currentFrameIndex];
+    g_d3d11.context->End(fence.timestampEnd.Get());
+    fence.signaled = true;
+
+    // Advance to next frame index (double buffering)
+    g_d3d11.currentFrameIndex = (g_d3d11.currentFrameIndex + 1) % g_d3d11.MAX_FRAMES_IN_FLIGHT;
+
+    // Flush context before Present (VulkanMod equivalent: vkQueueWaitIdle)
+    // This ensures all GPU commands are submitted before presenting
+    g_d3d11.context->Flush();
+
     // Present the frame
     HRESULT hr = g_d3d11.swapChain->Present(1, 0);
 
@@ -1980,6 +2106,37 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_endFrame
         snprintf(msg, sizeof(msg), "[PRESENT ERROR] Present() FAILED with HRESULT=0x%08X", hr);
         logToJava(env, msg);
     }
+}
+
+/**
+ * Reset dynamic rendering state (VulkanMod Renderer.resetDynamicState() pattern)
+ *
+ * VulkanMod calls this at the start of each render pass to ensure clean state.
+ * Reference: VulkanMod Renderer.java:600-604
+ */
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_resetDynamicState
+    (JNIEnv* env, jclass clazz) {
+
+    if (!g_d3d11.initialized || !g_d3d11.context) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(g_d3d11ContextMutex);
+
+    // Reset depth bias (VulkanMod: vkCmdSetDepthBias(commandBuffer, 0.0F, 0.0F, 0.0F))
+    // D3D11 equivalent: RSSetState with DepthBias = 0
+    // Note: D3D11 depth bias is part of rasterizer state, not a separate command
+    // We'll reset it via the rasterizer state in the pipeline
+
+    // Reset stencil reference value (default = 0)
+    g_d3d11.context->OMSetDepthStencilState(nullptr, 0);
+
+    // Reset blend factor to default (1, 1, 1, 1)
+    float blendFactor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    g_d3d11.context->OMSetBlendState(nullptr, blendFactor, 0xFFFFFFFF);
+
+    // NOTE: We don't reset line width because D3D11 doesn't support it
+    // (Vulkan vkCmdSetLineWidth equivalent doesn't exist in D3D11)
 }
 
 // REMOVED: Old clear(float, float, float, float) - replaced by clear(int mask)
@@ -2275,28 +2432,22 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setShaderPip
         g_d3d11.context->PSSetSamplers(0, 1, g_d3d11.defaultSamplerState.GetAddressOf());
     }
 
-    // CRITICAL FIX: Rebind all active constant buffers after shader pipeline change
-    // According to Microsoft DirectX 11 documentation, constant buffers must be rebound
-    // after changing shaders. This fixes the yellow/red/purple screen issue.
-    for (int slot = 0; slot < 4; ++slot) {
-        // Rebind vertex shader constant buffers
-        if (g_boundConstantBuffersVS[slot] != 0) {
-            auto it = g_constantBuffers.find(g_boundConstantBuffersVS[slot]);
-            if (it != g_constantBuffers.end()) {
-                ID3D11Buffer* buffers[] = { it->second.Get() };
-                g_d3d11.context->VSSetConstantBuffers(slot, 1, buffers);
-            }
-        }
-
-        // Rebind pixel shader constant buffers
-        if (g_boundConstantBuffersPS[slot] != 0) {
-            auto it = g_constantBuffers.find(g_boundConstantBuffersPS[slot]);
-            if (it != g_constantBuffers.end()) {
-                ID3D11Buffer* buffers[] = { it->second.Get() };
-                g_d3d11.context->PSSetConstantBuffers(slot, 1, buffers);
-            }
-        }
-    }
+    // CRITICAL FIX (bgfx pattern): IMMEDIATELY bind ALL constant buffers after shader change
+    // VSSetShader/PSSetShader can unbind constant buffers - bind them all at once
+    ID3D11Buffer* vsBuffers[4] = {
+        g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+        g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+        g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+        g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+    };
+    ID3D11Buffer* psBuffers[4] = {
+        g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+        g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+        g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+        g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+    };
+    g_d3d11.context->VSSetConstantBuffers(0, 4, vsBuffers);
+    g_d3d11.context->PSSetConstantBuffers(0, 4, psBuffers);
 
     // CRITICAL FIX: Rebind all active textures after shader pipeline change
     // DirectX 11 clears texture bindings when shaders change, just like constant buffers.
@@ -2565,6 +2716,24 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_draw
                 // This will auto-resize if needed, only fails if resize is impossible
                 ensureIndexBufferCapacity(env, indexCount, firstIndex);
 
+                // CRITICAL FIX (bgfx pattern): Re-bind ALL constant buffers immediately before EVERY draw
+                // DirectX 11 may unbind constant buffers during pipeline state changes
+                // bgfx always binds constant buffers right before draw calls to guarantee availability
+                ID3D11Buffer* vsBuffers[4] = {
+                    g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+                    g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+                    g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+                    g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+                };
+                ID3D11Buffer* psBuffers[4] = {
+                    g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+                    g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+                    g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+                    g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+                };
+                g_d3d11.context->VSSetConstantBuffers(0, 4, vsBuffers);
+                g_d3d11.context->PSSetConstantBuffers(0, 4, psBuffers);
+
                 if (instanceCount > 1) {
                     g_d3d11.context->DrawIndexedInstanced(indexCount, instanceCount, firstIndex, baseVertex, 0);
                 } else {
@@ -2597,6 +2766,23 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_draw
                     logToJava(env, msg);
                     nonIndexedDrawCount++;
                 }
+
+                // CRITICAL FIX (bgfx pattern): Re-bind ALL constant buffers immediately before EVERY draw
+                // DirectX 11 may unbind constant buffers during pipeline state changes
+                ID3D11Buffer* vsBuffers[4] = {
+                    g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+                    g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+                    g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+                    g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+                };
+                ID3D11Buffer* psBuffers[4] = {
+                    g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+                    g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+                    g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+                    g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+                };
+                g_d3d11.context->VSSetConstantBuffers(0, 4, vsBuffers);
+                g_d3d11.context->PSSetConstantBuffers(0, 4, psBuffers);
 
                 if (instanceCount > 1) {
                     g_d3d11.context->DrawInstanced(indexCount, instanceCount, firstIndex, 0);
@@ -3589,6 +3775,22 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindTexture_
     // Vertex shader might need textures for certain effects (terrain height maps, etc.)
     // Binding to both is safer and matches VulkanMod's approach
     g_d3d11.context->VSSetShaderResources(slot, 1, &srv);
+
+    // CRITICAL: Bind per-texture sampler if available (VulkanMod pattern)
+    // This enables per-texture blur/clamp/mipmap parameters
+    if (textureHandle != 0) {
+        auto samplerIt = g_textureSamplers.find(textureHandle);
+        if (samplerIt != g_textureSamplers.end()) {
+            ID3D11SamplerState* sampler = samplerIt->second.Get();
+            g_d3d11.context->PSSetSamplers(slot, 1, &sampler);
+        } else {
+            // No per-texture sampler, use default
+            if (g_d3d11.defaultSamplerState) {
+                ID3D11SamplerState* defaultSampler = g_d3d11.defaultSamplerState.Get();
+                g_d3d11.context->PSSetSamplers(slot, 1, &defaultSampler);
+            }
+        }
+    }
 
     // CRITICAL DEBUG: Log texture bindings to see if framebuffer textures are bound
     static int bindCount = 0;
@@ -5718,6 +5920,121 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setTexturePa
     // This is a placeholder implementation
 }
 
+/**
+ * Set texture parameter for a specific texture handle (per-texture sampler state)
+ * This is the CRITICAL implementation for VulkanMod-style per-texture blur/clamp/mipmap parameters
+ */
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setTextureParameter__JII
+    (JNIEnv* env, jclass clazz, jlong textureHandle, jint pname, jint param) {
+
+    if (!g_d3d11.initialized) return;
+
+    uint64_t handle = static_cast<uint64_t>(textureHandle);
+
+    // Get or create sampler params for this texture
+    TextureSamplerParams& params = g_textureSamplerParams[handle];
+
+    // Update the specific parameter
+    switch (pname) {
+        case 0x2801: // GL_TEXTURE_MIN_FILTER
+            if (params.minFilter != param) {
+                params.minFilter = param;
+                params.needsUpdate = true;
+            }
+            break;
+        case 0x2800: // GL_TEXTURE_MAG_FILTER
+            if (params.magFilter != param) {
+                params.magFilter = param;
+                params.needsUpdate = true;
+            }
+            break;
+        case 0x2802: // GL_TEXTURE_WRAP_S
+            if (params.wrapS != param) {
+                params.wrapS = param;
+                params.needsUpdate = true;
+            }
+            break;
+        case 0x2803: // GL_TEXTURE_WRAP_T
+            if (params.wrapT != param) {
+                params.wrapT = param;
+                params.needsUpdate = true;
+            }
+            break;
+        default:
+            // Ignore unsupported parameters
+            return;
+    }
+
+    // If parameters changed, recreate sampler state
+    if (params.needsUpdate) {
+        D3D11_SAMPLER_DESC samplerDesc = {};
+
+        // Convert OpenGL filter to D3D11 filter
+        // GL_NEAREST = 0x2600, GL_LINEAR = 0x2601
+        bool minLinear = (params.minFilter == 0x2601);
+        bool magLinear = (params.magFilter == 0x2601);
+
+        if (minLinear && magLinear) {
+            samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        } else if (!minLinear && !magLinear) {
+            samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+        } else if (minLinear) {
+            samplerDesc.Filter = D3D11_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
+        } else {
+            samplerDesc.Filter = D3D11_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT;
+        }
+
+        // Convert OpenGL wrap mode to D3D11 address mode
+        // GL_CLAMP_TO_EDGE = 0x812F, GL_REPEAT = 0x2901
+        D3D11_TEXTURE_ADDRESS_MODE addressModeU = (params.wrapS == 0x812F)
+            ? D3D11_TEXTURE_ADDRESS_CLAMP : D3D11_TEXTURE_ADDRESS_WRAP;
+        D3D11_TEXTURE_ADDRESS_MODE addressModeV = (params.wrapT == 0x812F)
+            ? D3D11_TEXTURE_ADDRESS_CLAMP : D3D11_TEXTURE_ADDRESS_WRAP;
+
+        samplerDesc.AddressU = addressModeU;
+        samplerDesc.AddressV = addressModeV;
+        samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        samplerDesc.MipLODBias = 0.0f;
+        samplerDesc.MaxAnisotropy = 1;
+        samplerDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+        samplerDesc.BorderColor[0] = 0.0f;
+        samplerDesc.BorderColor[1] = 0.0f;
+        samplerDesc.BorderColor[2] = 0.0f;
+        samplerDesc.BorderColor[3] = 0.0f;
+        samplerDesc.MinLOD = 0.0f;
+        samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+        // Create new sampler state
+        ComPtr<ID3D11SamplerState> newSampler;
+        HRESULT hr = g_d3d11.device->CreateSamplerState(&samplerDesc, &newSampler);
+
+        if (SUCCEEDED(hr)) {
+            // Store sampler (ComPtr will auto-release old one)
+            g_textureSamplers[handle] = newSampler;
+            params.needsUpdate = false;
+
+            // Log sampler creation (first 10 only)
+            static int samplerCreateCount = 0;
+            if (samplerCreateCount < 10) {
+                char msg[256];
+                snprintf(msg, sizeof(msg), "[SAMPLER_CREATE %d] Texture ID=%lld, filter=%s/%s, wrap=%s/%s",
+                    samplerCreateCount,
+                    handle,
+                    minLinear ? "LINEAR" : "NEAREST",
+                    magLinear ? "LINEAR" : "NEAREST",
+                    addressModeU == D3D11_TEXTURE_ADDRESS_CLAMP ? "CLAMP" : "WRAP",
+                    addressModeV == D3D11_TEXTURE_ADDRESS_CLAMP ? "CLAMP" : "WRAP");
+                logToJava(env, msg);
+                samplerCreateCount++;
+            }
+        } else {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "[SAMPLER_CREATE_ERROR] Failed to create sampler for texture ID=%lld, HRESULT=0x%08X", handle, hr);
+            logToJava(env, msg);
+        }
+    }
+}
+
 JNIEXPORT jint JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_getTextureParameter
     (JNIEnv* env, jclass clazz, jint target, jint pname) {
 
@@ -6985,6 +7302,18 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_waitForIdle
     }
 }
 
+// FIX #1: Submit pending texture/buffer uploads (VulkanMod pattern)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_submitPendingUploads
+    (JNIEnv* env, jclass clazz) {
+
+    if (!g_d3d11.initialized) return;
+
+    // For D3D11, this is simpler than Vulkan's UploadManager
+    // We just need to flush the context to ensure all pending uploads complete
+    // In the future, this would handle staging buffer → GPU texture copies
+    g_d3d11.context->Flush();
+}
+
 // Display and Window Management
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_handleDisplayResize
     (JNIEnv* env, jclass clazz, jint width, jint height) {
@@ -7093,6 +7422,8 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_shutdownSafe
     g_inputLayouts.clear();
     g_textures.clear();
     g_shaderResourceViews.clear();
+    g_textureSamplers.clear();        // Clear per-texture samplers
+    g_textureSamplerParams.clear();   // Clear sampler parameters
     g_queries.clear();
 
     // Release DirectX 11 resources
@@ -7390,6 +7721,20 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindTexture_
             ID3D11ShaderResourceView* srvArray[1] = { srv };
             ctx->PSSetShaderResources(g_glState.currentTextureUnit, 1, srvArray);
 
+            // CRITICAL: Bind per-texture sampler if available (VulkanMod pattern)
+            // This enables per-texture blur/clamp/mipmap parameters
+            auto samplerIt = g_textureSamplers.find(handle);
+            if (samplerIt != g_textureSamplers.end()) {
+                ID3D11SamplerState* sampler = samplerIt->second.Get();
+                ctx->PSSetSamplers(g_glState.currentTextureUnit, 1, &sampler);
+            } else {
+                // No per-texture sampler, use default
+                if (g_d3d11.defaultSamplerState) {
+                    ID3D11SamplerState* defaultSampler = g_d3d11.defaultSamplerState.Get();
+                    ctx->PSSetSamplers(g_glState.currentTextureUnit, 1, &defaultSampler);
+                }
+            }
+
             // ENHANCED LOGGING: Log ALL texture bindings (no limit) to diagnose UI issue
             static int bindCount = 0;
             char msg[128];
@@ -7451,6 +7796,93 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setActiveTex
     g_glState.currentTextureUnit = textureUnit;
 }
 
+/**
+ * Bind texture to specific slot (VulkanMod VTextureSelector pattern)
+ * This is the CRITICAL method for D3D11TextureSelector.bindShaderTextures()
+ *
+ * Unlike bindTexture__I which binds to currentTextureUnit, this binds directly to a specific slot.
+ * This ensures textures are bound to the correct shader sampler slots regardless of active texture state.
+ */
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindTextureToSlot__IJ
+    (JNIEnv* env, jclass clazz, jint slot, jlong d3d11Handle) {
+
+    // CRITICAL: VulkanMod pattern - safe no-op if DirectX not initialized
+    if (!g_d3d11.initialized) {
+        return;
+    }
+
+    // Check context validity
+    if (!g_d3d11.context || !g_d3d11.context.Get()) {
+        return;
+    }
+
+    ID3D11DeviceContext* ctx = g_d3d11.context.Get();
+    if (!ctx) {
+        return;
+    }
+
+    // Validate slot is in range
+    if (slot < 0 || slot >= 16) {  // D3D11 shader supports up to 128, but Minecraft uses max 16
+        char msg[128];
+        snprintf(msg, sizeof(msg), "[TEXTURE_SELECTOR_ERROR] Invalid texture slot: %d (valid range: 0-15)", slot);
+        logToJava(env, msg);
+        return;
+    }
+
+    // Handle unbind (d3d11Handle == 0)
+    if (d3d11Handle == 0) {
+        ID3D11ShaderResourceView* nullSRV = nullptr;
+        ctx->PSSetShaderResources(slot, 1, &nullSRV);
+        return;
+    }
+
+    // Lookup D3D11 SRV by handle (handle is texture ID)
+    uint64_t handle = static_cast<uint64_t>(d3d11Handle);
+    auto it = g_shaderResourceViews.find(handle);
+    if (it != g_shaderResourceViews.end()) {
+        ID3D11ShaderResourceView* srv = it->second.Get();
+        if (srv != nullptr) {
+            // Bind SRV to pixel shader slot
+            ID3D11ShaderResourceView* srvArray[1] = { srv };
+            ctx->PSSetShaderResources(slot, 1, srvArray);
+
+            // Bind sampler for this slot
+            auto samplerIt = g_textureSamplers.find(handle);
+            if (samplerIt != g_textureSamplers.end()) {
+                ID3D11SamplerState* sampler = samplerIt->second.Get();
+                ctx->PSSetSamplers(slot, 1, &sampler);
+            } else if (g_d3d11.defaultSamplerState) {
+                ID3D11SamplerState* defaultSampler = g_d3d11.defaultSamplerState.Get();
+                ctx->PSSetSamplers(slot, 1, &defaultSampler);
+            }
+
+            // Debug logging
+            static int bindCount = 0;
+            if (bindCount < 100) {  // Log first 100 bindings
+                char msg[256];
+                snprintf(msg, sizeof(msg), "[TEXTURE_SELECTOR_BIND %d] Bound texture handle=0x%llx to slot %d, SRV=0x%p",
+                    bindCount, (unsigned long long)d3d11Handle, slot, srv);
+                logToJava(env, msg);
+                bindCount++;
+            }
+        } else {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "[TEXTURE_SELECTOR_ERROR] Texture handle=0x%llx found but SRV is NULL! Slot=%d",
+                (unsigned long long)d3d11Handle, slot);
+            logToJava(env, msg);
+        }
+    } else {
+        static int notFoundCount = 0;
+        if (notFoundCount < 20) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "[TEXTURE_SELECTOR_ERROR %d] Texture handle=0x%llx NOT FOUND! Total textures: %zu, Slot=%d",
+                notFoundCount, (unsigned long long)d3d11Handle, g_shaderResourceViews.size(), slot);
+            logToJava(env, msg);
+            notFoundCount++;
+        }
+    }
+}
+
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_deleteTexture__I
     (JNIEnv* env, jclass clazz, jint textureId) {
 
@@ -7461,6 +7893,8 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_deleteTextur
     // Remove from tracking maps
     g_textures.erase(handle);
     g_shaderResourceViews.erase(handle);
+    g_textureSamplers.erase(handle);        // Remove per-texture sampler
+    g_textureSamplerParams.erase(handle);   // Remove sampler parameters
 
     // Unbind if currently bound
     for (int i = 0; i < 32; i++) {
@@ -7478,6 +7912,8 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_releaseTextu
     // Remove from tracking maps (ComPtr will automatically release)
     g_textures.erase(textureHandle);
     g_shaderResourceViews.erase(textureHandle);
+    g_textureSamplers.erase(textureHandle);        // Remove per-texture sampler
+    g_textureSamplerParams.erase(textureHandle);   // Remove sampler parameters
 
     // Unbind if currently bound (need to convert handle to OpenGL ID for state tracking)
     // Note: This is a simplified unbind - we're using handle-based tracking
@@ -9395,24 +9831,23 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindShaderPi
     // The input layout will be created and bound by drawWithVertexFormat() based on the
     // actual vertex data format, ensuring shader inputs match buffer data.
 
-    // NOTE: Shaders were already bound at lines 9206-9207 above, so don't duplicate
-    // Just bind constant buffers to ensure resources are available to both shader stages
-    if (g_d3d11.constantBuffers[0]) {
-        g_d3d11.context->VSSetConstantBuffers(0, 1, g_d3d11.constantBuffers[0].GetAddressOf());
-        g_d3d11.context->PSSetConstantBuffers(0, 1, g_d3d11.constantBuffers[0].GetAddressOf());
-    }
-    if (g_d3d11.constantBuffers[1]) {
-        g_d3d11.context->VSSetConstantBuffers(1, 1, g_d3d11.constantBuffers[1].GetAddressOf());
-        g_d3d11.context->PSSetConstantBuffers(1, 1, g_d3d11.constantBuffers[1].GetAddressOf());
-    }
-    if (g_d3d11.constantBuffers[2]) {
-        g_d3d11.context->VSSetConstantBuffers(2, 1, g_d3d11.constantBuffers[2].GetAddressOf());
-        g_d3d11.context->PSSetConstantBuffers(2, 1, g_d3d11.constantBuffers[2].GetAddressOf());
-    }
-    if (g_d3d11.constantBuffers[3]) {
-        g_d3d11.context->VSSetConstantBuffers(3, 1, g_d3d11.constantBuffers[3].GetAddressOf());
-        g_d3d11.context->PSSetConstantBuffers(3, 1, g_d3d11.constantBuffers[3].GetAddressOf());
-    }
+    // CRITICAL FIX (bgfx pattern): IMMEDIATELY bind ALL constant buffers after shader change
+    // VSSetShader/PSSetShader can unbind constant buffers on some GPU drivers
+    // bgfx ALWAYS binds constant buffers immediately after setting shaders
+    ID3D11Buffer* vsBuffers[4] = {
+        g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+        g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+        g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+        g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+    };
+    ID3D11Buffer* psBuffers[4] = {
+        g_d3d11.constantBuffers[0] ? g_d3d11.constantBuffers[0].Get() : nullptr,
+        g_d3d11.constantBuffers[1] ? g_d3d11.constantBuffers[1].Get() : nullptr,
+        g_d3d11.constantBuffers[2] ? g_d3d11.constantBuffers[2].Get() : nullptr,
+        g_d3d11.constantBuffers[3] ? g_d3d11.constantBuffers[3].Get() : nullptr
+    };
+    g_d3d11.context->VSSetConstantBuffers(0, 4, vsBuffers);
+    g_d3d11.context->PSSetConstantBuffers(0, 4, psBuffers);
 
     // CRITICAL FIX (VulkanMod pattern): Re-bind textures after pipeline change
     // DirectX 11 does NOT preserve texture bindings when PSSetShader() is called!
@@ -9517,13 +9952,32 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_updateConsta
         return;
     }
 
-    // Log first CB update for slot b0 (vertex shader - contains projection matrix)
+    // CRITICAL DEBUG: Log ENTIRE constant buffer to find garbage source
     static int updateCount = 0;
-    if (updateCount < 2 && bufferHandle == g_boundConstantBuffersVS[0]) {
-        float* matrixData = reinterpret_cast<float*>(dataPtr);
-        char msg[256];
-        snprintf(msg, sizeof(msg), "[CB_UPDATE_VS] size=%d bytes, first row: [%.3f, %.3f, %.3f, %.3f]",
-            dataSize, matrixData[0], matrixData[1], matrixData[2], matrixData[3]);
+    if (updateCount < 3) {
+        float* floatData = reinterpret_cast<float*>(dataPtr);
+        char msg[2048];
+
+        // Log first buffer update in detail (all 64 floats = 256 bytes)
+        snprintf(msg, sizeof(msg), "[CB_NATIVE_FULL %d] handle=0x%llx, size=%d bytes\n"
+            "  [0-15]   MVP:         %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f\n"
+            "  [16-31]  ModelView:   %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f\n"
+            "  [32-35]  ColorMod:    %.3f %.3f %.3f %.3f\n"
+            "  [36-38]  ModelOffset: %.3f %.3f %.3f (pad: %.3f)\n"
+            "  [40-55]  TextureMat:  %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f\n"
+            "  [56]     LineWidth:   %.3f\n"
+            "  [57-63]  _pad1:       %.3f %.3f %.3f | (extra: %.3f %.3f %.3f %.3f)",
+            updateCount, (unsigned long long)bufferHandle, dataSize,
+            floatData[0], floatData[1], floatData[2], floatData[3], floatData[4], floatData[5], floatData[6], floatData[7],
+            floatData[8], floatData[9], floatData[10], floatData[11], floatData[12], floatData[13], floatData[14], floatData[15],
+            floatData[16], floatData[17], floatData[18], floatData[19], floatData[20], floatData[21], floatData[22], floatData[23],
+            floatData[24], floatData[25], floatData[26], floatData[27], floatData[28], floatData[29], floatData[30], floatData[31],
+            floatData[32], floatData[33], floatData[34], floatData[35],
+            floatData[36], floatData[37], floatData[38], floatData[39],
+            floatData[40], floatData[41], floatData[42], floatData[43], floatData[44], floatData[45], floatData[46], floatData[47],
+            floatData[48], floatData[49], floatData[50], floatData[51], floatData[52], floatData[53], floatData[54], floatData[55],
+            floatData[56],
+            floatData[57], floatData[58], floatData[59]);
         logToJava(env, msg);
         updateCount++;
     }

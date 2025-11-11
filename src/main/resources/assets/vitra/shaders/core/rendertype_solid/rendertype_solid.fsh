@@ -5,7 +5,6 @@
 // D3DCompile with D3D_COMPILE_STANDARD_FILE_INCLUDE can't resolve includes from JAR resources
 // Only including the cbuffers actually used by shaders
 
-#pragma pack_matrix(column_major)
 
 cbuffer DynamicTransforms : register(b0) {
     float4x4 MVP;             // Pre-multiplied MVP matrix
@@ -129,12 +128,11 @@ float4 projection_from_position(float4 position) {
 }
 
 Texture2D Sampler0 : register(t0);
-Texture2D Sampler2 : register(t2);  // Lightmap
 SamplerState Sampler0State : register(s0);
-SamplerState Sampler2State : register(s2);
 
 struct PS_INPUT {
     float4 Position : SV_POSITION;
+    float vertexDistance : TEXCOORD3;
     float4 vertexColor : COLOR0;
     float2 texCoord0 : TEXCOORD0;
     float2 texCoord2 : TEXCOORD2;
@@ -147,13 +145,18 @@ struct PS_OUTPUT {
 PS_OUTPUT main(PS_INPUT input) {
     PS_OUTPUT output;
 
+    // Sample texture and multiply with vertex color (which already includes lightmap from vertex shader)
     float4 color = Sampler0.Sample(Sampler0State, input.texCoord0) * input.vertexColor;
-    color *= Sampler2.Sample(Sampler2State, input.texCoord2);
 
     if (color.a < 0.1) {
         discard;
     }
 
-    output.fragColor = color * ColorModulator;
+    // Apply color modulator
+    color *= ColorModulator;
+
+    // Apply fog (VulkanMod pattern)
+    output.fragColor = linear_fog(color, input.vertexDistance, FogStart, FogEnd, FogColor);
+
     return output;
 }
