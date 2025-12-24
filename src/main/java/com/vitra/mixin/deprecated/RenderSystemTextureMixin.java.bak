@@ -4,7 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Final;
@@ -24,8 +24,8 @@ public class RenderSystemTextureMixin {
 
     @Shadow @Final private static int[] shaderTextures;
 
-    @Inject(method = "_setShaderTexture(ILnet/minecraft/resources/ResourceLocation;)V", at = @At("HEAD"), remap = false)
-    private static void logSetShaderTexture(int slot, ResourceLocation resourceLocation, CallbackInfo ci) {
+    @Inject(method = "_setShaderTexture(ILnet/minecraft/resources/Identifier;)V", at = @At("HEAD"), remap = false)
+    private static void logSetShaderTexture(int slot, Identifier resourceLocation, CallbackInfo ci) {
         if (setTextureCount < 200) {
             TextureManager textureManager = Minecraft.getInstance().getTextureManager();
             AbstractTexture texture = textureManager.getTexture(resourceLocation);
@@ -48,8 +48,8 @@ public class RenderSystemTextureMixin {
      * CRITICAL FIX: Bind texture to D3D11 when setShaderTexture is called
      * This is VulkanMod's approach - texture slot is determined by Minecraft's RenderSystem
      */
-    @Inject(method = "_setShaderTexture(ILnet/minecraft/resources/ResourceLocation;)V", at = @At("RETURN"), remap = false)
-    private static void bindTextureToD3D11(int slot, ResourceLocation resourceLocation, CallbackInfo ci) {
+    @Inject(method = "_setShaderTexture(ILnet/minecraft/resources/Identifier;)V", at = @At("RETURN"), remap = false)
+    private static void bindTextureToD3D11(int slot, Identifier resourceLocation, CallbackInfo ci) {
         try {
             // Get the texture ID that was just set in shaderTextures array
             int textureId = shaderTextures[slot];

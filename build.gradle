@@ -1,5 +1,5 @@
 plugins {
-	id 'fabric-loom' version '1.9.2'
+	id 'net.fabricmc.fabric-loom' version '1.14-SNAPSHOT'
 	id 'maven-publish'
 }
 
@@ -31,11 +31,11 @@ loom {
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings loom.officialMojangMappings()
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	// No mappings needed for unobfuscated Minecraft 26.1+
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
 	// LWJGL dependencies
 	implementation "org.lwjgl:lwjgl:${lwjgl_version}"
@@ -69,7 +69,7 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+	it.options.release = 25
 	// Disable incremental compilation to ensure changes are always recompiled
 	// This prevents stale class files from being used during development
 	it.options.incremental = false
@@ -81,8 +81,8 @@ java {
 	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
 }
 
 // ============================================================================
@@ -223,6 +223,9 @@ task compileNativeDX11(type: Exec) {
 	// Only compile on Windows
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
 
+	// Store VS path for use in commandLine
+	ext.vsInstallPath = ""
+
 	doFirst {
 		// Create output directory
 		file("$buildDir/native").mkdirs()
@@ -252,31 +255,43 @@ task compileNativeDX11(type: Exec) {
 			throw new GradleException("vcvars64.bat not found at: ${vcvarsPath}")
 		}
 
+		// Store for commandLine
+		ext.vsInstallPath = vsPath
+
 		println "Using vswhere: ${vsWhere}"
 		println "Compiling D3D 11 native library with Visual Studio at: ${vsPath}"
 		println "RenderDoc integration: Enabled (runtime dynamic loading)"
-	}
 
-	// Set up Visual Studio environment and compile D3D 11
-	// Use direct path to vcvars64.bat instead of vswhere in the compile command
-	// Explicitly add Windows SDK paths as fallback for missing UCRT
-	commandLine 'cmd', '/c', "call \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
-		"cl /LD /EHsc /D_DEBUG /MDd /I\"src/main/include\" " +
-		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
-		"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\ucrt\" " +
-		"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\um\" " +
-		"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\shared\" " +
-		"\"src/main/cpp/vitra_d3d11.cpp\" " +
-		"/Fe:\"$buildDir/native/vitra-d3d11.dll\" " +
-		"/link /LIBPATH:\"libs/x64\" /LIBPATH:\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64\" " +
-		"/LIBPATH:\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64\" " +
-		"d3d11.lib dxgi.lib d3dcompiler.lib dxguid.lib user32.lib Ole32.lib Shell32.lib"
+		// Build the command dynamically with the detected VS path
+		def compileCommand = "call \"${vcvarsPath}\" && " +
+			"cl /LD /EHsc /D_DEBUG /MDd /I\"src/main/include\" " +
+			"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
+			"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\ucrt\" " +
+			"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\um\" " +
+			"/I\"C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\shared\" " +
+			"\"src/main/cpp/vitra_d3d11.cpp\" " +
+			"/Fe:\"$buildDir/native/vitra-d3d11.dll\" " +
+			"/link /LIBPATH:\"libs/x64\" /LIBPATH:\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64\" " +
+			"/LIBPATH:\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64\" " +
+			"d3d11.lib dxgi.lib d3dcompiler.lib dxguid.lib user32.lib Ole32.lib Shell32.lib"
 
-	workingDir projectDir
+		// Execute the command directly
+		def proc = ["cmd", "/c", compileCommand].execute(null, projectDir)
+		proc.waitFor()
 
-	doLast {
+		if (proc.exitValue() != 0) {
+			println "STDOUT: ${proc.text}"
+			println "STDERR: ${proc.err.text}"
+			throw new GradleException("D3D11 native compilation failed with exit code: ${proc.exitValue()}")
+		}
+
 		println "D3D 11 native library compiled successfully: ${file("$buildDir/native/vitra-d3d11.dll")}"
 	}
+
+	// No-op commandLine since we execute compilation in doFirst
+	commandLine 'cmd', '/c', 'echo D3D11 compilation handled in doFirst block'
+
+	workingDir projectDir
 }
 
 // D3D 12 Ultimate native library compilation task
@@ -316,21 +331,26 @@ task compileNativeDX12(type: Exec) {
 		println "Using vswhere: ${vsWhere}"
 		println "Compiling D3D 12 Ultimate native library with Visual Studio at: ${vsPath}"
 		println "RenderDoc integration: Enabled (runtime dynamic loading)"
-	}
 
-	// Set up Visual Studio environment and compile D3D 12 Ultimate with D3D12MA
-	// Use direct path to vcvars64.bat instead of vswhere in the compile command
-	commandLine 'cmd', '/c', "call \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" && " +
-		"cl /LD /EHsc /std:c++20 /I\"src/main/include\" /I\"src/main/external/D3D12MA\" " +
-		"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
-		"/DVITRA_D3D12MA_AVAILABLE=1 " +
-		"\"src/main/cpp/vitra_d3d12.cpp\" \"src/main/external/D3D12MA/D3D12MemAlloc.cpp\" " +
-		"/Fe:\"$buildDir/native/vitra-d3d12.dll\" " +
-		"/link /LIBPATH:\"libs/x64\" d3d12.lib dxgi.lib d3dcompiler.lib dxcompiler.lib user32.lib Ole32.lib Shell32.lib"
+		// Build the command dynamically with the detected VS path
+		def compileCommand = "call \"${vcvarsPath}\" && " +
+			"cl /LD /EHsc /std:c++20 /I\"src/main/include\" /I\"src/main/external/D3D12MA\" " +
+			"/I\"%JAVA_HOME%\\include\" /I\"%JAVA_HOME%\\include\\win32\" " +
+			"/DVITRA_D3D12MA_AVAILABLE=1 " +
+			"\"src/main/cpp/vitra_d3d12.cpp\" \"src/main/external/D3D12MA/D3D12MemAlloc.cpp\" " +
+			"/Fe:\"$buildDir/native/vitra-d3d12.dll\" " +
+			"/link /LIBPATH:\"libs/x64\" d3d12.lib dxgi.lib d3dcompiler.lib dxcompiler.lib user32.lib Ole32.lib Shell32.lib"
 
-	workingDir projectDir
+		// Execute the command directly
+		def proc = ["cmd", "/c", compileCommand].execute(null, projectDir)
+		proc.waitFor()
 
-	doLast {
+		if (proc.exitValue() != 0) {
+			println "STDOUT: ${proc.text}"
+			println "STDERR: ${proc.err.text}"
+			throw new GradleException("D3D12 native compilation failed with exit code: ${proc.exitValue()}")
+		}
+
 		println "D3D 12 Ultimate native library compiled successfully: ${file("$buildDir/native/vitra-d3d12.dll")}"
 
 		// Copy dxcompiler.dll dependency from Windows SDK to build/native
@@ -348,6 +368,11 @@ task compileNativeDX12(type: Exec) {
 			println "D3D 12 may fail to load. Please install Windows 10 SDK."
 		}
 	}
+
+	// No-op commandLine since we execute compilation in doFirst
+	commandLine 'cmd', '/c', 'echo D3D12 compilation handled in doFirst block'
+
+	workingDir projectDir
 }
 
 // Compile all native libraries

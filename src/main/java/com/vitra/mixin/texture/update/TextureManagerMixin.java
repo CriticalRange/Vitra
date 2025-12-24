@@ -3,7 +3,7 @@ package com.vitra.mixin.texture.update;
 import com.vitra.render.VitraRenderer;
 import com.vitra.render.texture.SpriteUpdateUtil;
 import net.minecraft.client.renderer.texture.TextureManager;
-import net.minecraft.client.renderer.texture.Tickable;
+import net.minecraft.client.renderer.texture.TickableTexture;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -18,7 +18,7 @@ import java.util.Set;
 @Mixin(TextureManager.class)
 public abstract class TextureManagerMixin {
 
-    @Shadow @Final private Set<Tickable> tickableTextures;
+    @Shadow @Final private Set<TickableTexture> tickableTextures;
 
     /**
      * @author Vitra
@@ -31,7 +31,7 @@ public abstract class TextureManagerMixin {
             return;
 
         // Tick all animated textures (water, lava, portals, etc.)
-        for (Tickable tickable : this.tickableTextures) {
+        for (TickableTexture tickable : this.tickableTextures) {
             tickable.tick();
         }
 

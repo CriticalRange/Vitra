@@ -380,10 +380,12 @@ public class VRenderSystem {
 
     /**
      * Set fog color from Minecraft's RenderSystem
+     * DEPRECATED for 26.1: RenderSystem.getShaderFogColor() no longer exists
      */
     public static void updateShaderFogColor() {
-        float[] fogColor = RenderSystem.getShaderFogColor();
-        setShaderFogColor(fogColor[0], fogColor[1], fogColor[2], 1.0f);
+        // DEPRECATED for 26.1: RenderSystem.getShaderFogColor() no longer exists
+        // float[] fogColor = RenderSystem.getShaderFogColor();
+        // setShaderFogColor(fogColor[0], fogColor[1], fogColor[2], 1.0f);
     }
 
     /**
@@ -459,35 +461,36 @@ public class VRenderSystem {
         setLineWidth(1.0f);
     }
 
-    // ==================== SYNC WITH RENDERSYSTEM ====================
-
     /**
      * Sync all uniforms from Minecraft's RenderSystem
-     * Called once per frame before rendering
+     * DEPRECATED for 26.1: Most RenderSystem.getShader* methods no longer exist
+     * TODO: Implement new uniform sync for 26.1 RenderPipeline system
      */
     public static void syncFromRenderSystem() {
-        // Sync matrices
-        Matrix4f mv = RenderSystem.getModelViewMatrix();
-        Matrix4f proj = RenderSystem.getProjectionMatrix();
-        Matrix4f tex = RenderSystem.getTextureMatrix();
+        // DEPRECATED for 26.1: These RenderSystem methods no longer exist
+        // The new 26.1 API uses RenderPipeline system for shader uniforms
+        
+        // Sync matrices - DEPRECATED
+        // Matrix4f mv = RenderSystem.getModelViewMatrix();
+        // Matrix4f proj = RenderSystem.getProjectionMatrix();
+        // Matrix4f tex = RenderSystem.getTextureMatrix();
+        // if (mv != null) setModelViewMatrix(mv);
+        // if (proj != null) setProjectionMatrix(proj);
+        // if (tex != null) setTextureMatrix(tex);
 
-        if (mv != null) setModelViewMatrix(mv);
-        if (proj != null) setProjectionMatrix(proj);
-        if (tex != null) setTextureMatrix(tex);
+        // Sync scalar uniforms - DEPRECATED
+        // setFogStart(RenderSystem.getShaderFogStart());
+        // setFogEnd(RenderSystem.getShaderFogEnd());
+        // setFogShape(RenderSystem.getShaderFogShape().getIndex());
+        // setGameTime(RenderSystem.getShaderGameTime());
+        // setLineWidth(RenderSystem.getShaderLineWidth());
 
-        // Sync scalar uniforms
-        setFogStart(RenderSystem.getShaderFogStart());
-        setFogEnd(RenderSystem.getShaderFogEnd());
-        setFogShape(RenderSystem.getShaderFogShape().getIndex());
-        setGameTime(RenderSystem.getShaderGameTime());
-        setLineWidth(RenderSystem.getShaderLineWidth());
+        // Sync fog color - DEPRECATED
+        // updateShaderFogColor();
 
-        // Sync fog color
-        updateShaderFogColor();
-
-        // Sync shader color
-        float[] color = RenderSystem.getShaderColor();
-        setShaderColor(color);
+        // Sync shader color - DEPRECATED
+        // float[] color = RenderSystem.getShaderColor();
+        // setShaderColor(color);
     }
 
     // ==================== DIRTY TRACKING ====================

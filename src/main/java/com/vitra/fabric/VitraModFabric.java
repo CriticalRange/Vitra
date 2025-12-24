@@ -67,8 +67,14 @@ public final class VitraModFabric implements ModInitializer {
 
     /**
      * Register Fabric WorldRenderEvents for DirectX JNI integration
+     * TODO: Update for Fabric API 26.1 - WorldRenderEvents package location changed
      */
     private void registerWorldRenderingHooks() {
+        // DEPRECATED for 26.1: WorldRenderEvents package location changed or removed
+        // These hooks need to be reimplemented once Fabric API for 26.1 is stable
+        LOGGER.warn("World rendering hooks disabled for 26.1 migration - Fabric API not yet compatible");
+        
+        /* DISABLED FOR 26.1 MIGRATION:
         // Hook into world rendering start to setup DirectX JNI frame
         net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents.START.register((context) -> {
             LOGGER.debug("*** FABRIC HOOK: WorldRenderEvents.START - Beginning DirectX JNI frame setup");
@@ -106,6 +112,7 @@ public final class VitraModFabric implements ModInitializer {
         });
 
         LOGGER.debug("World rendering hooks registered");
+        */
     }
 
     /**

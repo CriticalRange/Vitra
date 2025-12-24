@@ -5,11 +5,11 @@
   "name": "Vitra",
   "description": "High-performance optimization and multi-backend rendering mod for Minecraft",
   "authors": [
-    "Vitra Team"
+    "CriticalRange"
   ],
   "contact": {
-    "homepage": "https://github.com/your-repo/vitra",
-    "sources": "https://github.com/your-repo/vitra"
+    "homepage": "https://github.com/CriticalRange/Vitra",
+    "sources": "https://github.com/CriticalRange/Vitra"
   },
   "license": "MIT",
   "icon": "assets/vitra/icon.png",
@@ -26,9 +26,9 @@
     "vitra.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.10",
-    "minecraft": "~1.21.1",
-    "java": ">=21",
+    "fabricloader": ">=0.18.3",
+    "minecraft": ">=26.1-alpha.1",
+    "java": ">=25",
     "fabric-api": "*"
   }
 }

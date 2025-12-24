@@ -195,9 +195,10 @@ public class D3D11TextureSelector {
             if (samplerValue instanceof Integer) {
                 // Direct texture ID
                 glTexId = (Integer) samplerValue;
-            } else if (samplerValue instanceof AbstractTexture) {
-                // AbstractTexture object - get its ID
-                glTexId = ((AbstractTexture) samplerValue).getId();
+            // DEPRECATED for 26.1: AbstractTexture.getId() no longer exists
+            // } else if (samplerValue instanceof AbstractTexture) {
+            //     // AbstractTexture object - get its ID
+            //     glTexId = ((AbstractTexture) samplerValue).getId();
             } else {
                 LOGGER.warn("Unsupported sampler type for {}: {}", samplerName,
                            samplerValue != null ? samplerValue.getClass().getName() : "null");
@@ -205,9 +206,10 @@ public class D3D11TextureSelector {
             }
 
             // Get texture from RenderSystem if it's registered there
-            if (glTexId == 0) {
-                glTexId = RenderSystem.getShaderTexture(slot);
-            }
+            // DEPRECATED for 26.1: RenderSystem.getShaderTexture() no longer exists
+            // if (glTexId == 0) {
+            //     glTexId = RenderSystem.getShaderTexture(slot);
+            // }
 
             if (glTexId > 0) {
                 // Bind texture to this slot

@@ -2,7 +2,7 @@ package com.vitra.render.shader;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import org.slf4j.Logger;
@@ -28,7 +28,7 @@ public class ShaderLoadUtil {
      */
     public static JsonObject getJsonConfig(String path, String name) {
         try {
-            ResourceLocation resourceLocation = ResourceLocation.parse("vitra:shaders/" + path + "/" + name + ".json");
+            Identifier resourceLocation = Identifier.parse("vitra:shaders/" + path + "/" + name + ".json");
             // Note: This requires a ResourceProvider instance, which we'll get from the mixin context
             // For now, we'll return null and handle this in the ShaderInstanceM mixin
             LOGGER.debug("Attempting to load shader config: {}", resourceLocation);
@@ -49,7 +49,7 @@ public class ShaderLoadUtil {
      */
     public static JsonObject getJsonConfig(ResourceProvider resourceProvider, String path, String name) {
         try {
-            ResourceLocation resourceLocation = ResourceLocation.parse("vitra:shaders/" + path + "/" + name + ".json");
+            Identifier resourceLocation = Identifier.parse("vitra:shaders/" + path + "/" + name + ".json");
             Resource resource = resourceProvider.getResource(resourceLocation).orElse(null);
 
             if (resource == null) {
@@ -74,7 +74,7 @@ public class ShaderLoadUtil {
      * @param resourceLocation The shader resource location
      * @return Shader source code as string
      */
-    public static String loadShaderSource(ResourceProvider resourceProvider, ResourceLocation resourceLocation) {
+    public static String loadShaderSource(ResourceProvider resourceProvider, Identifier resourceLocation) {
         // Try classpath loading first (VulkanMod approach) - works in dev and production
         String classpathPath = "/assets/" + resourceLocation.getNamespace() + "/" + resourceLocation.getPath();
 
@@ -109,8 +109,8 @@ public class ShaderLoadUtil {
      * @return Shader source code as string
      */
     public static String loadShaderSourceWithFallback(ResourceProvider resourceProvider,
-                                                      ResourceLocation primaryLocation,
-                                                      ResourceLocation fallbackLocation) {
+                                                      Identifier primaryLocation,
+                                                      Identifier fallbackLocation) {
         try {
             return loadShaderSource(resourceProvider, primaryLocation);
         } catch (Exception e) {
@@ -129,7 +129,7 @@ public class ShaderLoadUtil {
      */
     public static String getShaderPath(String name, String extension) {
         if (name.contains(":")) {
-            ResourceLocation location = ResourceLocation.parse(name);
+            Identifier location = Identifier.tryParse(name);
             return location.getNamespace() + ":shaders/core/" + location.getPath() + extension;
         } else {
             return "minecraft:shaders/core/" + name + extension;
@@ -143,7 +143,7 @@ public class ShaderLoadUtil {
      * @param resourceLocation The resource location to check
      * @return true if resource exists
      */
-    public static boolean shaderExists(ResourceProvider resourceProvider, ResourceLocation resourceLocation) {
+    public static boolean shaderExists(ResourceProvider resourceProvider, Identifier resourceLocation) {
         try {
             return resourceProvider.getResource(resourceLocation).isPresent();
         } catch (Exception e) {
@@ -162,7 +162,7 @@ public class ShaderLoadUtil {
     public static byte[] loadCompiledShader(ResourceProvider resourceProvider, String shaderName, String shaderType) {
         try {
             String extension = shaderType.equals("vertex") ? ".vso" : ".pso";
-            ResourceLocation resourceLocation = ResourceLocation.parse("vitra:shaders/compiled/" + shaderName + extension);
+            Identifier resourceLocation = Identifier.parse("vitra:shaders/compiled/" + shaderName + extension);
 
             Resource resource = resourceProvider.getResource(resourceLocation).orElse(null);
             if (resource == null) {

@@ -191,14 +191,15 @@ public class Uniforms {
 
         // ==================== RENDERSYSTEM PASS-THROUGHS ====================
 
-        // These uniforms are read directly from RenderSystem each frame
-        // (in case VRenderSystem sync is not called)
+        // DEPRECATED for 26.1: RenderSystem.getShader* methods no longer exist
+        // These uniforms must now be obtained through the new RenderPipeline system
+        // TODO: Implement new uniform providers for 26.1 API
 
-        vec1f_uniformMap.put("_FogStart", RenderSystem::getShaderFogStart);
-        vec1f_uniformMap.put("_FogEnd", RenderSystem::getShaderFogEnd);
-        vec1i_uniformMap.put("_FogShape", () -> RenderSystem.getShaderFogShape().getIndex());
-        vec1f_uniformMap.put("_GameTime", RenderSystem::getShaderGameTime);
-        vec1f_uniformMap.put("_LineWidth", RenderSystem::getShaderLineWidth);
+        // vec1f_uniformMap.put("_FogStart", RenderSystem::getShaderFogStart);
+        // vec1f_uniformMap.put("_FogEnd", RenderSystem::getShaderFogEnd);
+        // vec1i_uniformMap.put("_FogShape", () -> RenderSystem.getShaderFogShape().getIndex());
+        // vec1f_uniformMap.put("_GameTime", RenderSystem::getShaderGameTime);
+        // vec1f_uniformMap.put("_LineWidth", RenderSystem::getShaderLineWidth);
     }
 
     // ==================== SUPPLIER RETRIEVAL ====================
