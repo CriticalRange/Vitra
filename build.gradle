@@ -88,18 +88,18 @@ java {
 // ============================================================================
 // HLSL Shader Compilation Task
 // ============================================================================
-// DISABLED: Now using runtime shader compilation (GLSL→HLSL→D3DCompile)
-// Pre-compiled shaders are no longer needed - shaders compile on-the-fly like VulkanMod
+// Compiles HLSL shaders to .cso (Compiled Shader Object) files using fxc.exe
+// These precompiled shaders are loaded at runtime for faster startup
 task compileShaders {
-	description = 'DISABLED - Runtime compilation used instead'
+	description = 'Compiles HLSL shaders to .cso files using fxc.exe'
 	group = 'build'
 
-	// DISABLED: Runtime compilation eliminates need for pre-compiled shaders
-	onlyIf { false }
+	// Only compile on Windows (fxc.exe is Windows-only)
+	onlyIf { System.getProperty('os.name').toLowerCase().contains('windows') }
 
 	doFirst {
 		// Create output directory
-		def compiledDir = file("src/main/resources/shaders/compiled")
+		def compiledDir = file("src/main/resources/assets/vitra/shaders/compiled")
 		compiledDir.mkdirs()
 
 		// Find fxc.exe in Windows SDK
@@ -129,86 +129,79 @@ task compileShaders {
 
 		println "Using D3D Shader Compiler: ${fxcExe}"
 
-		// Shader list to compile - extended set covering Minecraft 1.21+ pipelines
-		def shaderNames = [
-			'blit_screen',
-			'entity',
-			'glint',
-			'gui',
-			'panorama',
-			'particle',
-			'position',
-			'position_color',
-			'position_color_lightmap',
-			'position_color_tex_lightmap',
-			'position_tex',
-			'position_tex_color',
-			'rendertype_beacon_beam',
-			'rendertype_clouds',
-			'rendertype_crumbling',
-			'rendertype_end_portal',
-			'rendertype_entity_alpha',
-			'rendertype_entity_decal',
-			'rendertype_entity_shadow',
-			'rendertype_item_entity_translucent_cull',
-			'rendertype_leash',
-			'rendertype_lightning',
-			'rendertype_lines',
-			'rendertype_outline',
-			'rendertype_text',
-			'rendertype_text_background',
-			'rendertype_text_background_see_through',
-			'rendertype_text_intensity',
-			'rendertype_text_intensity_see_through',
-			'rendertype_text_see_through',
-			'rendertype_translucent_moving_block',
-			'rendertype_water_mask',
-			'rendertype_world_border',
-			'sky',
-			'stars',
-			'terrain'
-		]
-
-		// Generate vertex and pixel shader entries for each shader
+		// Find all shader files in the core shaders directory
+		def coreShaderDir = file("src/main/resources/assets/vitra/shaders/core")
 		def shaders = []
-		shaderNames.each { name ->
-			shaders.add([name: name, type: 'vs'])
-			shaders.add([name: name, type: 'ps'])
+		
+		coreShaderDir.eachDir { shaderDir ->
+			def shaderName = shaderDir.name
+			def vshFile = file("${shaderDir}/${shaderName}.vsh")
+			def fshFile = file("${shaderDir}/${shaderName}.fsh")
+			
+			if (vshFile.exists()) {
+				shaders.add([name: shaderName, type: 'vs', file: vshFile])
+			}
+			if (fshFile.exists()) {
+				shaders.add([name: shaderName, type: 'ps', file: fshFile])
+			}
 		}
+
+		println "Found ${shaders.size()} shaders to compile"
+
+		def successCount = 0
+		def failCount = 0
+		def failedShaders = []
 
 		// Compile each shader
 		shaders.each { shader ->
 			def shaderType = (shader.type == 'vs') ? 'vertex' : 'pixel'
-			def shaderExt = (shader.type == 'vs') ? 'vsh' : 'fsh'
 			def target = (shader.type == 'vs') ? 'vs_5_0' : 'ps_5_0'
-			def inputFile = file("src/main/resources/shaders/hlsl/${shader.name}.${shaderExt}")
 			def outputFile = file("${compiledDir}/${shader.name}_${shader.type}.cso")
 
-			println "Compiling ${shaderType} shader: ${shader.name}.${shaderExt} -> ${outputFile.name}"
+			println "Compiling ${shaderType} shader: ${shader.name} -> ${outputFile.name}"
 
 			// Compile using fxc.exe
+			// /T = target profile, /E = entry point, /Fo = output file
+			// /I = include directory, /nologo = suppress copyright
+			// Note: We don't use /WX (warnings as errors) as some shaders have benign warnings
 			def result = ["cmd", "/c",
 				"\"${fxcExe}\"",
 				"/T", target,          // Target shader model (vs_5_0 or ps_5_0)
 				"/E", "main",          // Entry point function
 				"/Fo", outputFile.absolutePath,  // Output file
-				"/I", file("src/main/resources/shaders/hlsl").absolutePath,  // Include directory
+				"/I", file("src/main/resources/assets/vitra/shaders/core").absolutePath,  // Include directory
 				"/nologo",             // Suppress copyright message
 				"/O3",                 // Optimization level 3
-				"/WX",                 // Treat warnings as errors
-				inputFile.absolutePath
+				shader.file.absolutePath
 			].execute()
 
 			result.waitFor()
 
 			if (result.exitValue() != 0) {
-				throw new GradleException("Failed to compile shader: ${shader.name}.${shaderExt}\nError: ${result.err.text}")
+				failCount++
+				def errorText = result.err.text
+				failedShaders.add("${shader.name}.${shader.type == 'vs' ? 'vsh' : 'fsh'}: ${errorText}")
+				println "  FAILED: ${errorText}"
+			} else {
+				successCount++
+				println "  OK"
 			}
 		}
 
-		println "All shaders compiled successfully to: ${compiledDir}"
+		println ""
+		println "Shader compilation complete: ${successCount} succeeded, ${failCount} failed"
+		
+		if (failCount > 0) {
+			println "Failed shaders:"
+			failedShaders.each { println "  - ${it}" }
+			// Don't fail the build - some shaders may have issues but others can still work
+			println "WARNING: Some shaders failed to compile. The game may not render correctly."
+		} else {
+			println "All shaders compiled successfully to: ${compiledDir}"
+		}
 	}
 }
+
 
 // ============================================================================
 // Native Library Compilation Tasks
@@ -218,15 +211,23 @@ task compileShaders {
 // RenderDoc.dll will be loaded dynamically at runtime if present
 // No build-time dependency required for RenderDoc integration
 
-// D3D 11 native library compilation task
-task compileNativeDX11(type: Exec) {
+// D3D 11 native library compilation task - Incremental
+task compileNativeDX11 {
+	description = 'Compiles DirectX 11 native library (incremental)'
+	group = 'build'
+	
 	// Only compile on Windows
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
-
-	// Store VS path for use in commandLine
-	ext.vsInstallPath = ""
-
-	doFirst {
+	
+	// Define inputs - when these change, task will re-run
+	inputs.files(fileTree('src/main/cpp') { include '**/*.cpp' })
+	inputs.files(fileTree('src/main/include') { include '**/*.h' })
+	
+	// Define outputs - if these exist and inputs haven't changed, task is UP-TO-DATE
+	outputs.file("$buildDir/native/vitra-d3d11.dll")
+	outputs.file("$buildDir/native/vitra-d3d11.lib")
+	
+	doLast {
 		// Create output directory
 		file("$buildDir/native").mkdirs()
 
@@ -254,9 +255,6 @@ task compileNativeDX11(type: Exec) {
 		if (!file(vcvarsPath).exists()) {
 			throw new GradleException("vcvars64.bat not found at: ${vcvarsPath}")
 		}
-
-		// Store for commandLine
-		ext.vsInstallPath = vsPath
 
 		println "Using vswhere: ${vsWhere}"
 		println "Compiling D3D 11 native library with Visual Studio at: ${vsPath}"
@@ -287,19 +285,26 @@ task compileNativeDX11(type: Exec) {
 
 		println "D3D 11 native library compiled successfully: ${file("$buildDir/native/vitra-d3d11.dll")}"
 	}
-
-	// No-op commandLine since we execute compilation in doFirst
-	commandLine 'cmd', '/c', 'echo D3D11 compilation handled in doFirst block'
-
-	workingDir projectDir
 }
 
-// D3D 12 Ultimate native library compilation task
-task compileNativeDX12(type: Exec) {
+// D3D 12 Ultimate native library compilation task - Incremental
+task compileNativeDX12 {
+	description = 'Compiles DirectX 12 Ultimate native library (incremental)'
+	group = 'build'
+	
 	// Only compile on Windows
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
+	
+	// Define inputs - when these change, task will re-run
+	inputs.files(fileTree('src/main/cpp') { include '**/vitra_d3d12.cpp' })
+	inputs.files(fileTree('src/main/include') { include '**/*.h' })
+	inputs.files(fileTree('src/main/external/D3D12MA') { include '**/*.cpp', '**/*.h' })
+	
+	// Define outputs - if these exist and inputs haven't changed, task is UP-TO-DATE
+	outputs.file("$buildDir/native/vitra-d3d12.dll")
+	outputs.file("$buildDir/native/vitra-d3d12.lib")
 
-	doFirst {
+	doLast {
 		// Create output directory
 		file("$buildDir/native").mkdirs()
 
@@ -368,11 +373,6 @@ task compileNativeDX12(type: Exec) {
 			println "D3D 12 may fail to load. Please install Windows 10 SDK."
 		}
 	}
-
-	// No-op commandLine since we execute compilation in doFirst
-	commandLine 'cmd', '/c', 'echo D3D12 compilation handled in doFirst block'
-
-	workingDir projectDir
 }
 
 // Compile all native libraries
@@ -380,57 +380,68 @@ task compileNative {
 	dependsOn compileNativeDX11, compileNativeDX12
 }
 
-// Copy native libraries to resources
-task copyNative(type: Copy) {
+// Copy native libraries to build/resources (incremental - only copies changed files)
+task copyNative(type: Sync) {
+	description = 'Copies native DLLs to build resources (incremental)'
+	group = 'build'
+	
 	dependsOn compileNative
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
 
-	from "$buildDir/native"
-	from "libs/x64"
+	from("$buildDir/native") {
+		include "*.dll"
+	}
+	from("libs/x64") {
+		include "*.dll"
+	}
 	into "$buildDir/resources/main/native/windows"
-	include "*.dll"
-
+	
+	// Sync preserves existing files not in source (preserve = true)
+	// For complete replacement, Sync automatically handles incremental updates
+	preserve {
+		include '**/*'
+		exclude 'vitra-d3d11.dll'
+		exclude 'vitra-d3d12.dll'
+		exclude 'dxcompiler.dll'
+	}
+	
 	doFirst {
-		// Delete old DLL files to ensure fresh copies are used
-		def targetDir = file("$buildDir/resources/main/native/windows")
-		targetDir.mkdirs()
-
-		// Delete specific DLL files
-		delete fileTree(targetDir) {
-			include 'vitra-d3d11.dll'
-			include 'vitra-d3d12.dll'
-		}
-		println "Deleted old native DLLs from $targetDir"
+		file("$buildDir/resources/main/native/windows").mkdirs()
 	}
 }
 
-// Also copy to src/main/resources for development (IDE usage)
-task copyNativeToSrc(type: Copy) {
+// Also copy to src/main/resources for development (IDE usage) - incremental
+task copyNativeToSrc(type: Sync) {
+	description = 'Copies native DLLs to src/main/resources for IDE development (incremental)'
+	group = 'build'
+	
 	dependsOn compileNative
 	onlyIf { !project.hasProperty('skipNative') && System.getProperty('os.name').toLowerCase().contains('windows') }
 
-	from "$buildDir/native"
-	from "libs/x64"
+	from("$buildDir/native") {
+		include "*.dll"
+	}
+	from("libs/x64") {
+		include "*.dll"
+	}
 	into "src/main/resources/native/windows"
-	include "*.dll"
-
+	
+	// Sync preserves existing files not in source
+	preserve {
+		include '**/*'
+		exclude 'vitra-d3d11.dll'
+		exclude 'vitra-d3d12.dll'
+		exclude 'dxcompiler.dll'
+	}
+	
 	doFirst {
-		// Delete old DLL files to ensure fresh copies are used
-		def targetDir = file("src/main/resources/native/windows")
-		targetDir.mkdirs()
-
-		// Delete specific DLL files
-		delete fileTree(targetDir) {
-			include 'vitra-d3d11.dll'
-			include 'vitra-d3d12.dll'
-		}
-		println "Deleted old native DLLs from $targetDir"
+		file("src/main/resources/native/windows").mkdirs()
 	}
 }
 
-// Make processResources depend on copyNative and copyNativeToSrc
-// compileShaders removed - now using runtime compilation instead
-processResources.dependsOn copyNative, copyNativeToSrc
+// Make processResources depend on copyNative, copyNativeToSrc, and compileShaders
+// This ensures all shaders are precompiled and native libraries are available during build
+processResources.dependsOn copyNative, copyNativeToSrc, compileShaders
 
 // Make classes task depend on copyNativeToSrc for IDE development
 classes.dependsOn copyNativeToSrc

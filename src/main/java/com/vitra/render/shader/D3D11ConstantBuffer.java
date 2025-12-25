@@ -134,6 +134,11 @@ public class D3D11ConstantBuffer {
      * Bind constant buffer to shader stages
      */
     public void bind() {
+        // Skip binding if buffer was not created successfully
+        if (nativeHandle == 0) {
+            return;
+        }
+        
         if (isVertexStage()) {
             VitraD3D11Renderer.bindConstantBufferVS(binding, nativeHandle);
         }

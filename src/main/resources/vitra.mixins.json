@@ -14,13 +14,22 @@
     "debug.crash_report.SystemReportMixin",
     "matrix.Matrix4fMixin",
     "matrix.PoseAccessor",
-    "texture.mip.MipmapGeneratorMixin",
     "texture.image.NativeImageAccessor",
     "texture.update.TextureManagerMixin",
+    "texture.AbstractTextureMixin",
     "chunk.FrustumMixin",
     "chunk.VisibilitySetMixin",
     "chunk.ClientChunkCacheMixin",
-    "window.WindowAccessor"
+    "window.WindowAccessor",
+    "window.WindowMixin",
+    "render.frame.RenderSystemMixin",
+    "render.frame.MinecraftMixin",
+    "render.GlStateManagerMixin",
+    "render.GameRendererMixin",
+    "render.vertex.BufferBuilderMixin",
+    "render.shader.GlProgramMixin",
+    "screen.ScreenMixin",
+    "render.SamplerCacheMixin"
   ],
   "injectors": {
     "defaultRequire": 1

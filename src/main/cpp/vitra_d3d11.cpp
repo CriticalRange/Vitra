@@ -3735,6 +3735,16 @@ JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_updateTe
 }
 
 /**
+ * Update texture mip level data - alias for updateTexture
+ * This provides the exact function name expected by the Java JNI declaration
+ */
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_updateTextureMipLevel
+    (JNIEnv* env, jclass clazz, jlong textureHandle, jbyteArray data, jint width, jint height, jint mipLevel) {
+    // Delegate to updateTexture - same functionality
+    return Java_com_vitra_render_jni_VitraD3D11Renderer_updateTexture(env, clazz, textureHandle, data, width, height, mipLevel);
+}
+
+/**
  * Bind a DirectX 11 texture to a shader resource slot
  * CRITICAL FIX: This is the missing piece that causes yellow screen!
  *
@@ -6589,14 +6599,16 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_precompileS
 }
 
 // NEW: Correct signature matching Java declaration: precompileShaderForDirectX11(String shaderSource, int shaderType)
+// NOTE: D3DCompile doesn't need the device - only CreateVertexShader/CreatePixelShader do
+// This allows shaders to be precompiled before the D3D11 device is created
 JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_precompileShaderForDirectX11__Ljava_lang_String_2I
     (JNIEnv* env, jclass clazz, jstring shaderSource, jint shaderType) {
-
-    if (!g_d3d11.initialized) return 0;
 
     // CRITICAL: Check for null Java string before calling GetStringUTFChars
     // This prevents JVM access violation when shaderSource is null
     if (shaderSource == nullptr) {
+        printf("[precompileShaderForDirectX11] ERROR: shaderSource is null!\n");
+        fflush(stdout);
         OutputDebugStringA("[precompileShaderForDirectX11] ERROR: shaderSource is null!");
         return 0;
     }
@@ -6629,9 +6641,9 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_precompileS
     HRESULT hr = D3DCompile(
         hlslSource,
         strlen(hlslSource),
-        nullptr,                      // Source name
+        "vitra_shader",                // Source name (for error messages)
         nullptr,                      // Defines
-        D3D_COMPILE_STANDARD_FILE_INCLUDE,  // Include handler for #include directives
+        nullptr,                      // Include handler - nullptr since includes resolved in Java
         "main",                       // Entry point
         target,                       // Target profile
         flags,
@@ -6641,24 +6653,43 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_precompileS
     );
 
     if (FAILED(hr) || errorBlob) {
-        // CRITICAL: Crash on any error or warning
+        // Log shader compilation errors/warnings
         if (errorBlob) {
             const char* errorMsg = (const char*)errorBlob->GetBufferPointer();
-            char logBuffer[2048];
-            snprintf(logBuffer, sizeof(logBuffer), "[SHADER_COMPILE_FATAL] Target=%s, Error: %.1500s", target, errorMsg);
-            logToJava(env, logBuffer);
+            char logBuffer[4096];
+            snprintf(logBuffer, sizeof(logBuffer), "[SHADER_COMPILE_ERROR] Target=%s, HRESULT=0x%08X, Error: %.3500s", target, hr, errorMsg);
+            
+            // Multiple output methods to ensure visibility
+            printf("%s\n", logBuffer);
+            fflush(stdout);
             OutputDebugStringA(logBuffer);
+            logToJava(env, logBuffer);
+            
             errorBlob->Release();
-
-            // CRASH: Shader compilation must be perfect
-            MessageBoxA(nullptr, logBuffer, "FATAL: Shader Compilation Failed", MB_OK | MB_ICONERROR);
-            std::terminate();
+        } else {
+            // D3DCompile failed but no error blob - log the HRESULT for debugging
+            char logBuffer[512];
+            snprintf(logBuffer, sizeof(logBuffer), "[SHADER_COMPILE_ERROR] Target=%s, HRESULT=0x%08X (no error blob)", target, hr);
+            printf("%s\n", logBuffer);
+            fflush(stdout);
+            OutputDebugStringA(logBuffer);
+            logToJava(env, logBuffer);
         }
         env->ReleaseStringUTFChars(shaderSource, hlslSource);
         return 0;
     }
 
-    // Create shader based on type
+    // Create shader based on type - requires device to be initialized
+    if (!g_d3d11.initialized || !g_d3d11.device) {
+        // D3DCompile succeeded but device not yet available
+        // This happens when shaders are compiled before D3D11 init
+        printf("[SHADER_COMPILE] D3DCompile OK but D3D11 device not initialized - cannot create shader object\n");
+        fflush(stdout);
+        shaderBlob->Release();
+        env->ReleaseStringUTFChars(shaderSource, hlslSource);
+        return 0;
+    }
+    
     uint64_t handle = generateHandle();
     if (shaderType == 0) { // Vertex shader
         ID3D11VertexShader* vertexShader = nullptr;

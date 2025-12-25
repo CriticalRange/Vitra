@@ -15,13 +15,17 @@ import java.util.concurrent.ConcurrentHashMap;
 public class D3D11ShaderManager extends AbstractShaderManager {
     private final Map<String, Long> shaderCache = new ConcurrentHashMap<>();
     private final Map<String, Long> pipelineCache = new ConcurrentHashMap<>();
+    
+    // Cache for include file contents to avoid re-reading from JAR
+    private final Map<String, String> includeCache = new ConcurrentHashMap<>();
 
     public D3D11ShaderManager() {
         super(D3D11ShaderManager.class);
     }
 
     /**
-     * Load a shader using runtime HLSL compilation from GLSL source
+     * Load a shader, prioritizing precompiled .cso files from build-time compilation.
+     * Falls back to runtime HLSL compilation if precompiled shader is not available.
      *
      * @param name Shader name (e.g., "position", "position_color", "gui")
      * @param type Shader type (SHADER_TYPE_VERTEX or SHADER_TYPE_PIXEL)
@@ -29,9 +33,55 @@ public class D3D11ShaderManager extends AbstractShaderManager {
      */
     public long loadShader(String name, int type) {
         try {
-            // NEW: Load HLSL source and compile at runtime (NO MORE .cso files!)
-            // Path: /assets/vitra/shaders/core/<name>/<name>.vsh or .fsh
-            // This matches VulkanMod's structure where each shader has its own directory
+            // Build cache key based on shader name and type
+            String typeStr = (type == VitraD3D11Renderer.SHADER_TYPE_VERTEX) ? "vs" : "ps";
+            String cacheKey = name + "_" + typeStr;
+            
+            Long cached = shaderCache.get(cacheKey);
+            if (cached != null) {
+                logger.debug("[SHADER_CACHE_HIT] Using cached shader '{}' (type: {})", name, typeStr);
+                return cached;
+            }
+
+            // PRIORITY 1: Try to load precompiled .cso file (build-time compiled)
+            String csoPath = "/assets/vitra/shaders/compiled/" + name + "_" + typeStr + ".cso";
+            InputStream csoStream = getClass().getResourceAsStream(csoPath);
+            
+            if (csoStream != null) {
+                byte[] bytecode = csoStream.readAllBytes();
+                csoStream.close();
+                
+                if (bytecode != null && bytecode.length > 0) {
+                    logger.info("[SHADER_LOAD] Loading precompiled shader '{}' from {} ({} bytes)", 
+                        name, csoPath, bytecode.length);
+                    
+                    // Create shader from precompiled bytecode
+                    long handle = VitraD3D11Renderer.createShaderFromBytecode(bytecode, type);
+                    
+                    if (handle != 0) {
+                        shaderCache.put(cacheKey, handle);
+                        logger.info("[SHADER_LOAD_OK] {} shader '{}' loaded successfully (handle: 0x{})",
+                            type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "VERTEX" : "PIXEL",
+                            name, Long.toHexString(handle));
+                        return handle;
+                    } else {
+                        // Bytecode shader creation failed - likely corrupted .cso or D3D11 issue
+                        logger.error("[SHADER_LOAD_FAIL] Failed to create shader from bytecode: {} - D3D11 CreateShader failed", name);
+                        logger.error("[SHADER_LOAD_FAIL] This may be due to corrupted .cso file or D3D11 device state");
+                        // DO NOT fall back to runtime compilation - it crashes the JVM!
+                        // Just return 0 for now, we need to fix the bytecode loading
+                        return 0;
+                    }
+                }
+            }
+
+            // DISABLED: Runtime HLSL compilation (D3DCompile) causes JVM crashes
+            // If we get here without a precompiled shader, just fail gracefully
+            logger.error("[SHADER_LOAD_FAIL] No precompiled shader found for '{}' and runtime compilation is disabled", name);
+            logger.error("[SHADER_LOAD_FAIL] Please ensure shaders are compiled during build (gradlew compileShaders)");
+            return 0;
+
+            /* DANGEROUS - DISABLED: Runtime compilation crashes JVM
             String shaderTypeExt = (type == VitraD3D11Renderer.SHADER_TYPE_VERTEX) ? ".vsh" : ".fsh";
             String resourcePath = "/assets/vitra/shaders/core/" + name + "/" + name + shaderTypeExt;
 
@@ -56,31 +106,23 @@ public class D3D11ShaderManager extends AbstractShaderManager {
                 return 0;
             }
 
-            // CRITICAL FIX: Include shader source hash in cache key to detect changes
-            // This ensures shaders are recompiled when source code changes
-            int sourceHash = java.util.Arrays.hashCode(shaderBytes);
-            String cacheKey = name + "_" + type + "_" + Integer.toHexString(sourceHash);
-
-            Long cached = shaderCache.get(cacheKey);
-            if (cached != null) {
-                logger.info("[SHADER_CACHE_HIT] Using cached shader '{}' (hash: {})", name, Integer.toHexString(sourceHash));
-                return cached;
-            }
-
-            logger.info("[SHADER_COMPILE] Loaded {} shader bytes for '{}' from {} (hash: {})",
-                shaderBytes.length, name, resourcePath, Integer.toHexString(sourceHash));
-
-            // CRITICAL FIX: Use intern() to ensure string is in string pool and prevent JVM corruption
-            // JBR (JetBrains Runtime) has issues with dynamically created strings in JNI calls
-            String hlslSource = new String(shaderBytes, java.nio.charset.StandardCharsets.UTF_8).intern();
-
+            String rawSource = new String(shaderBytes, java.nio.charset.StandardCharsets.UTF_8);
+            
+            // CRITICAL FIX: Process #include directives since D3DCompile can't access JAR resources
+            String hlslSource = preprocessIncludes(rawSource, "/assets/vitra/shaders/core/");
+            
             if (hlslSource.isEmpty()) {
                 logger.error("Empty shader source after conversion: {}", resourcePath);
                 return 0;
             }
+            
+            // Log if shader is very large (potential issue)
+            if (hlslSource.length() > 50000) {
+                logger.warn("Warning: Shader '{}' is very large ({} chars), may cause issues", name, hlslSource.length());
+            }
 
             // Compile HLSL at runtime using D3DCompile
-            logger.info("[SHADER_COMPILE] Compiling {} shader '{}' ({} chars)",
+            logger.info("[SHADER_COMPILE] Compiling {} shader '{}' ({} chars) - FALLBACK MODE",
                 type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "VERTEX" : "PIXEL",
                 name, hlslSource.length());
 
@@ -88,19 +130,105 @@ public class D3D11ShaderManager extends AbstractShaderManager {
 
             if (handle != 0) {
                 shaderCache.put(cacheKey, handle);
-                logger.info("[SHADER_COMPILE_OK] {} shader '{}' compiled successfully (handle: 0x{}, hash: {})",
+                logger.info("[SHADER_COMPILE_OK] {} shader '{}' compiled successfully (handle: 0x{})",
                     type == VitraD3D11Renderer.SHADER_TYPE_VERTEX ? "VERTEX" : "PIXEL",
-                    name, Long.toHexString(handle), Integer.toHexString(sourceHash));
+                    name, Long.toHexString(handle));
             } else {
                 logger.error("Failed to compile DirectX shader from HLSL source: {}", name);
             }
 
             return handle;
+            */
 
         } catch (IOException e) {
             logger.error("Failed to load shader source: {}", name, e);
             return 0;
         }
+    }
+    
+    /**
+     * Preprocesses shader source to resolve #include directives
+     * D3DCompile's standard file include handler can't access JAR resources,
+     * so we need to inline includes manually.
+     * 
+     * @param source Shader source code
+     * @param basePath Base path for includes (e.g., "/assets/vitra/shaders/core/")
+     * @return Preprocessed source with includes inlined
+     */
+    private String preprocessIncludes(String source, String basePath) {
+        StringBuilder result = new StringBuilder();
+        String[] lines = source.split("\n");
+        
+        java.util.Set<String> includedFiles = new java.util.HashSet<>();
+        
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("#include")) {
+                // Parse #include "filename" or #include <filename>
+                int start = trimmed.indexOf('"');
+                int end = trimmed.lastIndexOf('"');
+                if (start == -1 || end == -1 || start >= end) {
+                    start = trimmed.indexOf('<');
+                    end = trimmed.lastIndexOf('>');
+                }
+                
+                if (start != -1 && end != -1 && start < end) {
+                    String includeFile = trimmed.substring(start + 1, end);
+                    
+                    // Prevent infinite recursion
+                    if (includedFiles.contains(includeFile)) {
+                        result.append("// Already included: ").append(includeFile).append("\n");
+                        continue;
+                    }
+                    includedFiles.add(includeFile);
+                    
+                    // Check include cache first
+                    String includeContent = includeCache.get(includeFile);
+                    
+                    if (includeContent == null) {
+                        // Try multiple paths to find the include file
+                        String[] searchPaths = {
+                            basePath + includeFile,                    // Direct path
+                            basePath + "../" + includeFile,            // Parent directory (for common includes)
+                            "/assets/vitra/shaders/core/" + includeFile,  // Core shaders
+                            "/assets/vitra/shaders/hlsl/" + includeFile   // HLSL folder
+                        };
+                        
+                        for (String searchPath : searchPaths) {
+                            try (InputStream includeStream = getClass().getResourceAsStream(searchPath)) {
+                                if (includeStream != null) {
+                                    byte[] includeBytes = includeStream.readAllBytes();
+                                    includeContent = new String(includeBytes, java.nio.charset.StandardCharsets.UTF_8);
+                                    // Cache the include content for future use
+                                    includeCache.put(includeFile, includeContent);
+                                    logger.debug("Loaded and cached include file: {} from {}", includeFile, searchPath);
+                                    break;
+                                }
+                            } catch (IOException e) {
+                                // Try next path
+                            }
+                        }
+                    }
+                    
+                    if (includeContent != null) {
+                        // Recursively process includes in the included file
+                        String processedInclude = preprocessIncludes(includeContent, basePath);
+                        result.append("// BEGIN INCLUDE: ").append(includeFile).append("\n");
+                        result.append(processedInclude);
+                        result.append("// END INCLUDE: ").append(includeFile).append("\n");
+                    } else {
+                        logger.warn("Include file not found: {}", includeFile);
+                        result.append("// ERROR: Include not found: ").append(includeFile).append("\n");
+                    }
+                } else {
+                    result.append(line).append("\n");
+                }
+            } else {
+                result.append(line).append("\n");
+            }
+        }
+        
+        return result.toString();
     }
 
     /**

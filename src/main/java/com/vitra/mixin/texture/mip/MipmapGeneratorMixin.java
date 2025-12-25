@@ -3,126 +3,133 @@ package com.vitra.mixin.texture.mip;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.vitra.mixin.texture.image.NativeImageAccessor;
 import net.minecraft.client.renderer.texture.MipmapGenerator;
+import net.minecraft.client.renderer.texture.MipmapStrategy;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * DirectX Mipmap Generator Mixin
+ * DirectX Mipmap Generator Mixin for Minecraft 26.1
  *
  * Based on VulkanMod's MipmapGeneratorM.
  * Improves mipmap generation by fixing artifacts on textures with transparent backgrounds.
  *
- * Key responsibilities:
- * - Generate high-quality mipmaps with gamma-correct blending
- * - Fix mipmap artifacts on transparent textures
- * - Add average background color to transparent pixels
- * - Direct memory access for performance
- *
- * DirectX benefits:
- * - Better texture quality with improved mipmap chain
- * - Reduced visual artifacts on transparent textures (e.g., leaves, grass)
- * - Gamma-correct downsampling for accurate color representation
+ * 26.1 API Changes:
+ * - generateMipLevels now takes (Identifier, NativeImage[], int, MipmapStrategy, float)
+ * - getPow22() removed - we implement our own gamma blending
+ * - New MipmapStrategy enum (AUTO, MEAN, CUTOUT, STRICT_CUTOUT, DARK_CUTOUT)
  */
 @Mixin(MipmapGenerator.class)
 public abstract class MipmapGeneratorMixin {
+    private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/MipmapGenerator");
     private static final int ALPHA_CUTOFF = 50;
+    
+    // Gamma 2.2 lookup table for accurate color blending
+    private static final float[] POW22 = new float[256];
+    
+    static {
+        for (int i = 0; i < 256; i++) {
+            POW22[i] = (float) Math.pow(i / 255.0, 2.2);
+        }
+    }
+    
+    private static float getPow22(int value) {
+        return POW22[value & 0xFF];
+    }
 
     @Shadow
-    private static float getPow22(int i) {
-        return 0;
+    private static boolean hasTransparentPixel(NativeImage image) {
+        return false;
     }
 
     /**
      * @author Vitra (adapted from VulkanMod)
-     * @reason Add an average background color to textures that have transparent backgrounds
-     * to fix mipmap artifacts
+     * @reason Add an average background color to textures with transparent backgrounds
+     * to fix mipmap artifacts. Uses gamma-correct blending for accurate color representation.
      *
-     * DirectX mipmap generation:
-     * 1. Detect transparent pixels in base texture
-     * 2. Calculate average opaque color
-     * 3. Fill transparent backgrounds with average color (keeps alpha)
-     * 4. Generate mipmap chain with gamma-correct blending
-     * 5. Upload mipmap chain to DirectX texture
+     * 26.1 Signature: (Identifier, NativeImage[], int, MipmapStrategy, float)
      */
-    @SuppressWarnings("UnreachableCode")
     @Overwrite
-    public static NativeImage[] generateMipLevels(NativeImage[] nativeImages, int i) {
-        if (i + 1 <= nativeImages.length) {
+    public static NativeImage[] generateMipLevels(Identifier identifier, NativeImage[] nativeImages, 
+                                                   int mipLevels, MipmapStrategy strategy, float alphaCutoff) {
+        if (mipLevels + 1 <= nativeImages.length) {
             return nativeImages;
-        } else {
-            NativeImage[] nativeImages2 = new NativeImage[i + 1];
-            nativeImages2[0] = nativeImages[0];
-
-            long srcPtr = ((NativeImageAccessor)(Object)nativeImages2[0]).getPixels();
-            boolean bl = hasTransparentPixel(srcPtr, nativeImages2[0].getWidth(), nativeImages2[0].getHeight());
-
-            if (bl) {
-                int avg = calculateAverage(nativeImages2[0]);
-                avg = avg & 0x00FFFFFF; //mask out alpha
-
-                NativeImage nativeImage = nativeImages2[0];
-                int width = nativeImage.getWidth();
-                int height = nativeImage.getHeight();
-
-                for (int m = 0; m < width; ++m) {
-                    for (int n = 0; n < height; ++n) {
-                        int p0 = MemoryUtil.memGetInt(srcPtr + (m + ((long) n * width)) * 4L);
-
-                        boolean b0 = ((p0 >> 24) & 0xFF) >= ALPHA_CUTOFF;
-
-                        p0 = b0 ? p0 : (avg | p0 & 0xFF000000);
-
-                        int outColor = p0;
-                        MemoryUtil.memPutInt(srcPtr + (m + (long) n * width) * 4L, outColor);
-                    }
-                }
-
-            }
-
-            for(int j = 1; j <= i; ++j) {
-                if (j < nativeImages.length) {
-                    nativeImages2[j] = nativeImages[j];
-                } else {
-                    NativeImage nativeImage = nativeImages2[j - 1];
-                    NativeImage nativeImage2 = new NativeImage(nativeImage.getWidth() >> 1, nativeImage.getHeight() >> 1, false);
-                    int width = nativeImage2.getWidth();
-                    int height = nativeImage2.getHeight();
-
-                    srcPtr = ((NativeImageAccessor)(Object)nativeImage).getPixels();
-                    long dstPtr = ((NativeImageAccessor)(Object)nativeImage2).getPixels();
-                    final int width2 = width * 2;
-
-                    for(int m = 0; m < width; ++m) {
-                        for(int n = 0; n < height; ++n) {
-                            int p0 = MemoryUtil.memGetInt(srcPtr + ((m * 2 + 0) + ((n * 2 + 0) * width2)) * 4L);
-                            int p1 = MemoryUtil.memGetInt(srcPtr + ((m * 2 + 1) + ((n * 2 + 0) * width2)) * 4L);
-                            int p2 = MemoryUtil.memGetInt(srcPtr + ((m * 2 + 0) + ((n * 2 + 1) * width2)) * 4L);
-                            int p3 = MemoryUtil.memGetInt(srcPtr + ((m * 2 + 1) + ((n * 2 + 1) * width2)) * 4L);
-
-                            int outColor = blend(p0, p1, p2, p3);
-                            MemoryUtil.memPutInt(dstPtr + (m + (long) n * width) * 4L, outColor);
-                        }
-                    }
-
-                    nativeImages2[j] = nativeImage2;
-                }
-            }
-
-            return nativeImages2;
         }
+        
+        NativeImage[] result = new NativeImage[mipLevels + 1];
+        result[0] = nativeImages[0];
+
+        long srcPtr = ((NativeImageAccessor)(Object)result[0]).getPixels();
+        boolean hasTransparent = hasTransparentPixelFast(srcPtr, result[0].getWidth(), result[0].getHeight());
+
+        // Pre-process: fill transparent pixels with average opaque color
+        if (hasTransparent) {
+            int avg = calculateAverage(result[0]);
+            avg = avg & 0x00FFFFFF; // Mask out alpha
+
+            NativeImage nativeImage = result[0];
+            int width = nativeImage.getWidth();
+            int height = nativeImage.getHeight();
+
+            for (int m = 0; m < width; ++m) {
+                for (int n = 0; n < height; ++n) {
+                    int p0 = MemoryUtil.memGetInt(srcPtr + (m + ((long) n * width)) * 4L);
+                    boolean opaque = ((p0 >> 24) & 0xFF) >= ALPHA_CUTOFF;
+                    
+                    // Keep original alpha, but set RGB to average for transparent pixels
+                    p0 = opaque ? p0 : (avg | (p0 & 0xFF000000));
+                    MemoryUtil.memPutInt(srcPtr + (m + (long) n * width) * 4L, p0);
+                }
+            }
+        }
+
+        // Generate mipmap chain
+        for (int j = 1; j <= mipLevels; ++j) {
+            if (j < nativeImages.length) {
+                result[j] = nativeImages[j];
+            } else {
+                NativeImage srcImage = result[j - 1];
+                int newWidth = Math.max(1, srcImage.getWidth() >> 1);
+                int newHeight = Math.max(1, srcImage.getHeight() >> 1);
+                NativeImage dstImage = new NativeImage(newWidth, newHeight, false);
+                
+                srcPtr = ((NativeImageAccessor)(Object)srcImage).getPixels();
+                long dstPtr = ((NativeImageAccessor)(Object)dstImage).getPixels();
+                final int srcWidth = srcImage.getWidth();
+
+                for (int m = 0; m < newWidth; ++m) {
+                    for (int n = 0; n < newHeight; ++n) {
+                        // Sample 4 source pixels
+                        int p0 = MemoryUtil.memGetInt(srcPtr + ((m * 2) + ((n * 2) * srcWidth)) * 4L);
+                        int p1 = MemoryUtil.memGetInt(srcPtr + ((m * 2 + 1) + ((n * 2) * srcWidth)) * 4L);
+                        int p2 = MemoryUtil.memGetInt(srcPtr + ((m * 2) + ((n * 2 + 1) * srcWidth)) * 4L);
+                        int p3 = MemoryUtil.memGetInt(srcPtr + ((m * 2 + 1) + ((n * 2 + 1) * srcWidth)) * 4L);
+
+                        // Gamma-correct blend
+                        int outColor = blend(p0, p1, p2, p3);
+                        MemoryUtil.memPutInt(dstPtr + (m + (long) n * newWidth) * 4L, outColor);
+                    }
+                }
+
+                result[j] = dstImage;
+            }
+        }
+
+        return result;
     }
 
-    private static boolean hasTransparentPixel(long ptr, int width, int height) {
-        for(int i = 0; i < width; ++i) {
-            for(int j = 0; j < height; ++j) {
-                if (getPixelA(MemoryUtil.memGetInt(ptr + (i + j * width) * 4L)) == 0) {
+    private static boolean hasTransparentPixelFast(long ptr, int width, int height) {
+        for (int i = 0; i < width; ++i) {
+            for (int j = 0; j < height; ++j) {
+                if (((MemoryUtil.memGetInt(ptr + (i + j * width) * 4L) >> 24) & 0xFF) == 0) {
                     return true;
                 }
             }
         }
-
         return false;
     }
 
@@ -134,49 +141,37 @@ public abstract class MipmapGeneratorMixin {
         return a << 24 | b << 16 | g << 8 | r;
     }
 
-    private static int gammaBlend(int i, int j, int k, int l, int m) {
-        float f = getPow22(i >> m);
-        float g = getPow22(j >> m);
-        float h = getPow22(k >> m);
-        float n = getPow22(l >> m);
-        float o = (float)((double)((float)Math.pow((double)(f + g + h + n) * 0.25, 0.45454545454545453)));
-        return (int)((double)o * 255.0);
+    private static int gammaBlend(int i, int j, int k, int l, int shift) {
+        float f = getPow22(i >> shift);
+        float g = getPow22(j >> shift);
+        float h = getPow22(k >> shift);
+        float n = getPow22(l >> shift);
+        float avg = (f + g + h + n) * 0.25f;
+        // Convert back to linear
+        float o = (float) Math.pow(avg, 0.45454545454545453);
+        return Math.min(255, (int) (o * 255.0f));
     }
 
-    private static int getPixelA(int rgba) {
-        return rgba >> 24;
-    }
-
-    @SuppressWarnings("UnreachableCode")
     private static int calculateAverage(NativeImage nativeImage) {
         final int width = nativeImage.getWidth();
         final int height = nativeImage.getHeight();
-
-        final int[] values = new int[width * height];
-        int count = 0;
         long srcPtr = ((NativeImageAccessor)(Object)nativeImage).getPixels();
 
-        for(int i = 0; i < width; ++i) {
-            for(int j = 0; j < height; ++j) {
+        int sumR = 0, sumG = 0, sumB = 0, count = 0;
+
+        for (int i = 0; i < width; ++i) {
+            for (int j = 0; j < height; ++j) {
                 int value = MemoryUtil.memGetInt(srcPtr + (i + (long) j * width) * 4L);
                 if (((value >> 24) & 0xFF) > 0) {
-                    values[count] = value;
+                    sumR += value & 0xFF;
+                    sumG += (value >> 8) & 0xFF;
+                    sumB += (value >> 16) & 0xFF;
                     count++;
                 }
             }
         }
 
-        int sumR = 0;
-        int sumG = 0;
-        int sumB = 0;
-        for (int i = 0; i < count; i++) {
-            sumR += values[i] & 0xFF;
-            sumG += (values[i] >> 8) & 0xFF;
-            sumB += (values[i] >> 16) & 0xFF;
-        }
-
-        if(count == 0)
-            return 0;
+        if (count == 0) return 0;
 
         sumR /= count;
         sumG /= count;

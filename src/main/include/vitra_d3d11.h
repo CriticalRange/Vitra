@@ -220,6 +220,12 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createTextu
 JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createTextureFromId
     (JNIEnv* env, jclass clazz, jint textureId, jint width, jint height, jint format);
 
+JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createTextureFromData
+    (JNIEnv* env, jclass clazz, jbyteArray data, jint width, jint height, jint format);
+
+JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_updateTextureMipLevel
+    (JNIEnv* env, jclass clazz, jlong textureHandle, jbyteArray data, jint width, jint height, jint mipLevel);
+
 JNIEXPORT jboolean JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_updateTexture
     (JNIEnv* env, jclass clazz, jlong textureHandle, jbyteArray data, jint width, jint height, jint mipLevel);
 

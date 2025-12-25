@@ -159,8 +159,10 @@ float4 minecraft_mix_light(float3 lightDir0, float3 lightDir1, float3 normal, fl
 // Sample lightmap texture (converts UV2 coordinates to lightmap texel)
 // VulkanMod uses bitfieldExtract(uv, 4, 8) which extracts bits [4:11]
 // Simplified: UV2 / 16 or UV2 >> 4
-float4 minecraft_sample_lightmap(Texture2D lightMap, SamplerState lightMapState, int2 uv) {
-    return lightMap.Load(int3((uv >> 4) & 0xFF, 0));
+float4 minecraft_sample_lightmap(Texture2D lightMap, SamplerState lightMapState, float2 uv) {
+    // Cast float2 to int2 for bitshift operations - prevents D3DCompile crash
+    int2 uvInt = (int2)uv;
+    return lightMap.Load(int3((uvInt >> 4) & 0xFF, 0));
 }
 
 // --- Matrix Utilities ---

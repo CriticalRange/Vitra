@@ -1,0 +1,875 @@
+[17:09:00] [main/INFO] (FabricLoader/GameProvider) Loading Minecraft 26.1-snapshot-1 with Fabric Loader 0.18.3
+[17:09:00] [main/INFO] (FabricLoader/Mappings) Mappings not present!
+[17:09:00] [main/INFO] (FabricLoader) Loading 49 mods:
+	- fabric-api 0.140.2+26.1
+	- fabric-api-base 1.0.6+9c919dacc9
+	- fabric-api-lookup-api-v1 1.6.114+9c919dacc9
+	- fabric-biome-api-v1 17.1.2+9c919dacc9
+	- fabric-block-api-v1 1.1.11+9c919dacc9
+	- fabric-block-view-api-v2 1.0.40+9c919dacc9
+	- fabric-client-gametest-api-v1 4.3.7+3e7aa8dec9
+	- fabric-command-api-v2 2.4.8+9c919dacc9
+	- fabric-content-registries-v0 10.2.15+9c919dacc9
+	- fabric-convention-tags-v2 3.0.0+1974042dc9
+	- fabric-crash-report-info-v1 0.3.24+9c919dacc9
+	- fabric-data-attachment-api-v1 1.8.46+9c919dacc9
+	- fabric-data-generation-api-v1 23.4.0+67ce3cfac9
+	- fabric-dimensions-v1 4.0.29+9c919dacc9
+	- fabric-entity-events-v1 3.0.8+0c202794c9
+	- fabric-events-interaction-v0 4.0.46+3e7aa8dec9
+	- fabric-game-rule-api-v1 2.0.4+9c919dacc9
+	- fabric-gametest-api-v1 3.1.28+9c919dacc9
+	- fabric-item-api-v1 11.5.22+3e7aa8dec9
+	- fabric-item-group-api-v1 4.2.37+9c919dacc9
+	- fabric-key-binding-api-v1 1.1.8+9c919dacc9
+	- fabric-lifecycle-events-v1 2.6.16+9c919dacc9
+	- fabric-loot-api-v3 2.0.21+9c919dacc9
+	- fabric-message-api-v1 6.1.14+3e7aa8dec9
+	- fabric-model-loading-api-v1 6.0.15+9c919dacc9
+	- fabric-networking-api-v1 5.1.7+3e7aa8dec9
+	- fabric-object-builder-api-v1 22.0.2+9c919dacc9
+	- fabric-particles-v1 4.2.13+3e7aa8dec9
+	- fabric-recipe-api-v1 8.2.5+3e7aa8dec9
+	- fabric-registry-sync-v0 6.2.7+6e31a7c6c9
+	- fabric-renderer-api-v1 8.0.3+3e7aa8dec9
+	- fabric-renderer-indigo 5.0.3+9c919dacc9
+	- fabric-rendering-fluids-v1 3.1.44+9c919dacc9
+	- fabric-rendering-v1 16.2.10+3e7aa8dec9
+	- fabric-resource-conditions-api-v1 5.0.36+9c919dacc9
+	- fabric-resource-loader-v0 3.3.5+4fc5413fc9
+	- fabric-resource-loader-v1 1.0.11+9c919dacc9
+	- fabric-screen-api-v1 3.1.8+9c919dacc9
+	- fabric-screen-handler-api-v1 1.3.163+3e7aa8dec9
+	- fabric-serialization-api-v1 1.0.6+9c919dacc9
+	- fabric-sound-api-v1 1.0.53+3e7aa8dec9
+	- fabric-tag-api-v1 1.2.21+9c919dacc9
+	- fabric-transfer-api-v1 6.0.25+9c919dacc9
+	- fabric-transitive-access-wideners-v1 7.1.0+9a39929fc9
+	- fabricloader 0.18.3
+	- java 25
+	- minecraft 26.1-alpha.1
+	- mixinextras 0.5.0
+	- vitra 0.0.1
+[17:09:00] [main/WARN] (FabricLoader/ModRemap) Runtime mod remapping disabled due to no fabric.remapClasspathFile being specified. You may need to update loom.
+[17:09:00] [main/INFO] (FabricLoader/Mixin) SpongePowered MIXIN Subsystem Version=0.8.7 Source=file:/C:/Users/Ahmet/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.16.5+mixin.0.8.7/80fc3a9f592673cea87f4cd702f87991c6c9fe4d/sponge-mixin-0.16.5+mixin.0.8.7.jar Service=Knot/Fabric Env=CLIENT
+[17:09:00] [main/WARN] (FabricLoader/Mixin) The requested compatibility level JAVA_25 is higher than the level supported by the active subsystem 'Knot/Fabric' which supports JAVA_22. This is not a supported configuration and instability may occur.
+[17:09:00] [main/INFO] (FabricLoader/Mixin) Compatibility level set to JAVA_25
+[17:09:03] [main/INFO] (FabricLoader/MixinExtras|Service) Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.0).
+[17:09:05] [Datafixer Bootstrap/INFO] (Minecraft) 288 Datafixer optimizations took 1151 milliseconds
+[17:09:05] [main/INFO] (VitraD3D11Renderer) ✓ Loaded native D3D11 library from resources
+[17:09:15] [Render thread/INFO] (Minecraft) Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, profilesHost=https://api.mojang.com, name=PROD]
+[17:09:15] [Render thread/INFO] (Vitra/Minecraft) Setting user: Player518
+[17:09:16] [Render thread/INFO] (Vitra/Fabric) Initializing Vitra on Fabric
+[17:09:16] [Render thread/INFO] (Vitra/Fabric) Using Fabric config directory: C:\Users\Ahmet\Documents\Vitra\run\config\vitra
+[17:09:16] [Render thread/INFO] (Vitra) Initializing Vitra v1.0.0
+[17:09:16] [Render thread/INFO] (Vitra) Initializing JNI utilities...
+[17:09:16] [Render thread/INFO] (JniUtils) JNI error callback initialized
+[17:09:16] [Download-2/ERROR] (Vitra/Minecraft) Failed to fetch user properties
+com.mojang.authlib.exceptions.InvalidCredentialsException: Status: 401
+	at knot//com.mojang.authlib.exceptions.MinecraftClientHttpException.toAuthenticationException(MinecraftClientHttpException.java:59)
+	at knot//com.mojang.authlib.yggdrasil.YggdrasilUserApiService.fetchProperties(YggdrasilUserApiService.java:150)
+	at knot//net.minecraft.client.Minecraft.lambda$new$1(Minecraft.java:457)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: com.mojang.authlib.exceptions.MinecraftClientHttpException: Status: 401
+	at knot//com.mojang.authlib.minecraft.client.MinecraftClient.readInputStream(MinecraftClient.java:103)
+	at knot//com.mojang.authlib.minecraft.client.MinecraftClient.get(MinecraftClient.java:56)
+	at knot//com.mojang.authlib.yggdrasil.YggdrasilUserApiService.fetchProperties(YggdrasilUserApiService.java:121)
+	... 5 more
+[17:09:32] [Render thread/INFO] (JniUtils) System info: Platform Information:
+  OS: Windows 11
+  Architecture: amd64
+  Java Version: 25.0.1
+  LWJGL Version: Unknown
+  DirectX: 11+ (assumed)
+
+[17:09:32] [Render thread/INFO] (Vitra) JNI utilities initialized
+[17:09:32] [Render thread/INFO] (VitraCore) Initializing Vitra core systems - AGGRESSIVE MODE
+[17:09:32] [Render thread/INFO] (VitraConfig) Configuration loaded from: config\vitra.properties
+[17:09:32] [Render thread/INFO] (VitraCore) Configuration loaded: DirectX
+[17:09:32] [Render thread/INFO] (VitraCore) AGGRESSIVELY initializing DirectX renderer...
+[17:09:32] [Render thread/INFO] (VitraRenderer) Preparing Vitra unified renderer - Backend: DIRECTX11
+[17:09:32] [Render thread/INFO] (VitraRenderer) Initializing DirectX backend
+[17:09:32] [Render thread/INFO] (VitraRenderer) DirectX backend components initialized
+[17:09:32] [Render thread/INFO] (VitraRenderer) Vitra unified renderer prepared - Backend: DIRECTX11, native will initialize when window handle is available
+[17:09:32] [Render thread/INFO] (VitraCore) Successfully initialized DirectX renderer
+[17:09:32] [Render thread/INFO] (VitraCore) Vitra core initialization complete - Ready for DirectX renderer
+[17:09:32] [Render thread/INFO] (Vitra) Vitra initialization complete
+[17:09:32] [Render thread/INFO] (Vitra/Fabric) Registering Fabric-specific rendering hooks for DirectX JNI integration
+[17:09:32] [Render thread/WARN] (Vitra/Fabric) World rendering hooks disabled for 26.1 migration - Fabric API not yet compatible
+[17:09:32] [Render thread/INFO] (Vitra/Fabric) Fabric rendering hooks registered successfully
+[17:09:32] [Render thread/INFO] (Vitra/Fabric) Vitra Fabric initialization complete
+[17:09:32] [Render thread/INFO] (Indigo) [Indigo] Registering Indigo renderer!
+[17:09:32] [Render thread/INFO] (Vitra/FabricClient) Initializing Vitra client-side components
+[17:09:32] [Render thread/INFO] (Vitra/FabricClient) Vitra client initialization completed successfully
+[17:09:33] [Render thread/INFO] (Minecraft) [STDERR]: [LWJGL] [ThreadLocalUtil] Unsupported JNI version detected, this may result in a crash. Please inform LWJGL developers.
+[17:09:33] [Render thread/INFO] (Vitra/Minecraft) Backend library: LWJGL version 3.3.3-snapshot
+[17:09:34] [Render thread/WARN] (D3D11Texture) texImage2D called with no bound texture
+[17:09:34] [Render thread/WARN] (D3D11Texture) texImage2D called with no bound texture
+[17:09:34] [Render thread/WARN] (D3D11Texture) texImage2D called with no bound texture
+[17:09:34] [Render thread/WARN] (D3D11Texture) texImage2D called with no bound texture
+[17:09:34] [Render thread/WARN] (D3D11Texture) texImage2D called with no bound texture
+[17:09:34] [Render thread/WARN] (D3D11Texture) texImage2D called with no bound texture
+[17:09:34] [Render thread/INFO] (Minecraft) Failed to determine maximum texture size by probing, trying GL_MAX_TEXTURE_SIZE = 1024
+[17:09:34] [Render thread/INFO] (Vitra/RenderSystem) RenderSystem.initRenderer() called - creating VitraGpuDevice for DIRECTX11 (D3D11 init deferred until window creation)
+[17:09:34] [Render thread/INFO] (Vitra/GpuDevice) Creating VitraGpuDevice - DirectX 11 backend
+[17:09:34] [Render thread/INFO] (Vitra/RenderSystem) ✓ Stored VitraGpuDevice in RenderSystem.DEVICE (D3D11 init pending)
+[17:09:34] [Render thread/INFO] (Vitra/RenderSystem) ✓ Initialized DynamicUniforms
+[17:09:34] [Render thread/INFO] (Vitra/WindowMixin) Window constructed with handle: 0x1f11a7c7ed0
+[17:09:34] [Render thread/INFO] (Vitra/WindowMixin) Stored window handle in renderer for DirectX initialization
+[17:09:34] [Render thread/INFO] (Vitra/GpuDevice) Initializing DirectX 11 device: window=0x1f11a7c7ed0, size=854x480, debug=false
+[17:09:34] [Render thread/INFO] (VitraD3D11Renderer) Initializing D3D11 renderer: window=0x1f11a7c7ed0, size=854x480, debug=false, warp=false
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEVICE_CREATE] DirectX Debug Layer DISABLED - Production mode
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEVICE_CREATE] Creation flags: 0x00000020 (Debug=0, BGRA=1)
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEVICE_CREATE] Requested feature levels: 11.1, 11.0, 10.1, 10.0, 9.3, 9.1
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEVICE_CREATE] Using HARDWARE GPU renderer
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEVICE_CREATE] D3D11CreateDevice result: HRESULT=0x00000000
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEVICE_CREATE] Swap chain created successfully
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEVICE_CREATE] Selected Feature Level: D3D_FEATURE_LEVEL_11.1 (0xB100)
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEVICE_CREATE] Immediate debug interface test: HRESULT=0x80004002, available=0
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEBUG_VERIFY] SDK Layers DLL loaded: NO (handle=0000000000000000)
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEBUG_VERIFY] Feature threading check: HRESULT=0x00000000, DriverConcurrentCreates=1, DriverCommandLists=1
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEBUG_VERIFY] ID3D11Debug QueryInterface: HRESULT=0x80004002, available=0
+[17:09:34] [Render thread/INFO] (Minecraft) [STDOUT]: [DEBUG_VERIFY] ✗ ID3D11Debug NOT available - debug layer is fake/disabled!
+[17:09:34] [Render thread/INFO] (VitraD3D11Renderer) ✓ D3D11 renderer initialized successfully
+[17:09:34] [Render thread/INFO] (Vitra/GpuDevice) Device capabilities: maxTextureSize=16384, uniformAlignment=256, maxAnisotropy=16
+[17:09:34] [Render thread/INFO] (Vitra/GpuDevice) ✓ DirectX 11 device initialized successfully
+[17:09:34] [Render thread/INFO] (Vitra/WindowMixin) ✓ DirectX 11 initialized successfully via VitraGpuDevice
+[17:09:34] [Render thread/INFO] (Vitra/Minecraft) Using optional rendering extensions: D3D_FEATURE_LEVEL_11_0, D3D11_FORMAT_SUPPORT_TEXTURE2D, D3D11_FORMAT_SUPPORT_RENDER_TARGET
+[17:09:34] [Render thread/INFO] (Vitra/RenderSystem) RenderSystem.setupDefaultState intercepted - Vitra JNI handles state internally
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 0] color=[1.00, 1.00, 1.00, 1.00]
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 0] mask=0x4000, color=[1.00, 1.00, 1.00, 1.00]
+[17:09:35] [Render thread/INFO] (Vitra/GpuBuffer) [VB 0] Created vertex buffer 'Cube map vertex buffer': handle=0xa882ac6d90419d99, size=288
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CB_NATIVE_FULL 0] handle=0xc8573ac872c3674, size=40 bytes
+  [0-15]   MVP:         0.000 0.000 0.000 0.000 | 340282346638528859811704183484516925440.000 340282346638528859811704183484516925440.000 340282346638528859811704183484516925440.000 340282346638528859811704183484516925440.000 | 340282346638528859811704183484516925440.000 340282346638528859811704183484516925440.000 -0.000 -0.000 | 0.000 0.000 0.000 0.000
+  [16-31]  ModelView:   0.000 0.000 0.000 0.000 | 0.000 0.000 -0.000 -0.000 | 0.000 0.000 0.000 0.000 | 0.000 0.000 0.000 0.000
+  [32-35]  ColorMod:    0.000 0.000 -0.000 -0.000
+  [36-38]  ModelOffset: 0.000 0.000 0.000 (pad: 0.000)
+  [40-55]  TextureMat:  0.000 0.000 0.000 0.000 | 0.000 0.000 -0.000 -0.000 | 0.000 0.000 0.000 0.000 | 0.000 0.000 0.000 0.000
+  [56]     LineWidth:   0.000
+  [57-63]  _pad1:       0.000 -0.000 -0.000 | (extra: 0.000 0.000 0.000 0.000)
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CB_NATIVE_FULL 1] handle=0x3388011da4f9f207, size=32 bytes
+  [0-15]   MVP:         -0.223 -0.171 0.960 340282346638528859811704183484516925440.000 | -0.215 -0.972 0.097 340282346638528859811704183484516925440.000 | 0.000 0.000 -0.000 -0.000 | 0.000 0.000 250688667910144.000 71425842592999284932608.000
+  [16-31]  ModelView:   74936780503938946909889051492352.000 299647525871032656029627212365824.000 0.000 0.000 | 0.000 0.000 -0.000 -0.000 | 0.000 0.000 -14657211274064722069434805518336.000 68179215636026403848192.000 | 296276059642644452618971119616.000 4371237897573354629496832.000 0.000 0.000
+  [32-35]  ColorMod:    0.000 0.000 -0.000 -0.000
+  [36-38]  ModelOffset: 0.000 0.000 11399742999232512.000 (pad: 61981168174055150321664.000)
+  [40-55]  TextureMat:  71542697492530667192320.000 0.000 1131867457823866617856.000 236805671962860847104.000 | 269992767985698209792.000 0.000 -0.000 -0.000 | 0.000 0.000 -7058279161040800950223780897095680.000 261713375059800752128.000 | 279463785225500229632.000 1089909419099415108311318528.000 0.000 0.000
+  [56]     LineWidth:   0.000
+  [57-63]  _pad1:       0.000 -0.000 -0.000 | (extra: 0.000 0.000 0.000 0.000)
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CB_NATIVE_FULL 2] handle=0x3388011da4f9f207, size=32 bytes
+  [0-15]   MVP:         -0.933 -0.263 -0.244 340282346638528859811704183484516925440.000 | -0.104 -0.977 0.188 340282346638528859811704183484516925440.000 | 0.000 0.000 -0.000 -0.000 | 0.000 0.000 0.000 68179220139626031218688.000
+  [16-31]  ModelView:   264372346019484008448.000 272451768566614589440.000 0.000 0.000 | 0.000 0.000 -0.000 -0.000 | 0.000 0.000 0.000 0.000 | 0.000 0.000 0.000 0.000
+  [32-35]  ColorMod:    0.000 0.000 -0.000 -0.000
+  [36-38]  ModelOffset: 0.000 0.000 0.000 (pad: 0.000)
+  [40-55]  TextureMat:  0.000 0.000 0.000 0.000 | 0.000 0.000 -0.000 -0.000 | 0.000 0.000 0.000 0.000 | 0.000 0.000 0.000 0.000
+  [56]     LineWidth:   0.000
+  [57-63]  _pad1:       0.000 -0.000 -0.000 | (extra: 0.000 0.000 0.000 0.000)
+[17:09:35] [Render thread/INFO] (Vitra/GpuBuffer) [VB 1] Created vertex buffer 'Crosshair vertex buffer': handle=0x7b6923858fddcbfa, size=552
+[17:09:35] [Render thread/INFO] (Vitra/WindowMixin) VSync changed to: true
+[17:09:35] [Render thread/INFO] (VitraRenderer) Renderer view resized to 854x480 (backend: DIRECTX11)
+[17:09:35] [Render thread/INFO] (D3D11ShaderManager) [SHADER_LOAD] Loading precompiled shader 'position_tex_color' from /assets/vitra/shaders/compiled/position_tex_color_vs.cso (1504 bytes)
+[17:09:35] [Render thread/INFO] (D3D11ShaderManager) [SHADER_LOAD_OK] VERTEX shader 'position_tex_color' loaded successfully (handle: 0x832eab59f80dc175)
+[17:09:35] [Render thread/INFO] (D3D11ShaderManager) [SHADER_LOAD] Loading precompiled shader 'position_tex_color' from /assets/vitra/shaders/compiled/position_tex_color_ps.cso (1480 bytes)
+[17:09:35] [Render thread/INFO] (D3D11ShaderManager) [SHADER_LOAD_OK] PIXEL shader 'position_tex_color' loaded successfully (handle: 0x19c2a64d1c0b9274)
+[17:09:35] [Render thread/INFO] (D3D11ShaderManager) Created shader pipeline: position_tex_color (VS: 0x832eab59f80dc175, PS: 0x19c2a64d1c0b9274, Pipeline: 0xb3d9e0f2fb56612e)
+[17:09:35] [Render thread/INFO] (Vitra/GameRenderer) [GameRenderer] UI shaders preloaded for DirectX
+[17:09:35] [Render thread/INFO] (Minecraft) Reloading ResourceManager: vanilla, fabric-api, fabric-api-base, fabric-api-lookup-api-v1, fabric-biome-api-v1, fabric-block-api-v1, fabric-block-view-api-v2, fabric-client-gametest-api-v1, fabric-command-api-v2, fabric-content-registries-v0, fabric-convention-tags-v2, fabric-crash-report-info-v1, fabric-data-attachment-api-v1, fabric-data-generation-api-v1, fabric-dimensions-v1, fabric-entity-events-v1, fabric-events-interaction-v0, fabric-game-rule-api-v1, fabric-gametest-api-v1, fabric-item-api-v1, fabric-item-group-api-v1, fabric-key-binding-api-v1, fabric-lifecycle-events-v1, fabric-loot-api-v3, fabric-message-api-v1, fabric-model-loading-api-v1, fabric-networking-api-v1, fabric-object-builder-api-v1, fabric-particles-v1, fabric-recipe-api-v1, fabric-registry-sync-v0, fabric-renderer-api-v1, fabric-renderer-indigo, fabric-rendering-fluids-v1, fabric-rendering-v1, fabric-resource-conditions-api-v1, fabric-resource-loader-v0, fabric-resource-loader-v1, fabric-screen-api-v1, fabric-screen-handler-api-v1, fabric-serialization-api-v1, fabric-sound-api-v1, fabric-tag-api-v1, fabric-transfer-api-v1, fabric-transitive-access-wideners-v1, fabricloader, vitra
+[17:09:35] [Download-1/INFO] (Minecraft) Could not authorize you against Realms server: java.lang.RuntimeException: Failed to parse into SignedJWT: FabricMC
+[17:09:35] [Download-1/ERROR] (Minecraft) Failed to fetch Realms feature flags
+com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication error with message 'java.lang.RuntimeException: Failed to parse into SignedJWT: FabricMC'
+	at knot//com.mojang.realmsclient.client.RealmsClient.execute(RealmsClient.java:526)
+	at knot//com.mojang.realmsclient.client.RealmsClient.fetchFeatureFlags(RealmsClient.java:186)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+[17:09:35] [Render thread/INFO] (Vitra/Minecraft) [Minecraft] Vitra DirectX renderer initialized
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 1] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 1] mask=0x4100, color=[0.00, 0.00, 0.00, 0.00]
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 2] mask=0x0100, color=[0.00, 0.00, 0.00, 0.00]
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 2] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 3] mask=0x4000, color=[0.94, 0.20, 0.24, 1.00]
+[17:09:35] [Render thread/INFO] (Vitra/GpuBuffer) [VB 2] Created vertex buffer 'GUI vertex buffer for VertexFormat[Position, Color] #0': handle=0x54abffc4b55ce0ce, size=320
+[17:09:35] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 0] MappedView close: uploaded 320 bytes to buffer 'GUI vertex buffer for VertexFormat[Position, Color] #0' handle=0x54abffc4b55ce0ce
+[17:09:35] [Render thread/INFO] (Vitra/GpuBuffer) [VB 3] Created vertex buffer 'GUI vertex buffer for VertexFormat[Position, UV0, Color] #0': handle=0xc6675c5e6236c86e, size=192
+[17:09:35] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 1] MappedView close: uploaded 192 bytes to buffer 'GUI vertex buffer for VertexFormat[Position, UV0, Color] #0' handle=0xc6675c5e6236c86e
+[17:09:35] [Render thread/INFO] (Vitra/GpuBuffer) [IB 4] Created index buffer 'Auto Storage index buffer': handle=0xc3950cbbd5bf4939, size=120
+[17:09:35] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 2] MappedView close: uploaded 256 bytes to buffer 'Dynamic Transforms UBO x256 #0' handle=0xdb5df5588b7a4fb4
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CB_BIND_VS 0] slot=0, handle=0x50a5298d3f905684, buffer=0x000001F11BE01D60
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CB_BIND_VS 1] slot=0, handle=0xc8573ac872c3674, buffer=0x000001F11BE004A0
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [CB_BIND_VS 2] slot=0, handle=0x593872ce15c67315, buffer=0x000001F11BE02DE0
+[17:09:35] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[0] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 0] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:35] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 0] arg0=0, arg1=0, arg2=30, arg3=1
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW 0] DrawIndexed: indexCount=30, firstIndex=0, baseVertex=0
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:35] [Render thread/INFO] (Vitra/RenderPass) [DRAW_OK 0] vb=0x54abffc4b55ce0ce, ib=0xc3950cbbd5bf4939, count=30, first=0, base=0, inst=1
+[17:09:35] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[1] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 1] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:35] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 1] arg0=0, arg1=0, arg2=12, arg3=1
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW 1] DrawIndexed: indexCount=12, firstIndex=0, baseVertex=0
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:35] [Render thread/INFO] (Vitra/RenderPass) [DRAW_OK 1] vb=0xc6675c5e6236c86e, ib=0xc3950cbbd5bf4939, count=12, first=0, base=0, inst=1
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [ENDFRAME 0] Called: initialized=1, swapChain=0x000001F11C86A300
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [PRESENT 0] SwapChain->Present() called! HRESULT=0x00000000 (SUCCESS)
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [ENDFRAME 1] Called: initialized=1, swapChain=0x000001F11C86A300
+[17:09:35] [Render thread/INFO] (Minecraft) [STDOUT]: [PRESENT 1] SwapChain->Present() called! HRESULT=0x00000000 (SUCCESS)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 3] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 4] mask=0x4100, color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 5] mask=0x0100, color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 4] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 6] mask=0x4000, color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Vitra/GpuBuffer) [VB 5] Created vertex buffer 'GUI vertex buffer for VertexFormat[Position, Color] #1': handle=0x0, size=320
+[17:09:36] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 3] MappedView close: uploaded 320 bytes to buffer 'GUI vertex buffer for VertexFormat[Position, Color] #1' handle=0x0
+[17:09:36] [Render thread/INFO] (Vitra/GpuBuffer) [VB 6] Created vertex buffer 'GUI vertex buffer for VertexFormat[Position, UV0, Color] #1': handle=0x0, size=192
+[17:09:36] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 4] MappedView close: uploaded 192 bytes to buffer 'GUI vertex buffer for VertexFormat[Position, UV0, Color] #1' handle=0x0
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:36] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 5] MappedView close: uploaded 256 bytes to buffer 'Dynamic Transforms UBO x256 #1' handle=0x0
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[2] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 2] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 2] arg0=0, arg1=0, arg2=30, arg3=1
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_SKIP 2] vb=0x0, ib=0xc3950cbbd5bf4939, indexCount=30 (skipped)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[3] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 3] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 3] arg0=0, arg1=0, arg2=12, arg3=1
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_SKIP 3] vb=0x0, ib=0xc3950cbbd5bf4939, indexCount=12 (skipped)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [ENDFRAME 2] Called: initialized=1, swapChain=0x000001F11C86A300
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [PRESENT 2] SwapChain->Present() called! HRESULT=0x00000000 (SUCCESS)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [ENDFRAME 3] Called: initialized=1, swapChain=0x000001F11C86A300
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [PRESENT 3] SwapChain->Present() called! HRESULT=0x00000000 (SUCCESS)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 5] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 7] mask=0x4100, color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 8] mask=0x0100, color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 6] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [CPP_CLEAR 9] mask=0x4000, color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Vitra/GpuBuffer) [VB 7] Created vertex buffer 'GUI vertex buffer for VertexFormat[Position, Color] #2': handle=0x0, size=320
+[17:09:36] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 6] MappedView close: uploaded 320 bytes to buffer 'GUI vertex buffer for VertexFormat[Position, Color] #2' handle=0x0
+[17:09:36] [Render thread/INFO] (Vitra/GpuBuffer) [VB 8] Created vertex buffer 'GUI vertex buffer for VertexFormat[Position, UV0, Color] #2': handle=0x0, size=192
+[17:09:36] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 7] MappedView close: uploaded 192 bytes to buffer 'GUI vertex buffer for VertexFormat[Position, UV0, Color] #2' handle=0x0
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:36] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 8] MappedView close: uploaded 256 bytes to buffer 'Dynamic Transforms UBO x256 #2' handle=0x0
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[4] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 4] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 4] arg0=0, arg1=0, arg2=30, arg3=1
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_SKIP 4] vb=0x0, ib=0xc3950cbbd5bf4939, indexCount=30 (skipped)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[5] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 5] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 5] arg0=0, arg1=0, arg2=12, arg3=1
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_SKIP 5] vb=0x0, ib=0xc3950cbbd5bf4939, indexCount=12 (skipped)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [ENDFRAME 4] Called: initialized=1, swapChain=0x000001F11C86A300
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [PRESENT 4] SwapChain->Present() called! HRESULT=0x00000000 (SUCCESS)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 7] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 8] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Vitra/MappedView) [UPLOAD 9] MappedView close: uploaded 320 bytes to buffer 'GUI vertex buffer for VertexFormat[Position, Color] #0' handle=0x54abffc4b55ce0ce
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[6] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 6] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 6] arg0=0, arg1=0, arg2=30, arg3=1
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW 2] DrawIndexed: indexCount=30, firstIndex=0, baseVertex=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_OK 6] vb=0x54abffc4b55ce0ce, ib=0xc3950cbbd5bf4939, count=30, first=0, base=0, inst=1
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[7] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 7] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 7] arg0=0, arg1=0, arg2=12, arg3=1
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW 3] DrawIndexed: indexCount=12, firstIndex=0, baseVertex=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_OK 7] vb=0xc6675c5e6236c86e, ib=0xc3950cbbd5bf4939, count=12, first=0, base=0, inst=1
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 9] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 10] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Vitra/GpuBuffer) [VB 9] Created vertex buffer 'GUI vertex buffer for VertexFormat[Position, Color] #1': handle=0x0, size=320
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[8] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 8] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 8] arg0=0, arg1=0, arg2=30, arg3=1
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_SKIP 8] vb=0x0, ib=0xc3950cbbd5bf4939, indexCount=30 (skipped)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[9] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 9] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_PARAMS 9] arg0=0, arg1=0, arg2=12, arg3=1
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) [DRAW_SKIP 9] vb=0x0, ib=0xc3950cbbd5bf4939, indexCount=12 (skipped)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 11] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 12] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 10] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 11] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 13] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 14] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 12] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW 4] DrawIndexed: indexCount=30, firstIndex=0, baseVertex=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 13] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 15] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 16] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 14] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 15] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 17] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 18] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 16] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 17] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 19] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 20] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 18] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 19] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 21] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 22] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 20] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 21] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 23] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 24] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:36] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 22] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 23] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 25] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 26] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 24] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:36] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 25] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:36] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 27] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 28] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 26] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 27] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 29] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 30] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 28] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_SCISSOR 29] x=0, y=0, w=16384, h=16384 -> rect=(0,0) to (16384,16384)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 31] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 32] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 33] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 34] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 35] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 36] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 37] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 38] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 39] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 40] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 41] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 42] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 43] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 44] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 45] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 46] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Worker-Main-1/INFO] (Minecraft) Found unifont_all_no_pua-17.0.01.hex, loading
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Worker-Main-2/INFO] (Minecraft) Found unifont_pua-17.0.01.hex, loading
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 47] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 48] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 49] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 50] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEXTURE_BIND] Unbound texture from slot 0 (NULL SRV)
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 51] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 52] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 53] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 54] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 55] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 56] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 57] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 58] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:37] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 59] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 60] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 61] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 62] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 63] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 64] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Worker-Main-1/INFO] (Minecraft) Found unifont_jp_patch-17.0.01.hex, loading
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 65] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 66] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 67] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 68] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 69] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 70] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 71] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 72] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 73] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 74] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 75] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 76] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 77] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 78] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 79] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 80] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 81] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 82] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 83] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 84] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 85] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 86] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 87] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 88] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 89] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 90] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 91] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 92] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 93] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 94] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 95] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 96] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 97] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 98] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 99] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 100] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 101] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 102] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 103] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 104] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 105] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 106] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 107] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 108] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 109] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 110] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 111] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 112] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 113] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 114] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 115] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 116] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 117] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 118] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 119] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 120] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 121] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 122] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 123] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 124] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 125] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 126] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 127] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 128] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 129] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:38] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 130] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 131] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 132] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 133] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 134] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 135] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 136] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 137] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 138] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 139] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 140] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 141] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 142] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #1'
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #1', handle=0x0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #1', handle=0x0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 143] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 144] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:39] [Render thread/ERROR] (Vitra/GpuBuffer) Failed to create empty constant buffer 'Dynamic Transforms UBO x256 #2'
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #2', handle=0x0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #2', handle=0x0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 145] color=[0.00, 0.00, 0.00, 0.00]
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [SET_CLEAR_COLOR 146] color=[0.94, 0.20, 0.24, 1.00]
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, Color] #0', handle=0x54abffc4b55ce0ce
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=60, Current=120, IndexCount=30, FirstIndex=0
+[17:09:39] [Render thread/INFO] (Vitra/RenderPass) setVertexBuffer[10] slot=0, name='GUI vertex buffer for VertexFormat[Position, UV0, Color] #0', handle=0xc6675c5e6236c86e
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [TEX_BIND] slot=0, handle=0x0, srv=0000000000000000
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [DRAW_TEXTURE_REBIND] g_glState.boundTextures: [0]=0 [1]=0 [2]=0 [3]=0
+[17:09:39] [Render thread/INFO] (Minecraft) [STDOUT]: [BUFFER_CHECK] Required=24, Current=120, IndexCount=12, FirstIndex=0
+[17:09:40] [Render thread/INFO] (D3D11ShaderManager) [SHADER_LOAD] Loading precompiled shader 'rendertype_lines' from /assets/vitra/shaders/compiled/rendertype_lines_vs.cso (2944 bytes)
+[17:09:40] [Render thread/WARN] (D3D11ShaderManager) [SHADER_LOAD] Failed to create shader from bytecode: rendertype_lines, trying runtime compilation
+[17:09:40] [Render thread/INFO] (D3D11ShaderManager) [SHADER_COMPILE] Compiling VERTEX shader 'rendertype_lines' (6928 chars) - FALLBACK MODE

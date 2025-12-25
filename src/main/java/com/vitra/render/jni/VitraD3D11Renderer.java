@@ -645,6 +645,18 @@ public class VitraD3D11Renderer {
     public static native long createShaderFromBytecode(byte[] bytecode, int bytecodeLength, String shaderType);
 
     /**
+     * Create shader from precompiled bytecode (convenience overload using integer type constant).
+     *
+     * @param bytecode - Compiled shader bytecode
+     * @param shaderType - Shader type (SHADER_TYPE_VERTEX or SHADER_TYPE_PIXEL)
+     * @return Shader handle, or 0 on failure
+     */
+    public static long createShaderFromBytecode(byte[] bytecode, int shaderType) {
+        String typeStr = (shaderType == SHADER_TYPE_VERTEX) ? "vertex" : "pixel";
+        return createShaderFromBytecode(bytecode, bytecode.length, typeStr);
+    }
+
+    /**
      * Bind a shader pipeline for rendering.
      *
      * @param pipelineHandle - Pipeline handle

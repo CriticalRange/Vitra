@@ -117,8 +117,10 @@ float4 minecraft_mix_light(float3 lightDir0, float3 lightDir1, float3 normal, fl
     return float4(color.rgb * lightAccum, color.a);
 }
 
-float4 minecraft_sample_lightmap(Texture2D lightMap, SamplerState lightMapState, int2 uv) {
-    return lightMap.Load(int3((uv >> 4) & 0xFF, 0));
+float4 minecraft_sample_lightmap(Texture2D lightMap, SamplerState lightMapState, float2 uv) {
+    // Cast float2 to int2 for bitshift operations - prevents D3DCompile crash
+    int2 uvInt = (int2)uv;
+    return lightMap.Load(int3((uvInt >> 4) & 0xFF, 0));
 }
 
 float4 projection_from_position(float4 position) {
