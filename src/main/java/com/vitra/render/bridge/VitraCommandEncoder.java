@@ -146,24 +146,28 @@ public class VitraCommandEncoder implements CommandEncoder {
             return;
         }
         
-        // Full texture upload at mip level 0
+        // Full texture upload at mip level 0, layer 0
         writeToTexture(texture, image, 0, 0, 0, 0, imgWidth, imgHeight, 0, 0);
     }
     
     @Override
     public void writeToTexture(GpuTexture texture, NativeImage image,
-                               int srcX, int srcY, int dstX, int dstY,
-                               int width, int height, int mipLevel, int layer) {
+                               int mipLevel, int depthOrLayer, int destX, int destY,
+                               int width, int height, int sourceX, int sourceY) {
         if (texture.isClosed()) {
             LOGGER.warn("Attempted to write to closed texture");
             return;
         }
         
+        // Log entry to confirm this method is called
+        LOGGER.info("[WRITE_TEX] writeToTexture called: texture='{}' {}x{} mip={}", 
+            texture.getLabel(), image.getWidth(), image.getHeight(), mipLevel);
+        
         try {
             // Get pixel pointer from NativeImage using accessor mixin
             long pixelPtr = ((NativeImageAccessor)(Object)image).getPixels();
             if (pixelPtr == 0) {
-                LOGGER.warn("NativeImage pixel pointer is null");
+                LOGGER.warn("[WRITE_TEX] NativeImage pixel pointer is null!");
                 return;
             }
             
@@ -179,6 +183,8 @@ public class VitraCommandEncoder implements CommandEncoder {
                     // Create the texture with initial data
                     int[] pixels = image.getPixels();
                     if (pixels != null && pixels.length > 0) {
+                        LOGGER.info("[WRITE_TEX] Creating native D3D11 texture: {}x{}, {} pixels", 
+                            image.getWidth(), image.getHeight(), pixels.length);
                         byte[] pixelBytes = new byte[pixels.length * 4];
                         for (int i = 0; i < pixels.length; i++) {
                             int pixel = pixels[i];
@@ -191,8 +197,10 @@ public class VitraCommandEncoder implements CommandEncoder {
                         textureHandle = VitraD3D11Renderer.createTextureFromData(
                             pixelBytes, image.getWidth(), image.getHeight(), dxgiFormat);
                         vitraTexture.setNativeHandle(textureHandle);
-                        LOGGER.debug("Created texture with handle 0x{} for {}", 
+                        LOGGER.info("[WRITE_TEX] ✓ Created texture handle=0x{} for '{}'", 
                             Long.toHexString(textureHandle), texture.getLabel());
+                    } else {
+                        LOGGER.warn("[WRITE_TEX] No pixel data available for texture!");
                     }
                     return;
                 }
@@ -201,24 +209,24 @@ public class VitraCommandEncoder implements CommandEncoder {
                 int glFormat = mapFormatToGL(image.format());
                 int imgWidth = image.getWidth();
                 
-                // Calculate the pixel pointer offset for srcX, srcY
+                // Calculate the pixel pointer offset for sourceX, sourceY
                 int bytesPerPixel = image.format().components();
-                long offsetPixelPtr = pixelPtr + ((long)srcY * imgWidth + srcX) * bytesPerPixel;
+                long offsetPixelPtr = pixelPtr + ((long)sourceY * imgWidth + sourceX) * bytesPerPixel;
                 
                 // Use texSubImage2DWithPitch for partial uploads with row pitch
                 int rowPitch = imgWidth * bytesPerPixel;
                 VitraD3D11Renderer.texSubImage2DWithPitch(
-                    GL_TEXTURE_2D, mipLevel, dstX, dstY, 
+                    GL_TEXTURE_2D, mipLevel, destX, destY, 
                     width, height, glFormat, GL_UNSIGNED_BYTE, 
                     offsetPixelPtr, rowPitch);
                 
                 LOGGER.debug("Updated texture {} at ({},{}) size {}x{} mip {}", 
-                    texture.getLabel(), dstX, dstY, width, height, mipLevel);
+                    texture.getLabel(), destX, destY, width, height, mipLevel);
             } else {
                 // Fallback for non-Vitra textures - use general texSubImage2D
                 int glFormat = mapFormatToGL(image.format());
                 VitraD3D11Renderer.texSubImage2D(
-                    GL_TEXTURE_2D, mipLevel, dstX, dstY, 
+                    GL_TEXTURE_2D, mipLevel, destX, destY, 
                     width, height, glFormat, GL_UNSIGNED_BYTE, pixelPtr);
             }
         } catch (Exception e) {
@@ -228,7 +236,7 @@ public class VitraCommandEncoder implements CommandEncoder {
     
     @Override
     public void writeToTexture(GpuTexture texture, ByteBuffer data, NativeImage.Format format,
-                               int width, int height, int dstX, int dstY, int mipLevel, int layer) {
+                               int mipLevel, int depthOrLayer, int destX, int destY, int width, int height) {
         if (texture.isClosed()) {
             LOGGER.warn("Attempted to write to closed texture");
             return;
@@ -248,11 +256,11 @@ public class VitraCommandEncoder implements CommandEncoder {
             
             int glFormat = mapFormatToGL(format);
             VitraD3D11Renderer.texSubImage2D(
-                GL_TEXTURE_2D, mipLevel, dstX, dstY, 
+                GL_TEXTURE_2D, mipLevel, destX, destY, 
                 width, height, glFormat, GL_UNSIGNED_BYTE, address);
             
             LOGGER.debug("Uploaded ByteBuffer to texture {} at ({},{}) size {}x{}", 
-                texture.getLabel(), dstX, dstY, width, height);
+                texture.getLabel(), destX, destY, width, height);
         } catch (Exception e) {
             LOGGER.error("Failed to write ByteBuffer to texture: {}", e.getMessage());
         }
@@ -281,9 +289,44 @@ public class VitraCommandEncoder implements CommandEncoder {
         LOGGER.debug("copyTextureToTexture not yet implemented");
     }
     
+    private static int presentCount = 0;
+    
     @Override
     public void presentTexture(GpuTextureView textureView) {
-        VitraD3D11Renderer.endFrame();
+        // presentTexture should blit the given texture to the swap chain back buffer
+        // This is called when Minecraft renders to an off-screen RenderTarget
+        // and needs to copy that to the actual back buffer for presentation.
+        // The actual buffer swap happens in GpuDevice.presentFrame() (called by RenderSystem.flipFrame)
+        
+        if (presentCount < 10) {
+            LOGGER.info("[PRESENT_TEXTURE {}] Blitting texture to back buffer: view={}", 
+                presentCount, textureView != null ? textureView.getClass().getSimpleName() : "null");
+            presentCount++;
+        }
+        
+        // Get the texture handle if available
+        if (textureView instanceof VitraGpuTextureView vitraView) {
+            long textureHandle = vitraView.getNativeHandle();
+            if (textureHandle != 0) {
+                // Copy/blit the texture to the swap chain back buffer
+                VitraD3D11Renderer.blitTextureToBackBuffer(textureHandle, 
+                    vitraView.getWidth(0), vitraView.getHeight(0));
+                
+                if (presentCount <= 10) {
+                    LOGGER.debug("[PRESENT_TEXTURE] Blitted texture 0x{} ({}x{}) to back buffer",
+                        Long.toHexString(textureHandle), vitraView.getWidth(0), vitraView.getHeight(0));
+                }
+            } else {
+                // Handle is 0 - might mean we're rendering directly to back buffer
+                // In that case, no blit is needed
+                if (presentCount < 5) {
+                    LOGGER.debug("[PRESENT_TEXTURE] Texture handle is 0, assuming direct render to back buffer");
+                }
+            }
+        }
+        
+        // NOTE: Do NOT call endFrame() here! That causes double-present.
+        // GpuDevice.presentFrame() handles the actual SwapChain->Present() call.
     }
     
     // ==================== SYNC METHODS ====================

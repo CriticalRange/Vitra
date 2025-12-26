@@ -287,8 +287,14 @@ public class VitraGpuDevice implements GpuDevice {
         LOGGER.debug("VSync set to: {}", enabled);
     }
     
+    private static int presentFrameCount = 0;
+    
     @Override
     public void presentFrame() {
+        if (presentFrameCount < 15) {
+            LOGGER.info("[PRESENT_FRAME {}] GpuDevice.presentFrame() called", presentFrameCount);
+            presentFrameCount++;
+        }
         VitraD3D11Renderer.endFrame();
     }
     

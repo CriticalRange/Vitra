@@ -731,14 +731,29 @@ void updateRenderTargetView() {
 void setDefaultShaders() {
     // Create two default shaders: one with TEXCOORD0 and one without
     // This fixes the shader linkage error when vertex data doesn't include UV coordinates
+    //
+    // Minecraft 26.1 uniform layout:
+    //   b0: Projection (4x4 matrix = 64 bytes)
+    //   b1: Fog parameters
+    //   b2: Globals
+    //   b3: Lighting
+    //   b4: DynamicTransforms (ModelView + ColorModulator + ModelOffset + TextureMatrix = 256 bytes)
 
     // Shader 1: Full vertex format (POSITION + TEXCOORD0 + COLOR0)
     const char* vertexShaderWithUV = R"(
-        // Constant buffer for transformation matrices (register b0)
-        cbuffer TransformBuffer : register(b0) {
-            float4x4 ModelViewProjection;
+        // Projection matrix (register b0) - 26.1 layout
+        cbuffer Projection : register(b0) {
+            float4x4 ProjectionMatrix;
+        };
+
+        // DynamicTransforms (register b4) - 26.1 layout
+        // Layout: ModelView (64) + ColorModulator (16) + ModelOffset (12+4pad) + TextureMatrix (64) = 160 bytes
+        cbuffer DynamicTransforms : register(b4) {
             float4x4 ModelView;
-            float4x4 Projection;
+            float4 ColorModulator;
+            float3 ModelOffset;
+            float _pad0;
+            float4x4 TextureMatrix;
         };
 
         struct VS_INPUT {
@@ -755,21 +770,34 @@ void setDefaultShaders() {
 
         VS_OUTPUT main(VS_INPUT input) {
             VS_OUTPUT output;
-            float4 worldPos = float4(input.pos, 1.0);
-            output.pos = mul(ModelViewProjection, worldPos);
-            output.tex = input.tex;
-            output.color = input.color;
+            // Apply model offset and transform
+            float4 worldPos = float4(input.pos + ModelOffset, 1.0);
+            // ModelView * position, then Projection
+            float4 viewPos = mul(ModelView, worldPos);
+            output.pos = mul(ProjectionMatrix, viewPos);
+            // Apply texture matrix to UVs
+            float4 texCoord = mul(TextureMatrix, float4(input.tex, 0.0, 1.0));
+            output.tex = texCoord.xy;
+            // Apply color modulator
+            output.color = input.color * ColorModulator;
             return output;
         }
     )";
 
     // Shader 2: Minimal vertex format (POSITION + COLOR0 only)
     const char* vertexShaderWithoutUV = R"(
-        // Constant buffer for transformation matrices (register b0)
-        cbuffer TransformBuffer : register(b0) {
-            float4x4 ModelViewProjection;
+        // Projection matrix (register b0) - 26.1 layout
+        cbuffer Projection : register(b0) {
+            float4x4 ProjectionMatrix;
+        };
+
+        // DynamicTransforms (register b4) - 26.1 layout
+        cbuffer DynamicTransforms : register(b4) {
             float4x4 ModelView;
-            float4x4 Projection;
+            float4 ColorModulator;
+            float3 ModelOffset;
+            float _pad0;
+            float4x4 TextureMatrix;
         };
 
         struct VS_INPUT {
@@ -784,9 +812,13 @@ void setDefaultShaders() {
 
         VS_OUTPUT main(VS_INPUT input) {
             VS_OUTPUT output;
-            float4 worldPos = float4(input.pos, 1.0);
-            output.pos = mul(ModelViewProjection, worldPos);
-            output.color = input.color;
+            // Apply model offset and transform
+            float4 worldPos = float4(input.pos + ModelOffset, 1.0);
+            // ModelView * position, then Projection
+            float4 viewPos = mul(ModelView, worldPos);
+            output.pos = mul(ProjectionMatrix, viewPos);
+            // Apply color modulator
+            output.color = input.color * ColorModulator;
             return output;
         }
     )";
@@ -2105,6 +2137,86 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_endFrame
         char msg[256];
         snprintf(msg, sizeof(msg), "[PRESENT ERROR] Present() FAILED with HRESULT=0x%08X", hr);
         logToJava(env, msg);
+    }
+}
+
+/**
+ * Blit/copy a rendered texture to the swap chain back buffer.
+ * This is called by CommandEncoder.presentTexture() to copy the rendered
+ * off-screen texture to the actual back buffer for presentation.
+ */
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_blitTextureToBackBuffer
+    (JNIEnv* env, jclass clazz, jlong textureHandle, jint width, jint height) {
+
+    if (!g_d3d11.initialized || !g_d3d11.context || !g_d3d11.swapChain) {
+        return;
+    }
+
+    // Get the texture from our handle map
+    ID3D11Texture2D* sourceTexture = nullptr;
+    
+    // Check if the handle is in our texture map (g_textures is the global map)
+    auto it = g_textures.find(textureHandle);
+    if (it != g_textures.end()) {
+        sourceTexture = it->second.Get();
+        if (sourceTexture) {
+            sourceTexture->AddRef(); // AddRef since we'll Release later
+        }
+    }
+
+    if (!sourceTexture) {
+        // Texture handle is 0 or not found - assume rendering directly to back buffer
+        // No blit needed in this case
+        return;
+    }
+
+    // Get the back buffer
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
+    HRESULT hr = g_d3d11.swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), 
+        reinterpret_cast<void**>(backBuffer.GetAddressOf()));
+    
+    if (FAILED(hr) || !backBuffer) {
+        sourceTexture->Release();
+        return;
+    }
+
+    // Get source and dest texture descriptions
+    D3D11_TEXTURE2D_DESC srcDesc, dstDesc;
+    sourceTexture->GetDesc(&srcDesc);
+    backBuffer->GetDesc(&dstDesc);
+
+    // If sizes match, use CopyResource (faster)
+    if (srcDesc.Width == dstDesc.Width && srcDesc.Height == dstDesc.Height) {
+        g_d3d11.context->CopyResource(backBuffer.Get(), sourceTexture);
+    } else {
+        // Sizes differ - need to use CopySubresourceRegion or a shader-based blit
+        // For now, copy what fits
+        D3D11_BOX srcBox;
+        srcBox.left = 0;
+        srcBox.top = 0;
+        srcBox.front = 0;
+        srcBox.right = min(srcDesc.Width, dstDesc.Width);
+        srcBox.bottom = min(srcDesc.Height, dstDesc.Height);
+        srcBox.back = 1;
+        
+        g_d3d11.context->CopySubresourceRegion(
+            backBuffer.Get(), 0,  // Dest: back buffer, subresource 0
+            0, 0, 0,              // Dest x, y, z
+            sourceTexture, 0,     // Source texture, subresource 0
+            &srcBox               // Source region
+        );
+    }
+
+    sourceTexture->Release();
+
+    static int blitCount = 0;
+    if (blitCount < 5) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "[BLIT %d] Copied texture 0x%llX (%dx%d) to back buffer (%dx%d)", 
+            blitCount, (unsigned long long)textureHandle, 
+            srcDesc.Width, srcDesc.Height, dstDesc.Width, dstDesc.Height);
+        logToJava(env, msg);
+        blitCount++;
     }
 }
 
@@ -3922,6 +4034,52 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setScissorRe
         scissorRects[i].bottom = g_d3d11.height;
     }
     g_d3d11.context->RSSetScissorRects(D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE, scissorRects);
+}
+
+// ==================== RENDER TARGET MANAGEMENT ====================
+
+/**
+ * Set render target to a specific texture.
+ * For now, simplified to just use back buffer to avoid compilation issues.
+ */
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setRenderTarget
+    (JNIEnv* env, jclass clazz, jlong textureHandle) {
+    
+    if (!g_d3d11.initialized) return;
+    
+    // For now, just use the back buffer
+    // TODO: Implement proper texture render target support
+    g_d3d11.context->OMSetRenderTargets(1, g_d3d11.renderTargetView.GetAddressOf(),
+        g_d3d11.depthStencilView.Get());
+    
+    static int count = 0;
+    if (count < 3) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "[RENDER_TARGET] Set render target (using back buffer for now)");
+        logToJava(env, msg);
+        count++;
+    }
+}
+
+/**
+ * Set render target to the swap chain back buffer.
+ */
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setRenderTargetToBackBuffer
+    (JNIEnv* env, jclass clazz) {
+    
+    if (!g_d3d11.initialized) return;
+    
+    g_d3d11.context->OMSetRenderTargets(1, g_d3d11.renderTargetView.GetAddressOf(),
+        g_d3d11.depthStencilView.Get());
+    
+    static int count = 0;
+    if (count < 3) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "[RENDER_TARGET] Set render target to back buffer (RTV=%p, DSV=%p)",
+            g_d3d11.renderTargetView.Get(), g_d3d11.depthStencilView.Get());
+        logToJava(env, msg);
+        count++;
+    }
 }
 
 // ==================== DEBUG LAYER IMPLEMENTATION ====================
@@ -7362,8 +7520,8 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_handleDispla
     g_d3d11.depthStencilView.Reset();
     g_d3d11.depthStencilBuffer.Reset();
 
-    // Resize swap chain
-    HRESULT hr = g_d3d11.swapChain->ResizeBuffers(1, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0);
+    // Resize swap chain (2 buffers for double buffering, matching other resize functions)
+    HRESULT hr = g_d3d11.swapChain->ResizeBuffers(2, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0);
     if (FAILED(hr)) {
         return;
     }
@@ -7371,6 +7529,10 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_handleDispla
     // Recreate render target and depth buffer
     updateRenderTargetView();
     createDefaultRenderStates();
+
+    // CRITICAL FIX: Re-bind the new render targets to the pipeline!
+    // Without this, clears and draws go to the new RTV but the swap chain presents stale data.
+    g_d3d11.context->OMSetRenderTargets(1, g_d3d11.renderTargetView.GetAddressOf(), g_d3d11.depthStencilView.Get());
 
     // Update viewport
     g_d3d11.viewport.Width = (float)width;
@@ -8607,6 +8769,13 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_clear
         ComPtr<ID3D11DepthStencilView> currentDSV;
         g_d3d11.context->OMGetRenderTargets(1, &currentRTV, &currentDSV);
 
+        if (clearCount < 10) {
+            char msg2[256];
+            snprintf(msg2, sizeof(msg2), "[CLEAR_RTV] currentRTV=%p, backBufferRTV=%p",
+                currentRTV.Get(), g_d3d11.renderTargetView.Get());
+            logToJava(env, msg2);
+        }
+
         if (currentRTV) {
             g_d3d11.context->ClearRenderTargetView(currentRTV.Get(), g_d3d11.clearColor);
         } else {
@@ -9683,6 +9852,20 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createShade
         }
 
         g_vertexShaders[handle] = vertexShader;
+        
+        // CRITICAL FIX: Store bytecode as blob for input layout creation!
+        // Without this, createInputLayout cannot use shader reflection, causing white screen.
+        ComPtr<ID3DBlob> bytecodeBlob;
+        hr = D3DCreateBlob(bytecodeLength, &bytecodeBlob);
+        if (SUCCEEDED(hr) && bytecodeBlob) {
+            memcpy(bytecodeBlob->GetBufferPointer(), bytecodeData, bytecodeLength);
+            g_shaderBlobs[handle] = bytecodeBlob;
+            printf("[SHADER_BYTECODE] Stored VS bytecode blob for handle 0x%llx (%d bytes)\n", 
+                   (unsigned long long)handle, bytecodeLength);
+        } else {
+            printf("[SHADER_BYTECODE] WARNING: Failed to create blob for VS handle 0x%llx\n", 
+                   (unsigned long long)handle);
+        }
     } else {
         ComPtr<ID3D11PixelShader> pixelShader;
         hr = g_d3d11.device->CreatePixelShader(
@@ -9753,25 +9936,36 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createShade
         return 0;
     }
 
-    // CRITICAL FIX: Do NOT create input layout during pipeline creation
-    // VulkanMod pattern: Input layouts are created dynamically during draw calls
-    // based on the ACTUAL vertex buffer format, not the shader's expectations
-    // The shader blob now contains only the input signature (not full bytecode),
-    // so we can't use D3DReflect here anyway
+    // CRITICAL FIX: Create input layout during pipeline creation using shader reflection
+    // The shader blob contains the full compiled bytecode, so we CAN use D3DReflect
+    // Without an input layout, DirectX 11 doesn't know how to interpret vertex data
+    // This was causing the white screen issue - all draw calls failed silently
 
-    // Verify the shader blob exists (for input layout creation during draws)
+    // Get the shader blob for input layout creation
     auto blobIt = g_shaderBlobs.find(vertexShaderHandle);
-    if (blobIt == g_shaderBlobs.end()) {
-        g_lastShaderError = "Vertex shader blob not found (input signature required for draw calls)";
-        printf("[PIPELINE_CREATE] WARNING: Shader blob not found for VS handle 0x%llx\n", vertexShaderHandle);
-        // Don't fail - input layout will be created during draw calls
+    ComPtr<ID3D11InputLayout> inputLayout = nullptr;
+    
+    if (blobIt != g_shaderBlobs.end() && blobIt->second.Get() != nullptr) {
+        // Create input layout using shader reflection
+        ID3DBlob* vsBlob = blobIt->second.Get();
+        ID3D11InputLayout* rawInputLayout = nullptr;
+        
+        if (createInputLayout(vsBlob, &rawInputLayout) && rawInputLayout != nullptr) {
+            inputLayout = rawInputLayout;
+            printf("[PIPELINE_CREATE] ✓ Created input layout from shader reflection: %p\n", rawInputLayout);
+        } else {
+            printf("[PIPELINE_CREATE] WARNING: Failed to create input layout from shader reflection for VS handle 0x%llx\n", vertexShaderHandle);
+            // Continue without input layout - draw calls will try to create one dynamically
+        }
+    } else {
+        printf("[PIPELINE_CREATE] WARNING: Shader blob not found for VS handle 0x%llx, cannot create input layout\n", vertexShaderHandle);
     }
 
-    // Create pipeline WITHOUT input layout (VulkanMod pattern)
+    // Create pipeline WITH input layout (if available)
     ShaderPipeline pipeline;
     pipeline.vertexShader = vsIt->second;
     pipeline.pixelShader = psIt->second;
-    pipeline.inputLayout = nullptr;  // Will be set during draw calls based on vertex format
+    pipeline.inputLayout = inputLayout;  // May be nullptr, but at least we tried
     pipeline.vertexShaderHandle = vertexShaderHandle;
     pipeline.pixelShaderHandle = pixelShaderHandle;
 
@@ -9853,14 +10047,22 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindShaderPi
     g_d3d11.boundPixelShader = pipeline.pixelShaderHandle;
     s_boundPipelineHandle = pipelineHandle;  // Track bound pipeline
 
-    // CRITICAL FIX: Do NOT bind input layout here!
-    // Input layout must be set based on the ACTUAL vertex buffer format during draw calls,
-    // not based on what the shader expects. The shader's input layout is incompatible
-    // with vertex data that has different attributes (e.g., shader expects TEXCOORD but
-    // vertex buffer only has POSITION+COLOR).
-    //
-    // The input layout will be created and bound by drawWithVertexFormat() based on the
-    // actual vertex data format, ensuring shader inputs match buffer data.
+    // CRITICAL FIX: Bind the input layout!
+    // Without an input layout, DirectX 11 doesn't know how to interpret vertex data.
+    // This was causing the white screen issue.
+    if (pipeline.inputLayout.Get() != nullptr) {
+        g_d3d11.context->IASetInputLayout(pipeline.inputLayout.Get());
+    } else {
+        // Log warning if no input layout - this will cause rendering issues
+        static int noLayoutWarnings = 0;
+        if (noLayoutWarnings < 5) {
+            char warnMsg[256];
+            snprintf(warnMsg, sizeof(warnMsg), "[SHADER_BIND] WARNING: No input layout for pipeline 0x%llx - rendering may fail!",
+                (unsigned long long)pipelineHandle);
+            logToJava(env, warnMsg);
+            noLayoutWarnings++;
+        }
+    }
 
     // CRITICAL FIX (bgfx pattern): IMMEDIATELY bind ALL constant buffers after shader change
     // VSSetShader/PSSetShader can unbind constant buffers on some GPU drivers

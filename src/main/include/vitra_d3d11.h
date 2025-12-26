@@ -169,6 +169,9 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_endFrame
     (JNIEnv* env, jclass clazz);
 
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_blitTextureToBackBuffer
+    (JNIEnv* env, jclass clazz, jlong textureHandle, jint width, jint height);
+
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_resetDynamicState
     (JNIEnv* env, jclass clazz);
 
@@ -957,6 +960,16 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_uploadAndBin
 
 // Retrieve last shader compilation error
 JNIEXPORT jstring JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_getLastShaderError
+    (JNIEnv* env, jclass clazz);
+
+// ==================== RENDER TARGET MANAGEMENT ====================
+
+// Set render target to a specific texture
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setRenderTarget
+    (JNIEnv* env, jclass clazz, jlong textureHandle);
+
+// Set render target to the swap chain back buffer
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setRenderTargetToBackBuffer
     (JNIEnv* env, jclass clazz);
 
 #ifdef __cplusplus

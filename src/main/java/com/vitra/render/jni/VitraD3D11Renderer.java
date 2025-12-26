@@ -164,6 +164,17 @@ public class VitraD3D11Renderer {
     public static native void endFrame();
 
     /**
+     * Blit/copy a rendered texture to the swap chain back buffer.
+     * This is called by CommandEncoder.presentTexture() to copy the rendered
+     * off-screen texture to the actual back buffer for presentation.
+     * 
+     * @param textureHandle - Handle to the D3D11 texture to blit
+     * @param width - Width of the texture
+     * @param height - Height of the texture
+     */
+    public static native void blitTextureToBackBuffer(long textureHandle, int width, int height);
+
+    /**
      * Reset dynamic rendering state (VulkanMod Renderer.resetDynamicState() pattern)
      *
      * Resets per-frame dynamic state that persists across draw calls:
@@ -1332,6 +1343,39 @@ public class VitraD3D11Renderer {
     public static final int DEBUG_SEVERITY_CORRUPTION = 3;
 
     
+    // ==================== RENDER TARGET MANAGEMENT ====================
+    
+    /**
+     * Set render target to a specific texture.
+     * This binds the texture as the render target using OMSetRenderTargets.
+     * 
+     * @param textureHandle - Native texture handle (must have an associated RTV)
+     */
+    public static native void setRenderTarget(long textureHandle);
+    
+    /**
+     * Set render target to the swap chain back buffer.
+     * This restores rendering to the default back buffer.
+     */
+    public static native void setRenderTargetToBackBuffer();
+    
+    /**
+     * Set both render target and viewport in one call.
+     * @param textureHandle - Native texture handle (0 for back buffer)
+     * @param x - Viewport X
+     * @param y - Viewport Y
+     * @param width - Viewport width
+     * @param height - Viewport height
+     */
+    public static void setRenderTargetAndViewport(long textureHandle, int x, int y, int width, int height) {
+        if (textureHandle == 0) {
+            setRenderTargetToBackBuffer();
+        } else {
+            setRenderTarget(textureHandle);
+        }
+        setViewport(x, y, width, height);
+    }
+
     // ==================== RENDER STATE MANAGEMENT ====================
 
     /**

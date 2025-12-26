@@ -12,16 +12,13 @@ import org.slf4j.LoggerFactory;
 public class VitraGpuTextureView extends GpuTextureView {
     private static final Logger LOGGER = LoggerFactory.getLogger("Vitra/GpuTextureView");
     
-    // Native D3D11 SRV handle
-    private long nativeHandle = 0;
+    // Reference to the underlying texture (for dynamic handle lookup)
+    private final VitraGpuTexture vitraTexture;
     private boolean closed = false;
     
     public VitraGpuTextureView(VitraGpuTexture texture, int baseMip, int mipCount) {
         super(texture, baseMip, mipCount);
-        
-        // TODO: Create SRV through JNI
-        // For now, use the texture's native handle directly
-        this.nativeHandle = texture.getNativeHandle();
+        this.vitraTexture = texture;
     }
     
     @Override
@@ -33,13 +30,19 @@ public class VitraGpuTextureView extends GpuTextureView {
     public void close() {
         if (!closed) {
             // Note: We don't destroy the texture, just the view
-            // TODO: Destroy SRV if we created a separate one
-            nativeHandle = 0;
             closed = true;
         }
     }
     
+    /**
+     * Get the native D3D11 texture handle.
+     * This dynamically fetches from the underlying texture because
+     * the native handle may not be set until writeToTexture is called.
+     */
     public long getNativeHandle() {
-        return nativeHandle;
+        if (vitraTexture != null) {
+            return vitraTexture.getNativeHandle();
+        }
+        return 0;
     }
 }

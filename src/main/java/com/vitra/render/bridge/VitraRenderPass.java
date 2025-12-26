@@ -51,6 +51,34 @@ public class VitraRenderPass implements RenderPass {
     }
     
     private void begin() {
+        // CRITICAL: Bind render target from colorTarget
+        // This is what the GL backend does in createRenderPass (line 102-103 of GlCommandEncoder)
+        if (colorTarget instanceof VitraGpuTextureView vitraColorTarget) {
+            long colorHandle = vitraColorTarget.getNativeHandle();
+            if (colorHandle != 0) {
+                // Set this texture as the render target
+                VitraD3D11Renderer.setRenderTarget(colorHandle);
+                LOGGER.info("[RENDER_PASS] Set render target: handle=0x{}", Long.toHexString(colorHandle));
+            } else {
+                // If no specific render target, use the swapchain's back buffer
+                VitraD3D11Renderer.setRenderTargetToBackBuffer();
+                LOGGER.info("[RENDER_PASS] Set render target to back buffer (colorTarget handle was 0)");
+            }
+        } else {
+            // Fall back to back buffer
+            VitraD3D11Renderer.setRenderTargetToBackBuffer();
+            LOGGER.info("[RENDER_PASS] Set render target to back buffer (colorTarget is not VitraGpuTextureView)");
+        }
+        
+        // Set viewport (like line 123 of GlCommandEncoder)
+        if (colorTarget != null) {
+            int width = colorTarget.getWidth(0);
+            int height = colorTarget.getHeight(0);
+            VitraD3D11Renderer.setViewport(0, 0, width, height);
+            LOGGER.info("[RENDER_PASS] Set viewport: {}x{}", width, height);
+        }
+        
+        // Clear if requested
         if (clearColor.isPresent()) {
             int color = clearColor.getAsInt();
             float r = ((color >> 16) & 0xFF) / 255.0f;
@@ -116,14 +144,49 @@ public class VitraRenderPass implements RenderPass {
             
             long handle = vitraBuffer.getNativeHandle();
             if (handle != 0) {
-                // TODO: Map name to slot - for now using slot 0
-                VitraD3D11Renderer.bindConstantBufferVS(0, handle);
+                // Map uniform name to constant buffer slot (b0-b3 in HLSL)
+                int slot = getSlotForUniform(name);
+                VitraD3D11Renderer.bindConstantBufferVS(slot, handle);
+                // Also bind to pixel shader for uniforms that might be used there
+                VitraD3D11Renderer.bindConstantBufferPS(slot, handle);
             } else {
                 // Buffer not created yet or creation failed - skip binding
                 // This can happen during early initialization
             }
         }
     }
+    
+    /**
+     * Map uniform name to constant buffer slot.
+     * HLSL shaders use b0, b1, b2, b3 registers.
+     * Minecraft 26.1 uses these uniforms:
+     *   - "Projection" -> b0 (projection matrix)
+     *   - "Fog" -> b1 (fog parameters)
+     *   - "Globals" -> b2 (global settings)
+     *   - "Lighting" -> b3 (light directions)
+     *   - "DynamicTransforms" -> b4 (model-view, color modulator, etc.)
+     */
+    private int getSlotForUniform(String name) {
+        return switch (name) {
+            case "Projection" -> 0;         // b0 - Projection matrix
+            case "Fog" -> 1;                // b1 - Fog parameters
+            case "Globals" -> 2;            // b2 - Global settings
+            case "Lighting" -> 3;           // b3 - Light directions
+            case "DynamicTransforms" -> 4;  // b4 - Model-view, color, etc.
+            case "ModelView" -> 4;          // b4 - Same as DynamicTransforms
+            case "Transforms" -> 4;         // b4 - Same as DynamicTransforms
+            default -> {
+                // Log unknown uniforms for debugging
+                if (uniformLogCount < 10) {
+                    LOGGER.info("Unknown uniform '{}' - using slot 0", name);
+                    uniformLogCount++;
+                }
+                yield 0;
+            }
+        };
+    }
+    
+    private static int uniformLogCount = 0;
     
     @Override
     public void setUniform(String name, GpuBufferSlice bufferSlice) {

@@ -45,6 +45,12 @@ public class VitraGpuBuffer extends GpuBuffer {
         byte[] bytes = new byte[data.remaining()];
         data.get(bytes);
         
+        // DEBUG: Log first few floats of constant buffer data
+        if (isConstantBuffer && cbDebugCount < 5) {
+            logConstantBufferData(bytes);
+            cbDebugCount++;
+        }
+        
         if (nativeHandle == 0) {
             // Create new buffer based on type
             if (isConstantBuffer) {
@@ -86,6 +92,27 @@ public class VitraGpuBuffer extends GpuBuffer {
                 LOGGER.debug("Cannot dynamically update buffer '{}' - recreate instead", name);
             }
         }
+    }
+    
+    private static int cbDebugCount = 0;
+    
+    private void logConstantBufferData(byte[] bytes) {
+        if (bytes.length < 16) return;
+        
+        // Interpret first 16 floats (64 bytes) to see matrix data
+        java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(bytes);
+        buf.order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("[CB_UPLOAD] '%s' size=%d first4floats: ", name, bytes.length));
+        
+        int floatCount = Math.min(4, bytes.length / 4);
+        for (int i = 0; i < floatCount; i++) {
+            float f = buf.getFloat();
+            sb.append(String.format("%.4f ", f));
+        }
+        
+        LOGGER.info(sb.toString());
     }
     
     /**
