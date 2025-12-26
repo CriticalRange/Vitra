@@ -11,25 +11,21 @@ Vitra is a high-performance optimization and multi-backend rendering mod for Min
 - **Software** - CPU-based fallback renderer
 
 ### Performance Optimizations
-- **Frustum Culling** - Only render visible chunks and entities
-- **Level of Detail (LOD)** - Reduce detail for distant objects
-- **Async Mesh Building** - Build chunk meshes on background threads
-- **Memory Pooling** - Reduce garbage collection pressure
-- **Entity Batching** - Batch similar entities for efficient rendering
-- **Chunk Batching** - Combine multiple chunks into single draw calls
+- **BGFX Rendering Backend** - High-performance multi-API rendering system
+- **Optimized Buffer Management** - Efficient GPU buffer allocation and caching
+- **Advanced Shader System** - Modern shader compilation and management
+- **Draw Call Optimization** - Batched rendering for improved performance
 
 ### Advanced Features
 - Runtime backend switching
 - Comprehensive configuration system
 - Debug information and statistics
 - Shader hot-reloading support
-- Compatible with Fabric and NeoForge
+- Compatible with Fabric
 
 ## Installation
 
-1. Download the appropriate version for your mod loader:
-   - `vitra-fabric-<version>.jar` for Fabric
-   - `vitra-neoforge-<version>.jar` for NeoForge
+1. Download the mod file: `vitra-<version>.jar`
 
 2. Place the mod file in your `mods` directory
 
@@ -41,27 +37,14 @@ Vitra creates a configuration file at `config/vitra.properties` with the followi
 
 ```properties
 # Rendering Configuration
-renderer.type=OPENGL
+renderer.type=DIRECTX12  # Options: OPENGL, DIRECTX12, VULKAN, SOFTWARE
 renderer.vsync=true
 renderer.maxFPS=144
 renderer.debug=false
 
-# Performance Optimizations
-optimization.frustumCulling=true
-optimization.asyncMeshBuilding=true
-optimization.lodEnabled=true
-optimization.lodDistance=64.0
-optimization.memoryPooling=true
-
-# Chunk Rendering
-chunk.renderDistance=12
-chunk.batching=true
-chunk.maxPerBatch=16
-
-# Entity Rendering
-entity.batching=true
-entity.maxPerBatch=32
-entity.culling=true
+# BGFX Configuration
+bgfx.resetFlags=VSYNC
+bgfx.debugFlags=TEXT
 ```
 
 ## Development
@@ -73,22 +56,15 @@ entity.culling=true
 git clone <repository-url>
 cd vitra
 
-# Build for all platforms
+# Build the mod
 ./gradlew build
-
-# Build for specific platform
-./gradlew fabric:build
-./gradlew neoforge:build
 ```
 
 ### Testing
 
 ```bash
-# Run Minecraft client with Fabric
-./gradlew fabric:runClient
-
-# Run Minecraft client with NeoForge
-./gradlew neoforge:runClient
+# Run Minecraft client
+./gradlew runClient
 ```
 
 ## Architecture
@@ -103,23 +79,26 @@ cd vitra
 ### Module Structure
 
 ```
-common/src/main/java/com/vitra/
-├── core/
-│   ├── config/           # Configuration management
-│   └── optimization/     # Performance optimization modules
+src/main/java/com/vitra/
+├── config/              # Configuration management
+├── core/                # Core optimization systems
+├── fabric/              # Fabric-specific entry points
+│   ├── client/          # Client initialization
+│   └── VitraModFabric.java
+├── mixin/               # Mixin transformations
 ├── render/
-│   ├── backend/          # Rendering backend implementations
-│   ├── demo/            # Example rendering demonstrations
-│   └── shader/          # Shader management system
+│   ├── backend/         # BGFX backend implementations
+│   ├── bgfx/            # BGFX rendering system
+│   └── VitraRenderer.java
 └── VitraMod.java        # Main mod class
 ```
 
-### Performance Optimization Modules
+### Key Rendering Components
 
-- **FrustumCuller** - Visibility culling system
-- **LODManager** - Level-of-detail management
-- **AsyncMeshBuilder** - Background mesh generation
-- **MemoryPool** - Object pooling for garbage collection optimization
+- **BgfxCommandEncoder** - Command buffer management and encoding
+- **BgfxShaderManager** - Shader compilation and pipeline management
+- **BgfxTextureManager** - Texture creation and binding
+- **BgfxBufferCache** - Efficient vertex/index buffer pooling
 
 ## Compatibility
 
@@ -129,7 +108,6 @@ common/src/main/java/com/vitra/
 
 ### Mod Loaders
 - Fabric 0.17.2+
-- NeoForge 21.8.33+
 
 ### Graphics APIs
 - OpenGL 3.3+ (all platforms)
@@ -144,9 +122,9 @@ common/src/main/java/com/vitra/
    - OpenGL: Maximum compatibility
 
 2. **Optimize Settings**
-   - Enable async mesh building for better frame pacing
-   - Adjust LOD distance based on your system performance
-   - Use chunk batching for better GPU utilization
+   - Configure BGFX debug flags for performance monitoring
+   - Enable VSync for smoother frame pacing
+   - Adjust max FPS based on your display
 
 3. **Monitor Performance**
    - Enable debug mode to see optimization statistics
@@ -207,7 +185,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Built with [LWJGL](https://lwjgl.org/) for graphics API access
 - Uses [BGFX](https://github.com/bkaradzic/bgfx) for multi-backend rendering
-- Powered by [Architectury](https://docs.architectury.dev/) for multi-platform support
+- Built on [Fabric](https://fabricmc.net/) mod loader
 
 ## Support
 
