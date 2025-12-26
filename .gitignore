@@ -43,10 +43,9 @@ hs_err_pid*
 *.jar
 !gradle-wrapper.jar
 
-# Fabric/NeoForge specific
+# Fabric specific
 remappedSrc/
 .fabric/
-.neoforge/
 
 # Generated files
 src/generated/
