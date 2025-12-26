@@ -1,5 +1,4 @@
 #include "vitra_d3d11.h"
-// #include "renderdoc_app.h" // RenderDoc integration disabled - it intercepts debug layer
 #include <iostream>
 #include <sstream>
 #include <random>
@@ -13,26 +12,11 @@
 #include <string>
 #include <mutex>
 
-// ============================================================================
-// MANUAL D3D11 DEVICE FLAGS DEFINITION
-// ============================================================================
-// Ensure DEBUGGABLE flag is available (may not be in older SDK versions)
-// This flag is critical for RenderDoc and PIX graphics debugging
-#ifndef D3D11_CREATE_DEVICE_DEBUGGABLE
-#define D3D11_CREATE_DEVICE_DEBUGGABLE 0x40
-#endif
-
-// Explicitly define all device creation flags we need
-// This ensures compatibility even if SDK version varies
-#define VITRA_D3D11_CREATE_DEVICE_DEBUG            0x2
-#define VITRA_D3D11_CREATE_DEVICE_DEBUGGABLE       0x40
-#define VITRA_D3D11_CREATE_DEVICE_BGRA_SUPPORT     0x20
-
 // Define D3D_FEATURE_LEVEL_11_3 if not available in SDK
-// Feature level 11.3 was added in Windows 10 SDK
 #ifndef D3D_FEATURE_LEVEL_11_3
 #define D3D_FEATURE_LEVEL_11_3 (D3D_FEATURE_LEVEL)0xb300
 #endif
+
 
 // Global D3D11 resources
 D3D11Resources g_d3d11 = {};
@@ -80,87 +64,11 @@ struct CommittedD3D11State {
 std::mutex g_d3d11ContextMutex;
 
 // ============================================================================
-// PIX GPU CAPTURER STATIC INITIALIZATION
+// NOTE: PIX and RenderDoc integration removed
 // ============================================================================
-// CRITICAL: Load WinPixGpuCapturer.dll BEFORE any DirectX calls
-// This static initializer runs when the DLL is first loaded by Java
-// Per Microsoft documentation: PIX DLL must be loaded before D3D11CreateDevice
-static bool LoadPixGpuCapturer() {
-    // Check if already loaded
-    HMODULE pixModule = GetModuleHandleA("WinPixGpuCapturer.dll");
-    if (pixModule) {
-        OutputDebugStringA("[Vitra-PIX] ✓ WinPixGpuCapturer.dll already loaded");
-        return true;
-    }
+// These tools were interfering with debug logging. 
+// If you need GPU debugging, launch the game from PIX directly.
 
-    // Try to find and load PIX from Program Files
-    const char* programFiles = getenv("ProgramFiles");
-    if (!programFiles) {
-        OutputDebugStringA("[Vitra-PIX] ✗ ProgramFiles environment variable not found");
-        return false;
-    }
-
-    std::string pixBaseDir = std::string(programFiles) + "\\Microsoft PIX";
-
-    // Find the directory with the highest version number
-    WIN32_FIND_DATAA findData;
-    std::string searchPath = pixBaseDir + "\\*";
-    HANDLE hFind = FindFirstFileA(searchPath.c_str(), &findData);
-
-    if (hFind == INVALID_HANDLE_VALUE) {
-        OutputDebugStringA("[Vitra-PIX] ✗ PIX not found in Program Files - Install from https://devblogs.microsoft.com/pix/download/");
-        return false;
-    }
-
-    std::string latestVersion;
-    do {
-        if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            std::string dirName = findData.cFileName;
-            if (dirName != "." && dirName != ".." && !dirName.empty()) {
-                if (latestVersion.empty() || dirName > latestVersion) {
-                    latestVersion = dirName;
-                }
-            }
-        }
-    } while (FindNextFileA(hFind, &findData));
-    FindClose(hFind);
-
-    if (latestVersion.empty()) {
-        OutputDebugStringA("[Vitra-PIX] ✗ No PIX version found");
-        return false;
-    }
-
-    std::string pixDllPath = pixBaseDir + "\\" + latestVersion + "\\WinPixGpuCapturer.dll";
-    OutputDebugStringA(("[Vitra-PIX] Found PIX installation: " + pixDllPath).c_str());
-
-    HMODULE loadedPix = LoadLibraryA(pixDllPath.c_str());
-    if (loadedPix) {
-        OutputDebugStringA("[Vitra-PIX] ✓ Successfully loaded WinPixGpuCapturer.dll");
-        OutputDebugStringA("[Vitra-PIX] ✓ PIX GPU capture support ENABLED - You can now attach PIX to this process");
-        return true;
-    } else {
-        DWORD error = GetLastError();
-        char errorMsg[512];
-        sprintf_s(errorMsg, "[Vitra-PIX] ✗ Failed to load WinPixGpuCapturer.dll! Error: %lu", error);
-        OutputDebugStringA(errorMsg);
-        return false;
-    }
-}
-
-// Static initializer - runs when DLL is loaded, BEFORE JNI_OnLoad
-static bool g_pixLoaded = LoadPixGpuCapturer();
-
-// ============================================================================
-// RENDERDOC IN-APPLICATION API - DISABLED
-// ============================================================================
-// RenderDoc intercepts the DirectX debug layer and returns dummy interfaces,
-// which prevents us from seeing real DirectX errors. Disabled for debugging.
-// To re-enable: uncomment the code below and the #include "renderdoc_app.h"
-/*
-static RENDERDOC_API_1_4_0 *rdoc_api = nullptr;
-static bool LoadRenderDoc() { return false; }
-static bool g_renderDocLoaded = false;
-*/
 
 // Resource tracking
 std::unordered_map<uint64_t, ComPtr<ID3D11Buffer>> g_vertexBuffers;
@@ -190,6 +98,11 @@ std::unordered_map<uint64_t, ComPtr<ID3D11Query>> g_queries;
 std::unordered_map<uint64_t, ComPtr<ID3D11Buffer>> g_constantBuffers;
 uint64_t g_boundConstantBuffersVS[4] = {0, 0, 0, 0};  // Track bound constant buffers for vertex shader (b0-b3)
 uint64_t g_boundConstantBuffersPS[4] = {0, 0, 0, 0};  // Track bound constant buffers for pixel shader (b0-b3)
+
+// Pipeline binding tracking (must be global so beginFrame() can reset it)
+// CRITICAL: This must be reset in beginFrame() after IASetInputLayout(nullptr) is called,
+// otherwise bindShaderPipeline() will skip re-binding the input layout!
+uint64_t g_boundPipelineHandle = 0;
 
 // Framebuffer Object (FBO) tracking - VulkanMod-style render target system
 struct D3D11Framebuffer {
@@ -1984,6 +1897,11 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_beginFrame
     g_d3d11.context->PSSetShader(nullptr, nullptr, 0);
     g_d3d11.context->IASetInputLayout(nullptr);
 
+    // CRITICAL FIX: Reset pipeline tracking so bindShaderPipeline() actually re-binds
+    // the input layout after we cleared it above! Without this reset, the same pipeline
+    // would appear "already bound" and skip IASetInputLayout, causing white screen.
+    g_boundPipelineHandle = 0;
+
     // 4. Reset sampler bindings
     ID3D11SamplerState* nullSamplers[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT] = { nullptr };
     g_d3d11.context->PSSetSamplers(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT, nullSamplers);
@@ -2284,30 +2202,62 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_setClearColo
 JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createVertexBuffer
     (JNIEnv* env, jclass clazz, jbyteArray data, jint size, jint stride) {
 
+    // CRITICAL DEBUG: Log every buffer creation attempt to find why subsequent buffers fail
+    static int vbCreateAttempts = 0;
+    
     if (!g_d3d11.initialized) {
+        if (vbCreateAttempts < 20) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "[VB_CREATE_FAIL %d] NOT INITIALIZED! g_d3d11.initialized=%d, device=%p", 
+                vbCreateAttempts, g_d3d11.initialized, g_d3d11.device.Get());
+            logToJava(env, msg);
+        }
+        vbCreateAttempts++;
         return 0;
     }
 
     // Validate size parameter FIRST
     if (size <= 0) {
+        if (vbCreateAttempts < 20) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "[VB_CREATE_FAIL %d] Invalid size: %d", vbCreateAttempts, size);
+            logToJava(env, msg);
+        }
+        vbCreateAttempts++;
         return 0;
     }
 
     // Null check for data array
     if (data == nullptr) {
+        if (vbCreateAttempts < 20) {
+            logToJava(env, "[VB_CREATE_FAIL] Data array is null");
+        }
+        vbCreateAttempts++;
         return 0;
     }
 
     // Get Java array length for validation
     jsize arrayLength = env->GetArrayLength(data);
     if (arrayLength < size) {
+        if (vbCreateAttempts < 20) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "[VB_CREATE_FAIL %d] Array too small: %d < %d", vbCreateAttempts, arrayLength, size);
+            logToJava(env, msg);
+        }
+        vbCreateAttempts++;
         return 0;
     }
 
     jbyte* bytes = env->GetByteArrayElements(data, nullptr);
     if (!bytes) {
+        if (vbCreateAttempts < 20) {
+            logToJava(env, "[VB_CREATE_FAIL] GetByteArrayElements returned null");
+        }
+        vbCreateAttempts++;
         return 0;
     }
+    
+    vbCreateAttempts++;
 
 
     D3D11_BUFFER_DESC desc = {};
@@ -10023,8 +9973,9 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindShaderPi
 
     // CRITICAL FIX: VulkanMod pattern - only bind if pipeline changed!
     // This prevents other code from overriding our pipeline binding
-    static uint64_t s_boundPipelineHandle = 0;
-    if (s_boundPipelineHandle == pipelineHandle) {
+    // NOTE: g_boundPipelineHandle is a GLOBAL (not static local) because it MUST be
+    // reset in beginFrame() when IASetInputLayout(nullptr) is called!
+    if (g_boundPipelineHandle == pipelineHandle) {
         // Pipeline already bound, skip redundant bind
         return;
     }
@@ -10045,7 +9996,7 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindShaderPi
     g_d3d11.context->PSSetShader(pipeline.pixelShader.Get(), nullptr, 0);
     g_d3d11.boundVertexShader = pipeline.vertexShaderHandle;
     g_d3d11.boundPixelShader = pipeline.pixelShaderHandle;
-    s_boundPipelineHandle = pipelineHandle;  // Track bound pipeline
+    g_boundPipelineHandle = pipelineHandle;  // Track bound pipeline (global)
 
     // CRITICAL FIX: Bind the input layout!
     // Without an input layout, DirectX 11 doesn't know how to interpret vertex data.
@@ -10136,7 +10087,17 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_destroyShade
 JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createConstantBuffer
     (JNIEnv* env, jclass clazz, jint size) {
 
+    // CRITICAL DEBUG: Log every constant buffer creation attempt to find why subsequent buffers fail
+    static int cbCreateAttempts = 0;
+    
     if (!g_d3d11.initialized) {
+        if (cbCreateAttempts < 20) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "[CB_CREATE_FAIL %d] NOT INITIALIZED! g_d3d11.initialized=%d, device=%p", 
+                cbCreateAttempts, g_d3d11.initialized, g_d3d11.device.Get());
+            logToJava(env, msg);
+        }
+        cbCreateAttempts++;
         g_lastShaderError = "DirectX 11 not initialized";
         return 0;
     }
@@ -10144,15 +10105,31 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createConst
     // Ensure 16-byte alignment
     int alignedSize = (size + 15) & ~15;
 
+
     D3D11_BUFFER_DESC bufferDesc = {};
     bufferDesc.ByteWidth = alignedSize;
     bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
     bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
     bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
+    // CRITICAL FIX: Initialize constant buffer with zeros to prevent garbage data
+    // Allocate zero-initialized memory for initial data
+    std::vector<uint8_t> zeroData(alignedSize, 0);
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = zeroData.data();
+    initData.SysMemPitch = 0;
+    initData.SysMemSlicePitch = 0;
+
     ComPtr<ID3D11Buffer> constantBuffer;
-    HRESULT hr = g_d3d11.device->CreateBuffer(&bufferDesc, nullptr, &constantBuffer);
+    HRESULT hr = g_d3d11.device->CreateBuffer(&bufferDesc, &initData, &constantBuffer);
     if (FAILED(hr)) {
+        if (cbCreateAttempts < 20) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "[CB_CREATE_FAIL %d] CreateBuffer failed! HRESULT=0x%08X, size=%d, alignedSize=%d", 
+                cbCreateAttempts, hr, size, alignedSize);
+            logToJava(env, msg);
+        }
+        cbCreateAttempts++;
         g_lastShaderError = "Failed to create constant buffer";
         return 0;
     }
@@ -10160,7 +10137,14 @@ JNIEXPORT jlong JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_createConst
     uint64_t handle = generateHandle();
     g_constantBuffers[handle] = constantBuffer;
 
-    // Logging disabled
+    if (cbCreateAttempts < 5) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "[CB_CREATE_OK %d] Created constant buffer: handle=0x%llx, size=%d", 
+            cbCreateAttempts, (unsigned long long)handle, alignedSize);
+        logToJava(env, msg);
+    }
+    cbCreateAttempts++;
+    
     return handle;
 }
 
@@ -10300,6 +10284,115 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindConstant
         g_boundConstantBuffersPS[slot] = bufferHandle;
     }
 
+}
+
+/**
+ * Bind constant buffer range to vertex shader stage (D3D11.1 feature).
+ * Uses VSSetConstantBuffers1 to bind a portion of a buffer with offset.
+ */
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindConstantBufferRangeVS
+    (JNIEnv* env, jclass clazz, jint slot, jlong bufferHandle, jlong offset, jlong length) {
+
+    if (!g_d3d11.initialized) return;
+
+    auto it = g_constantBuffers.find(bufferHandle);
+    if (it == g_constantBuffers.end()) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "[CB_RANGE_ERROR] VS constant buffer handle 0x%llx not found", (unsigned long long)bufferHandle);
+        logToJava(env, msg);
+        return;
+    }
+
+    // D3D11.1 uses 16-byte (4 float) units for offset and size
+    // firstConstant = offset / 16
+    // numConstants = length / 16
+    UINT firstConstant = static_cast<UINT>(offset / 16);
+    UINT numConstants = static_cast<UINT>(length / 16);
+    
+    // Clamp numConstants to valid range (must be >= 1)
+    if (numConstants == 0) numConstants = 1;
+
+    // Log first few binds for debugging
+    static int rangeBindCountVS = 0;
+    if (rangeBindCountVS < 5) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "[CB_BIND_RANGE_VS %d] slot=%d, handle=0x%llx, offset=%lld (first=%u), length=%lld (num=%u)", 
+            rangeBindCountVS, slot, (unsigned long long)bufferHandle, 
+            (long long)offset, firstConstant, (long long)length, numConstants);
+        logToJava(env, msg);
+        rangeBindCountVS++;
+    }
+
+    // Use D3D11.1 context for range binding
+    ComPtr<ID3D11DeviceContext1> context1;
+    HRESULT hr = g_d3d11.context->QueryInterface(__uuidof(ID3D11DeviceContext1), (void**)&context1);
+    if (SUCCEEDED(hr) && context1) {
+        ID3D11Buffer* buffers[] = { it->second.Get() };
+        UINT firstConstants[] = { firstConstant };
+        UINT numConstantsArr[] = { numConstants };
+        context1->VSSetConstantBuffers1(slot, 1, buffers, firstConstants, numConstantsArr);
+    } else {
+        // Fall back to standard binding (no offset support)
+        ID3D11Buffer* buffers[] = { it->second.Get() };
+        g_d3d11.context->VSSetConstantBuffers(slot, 1, buffers);
+    }
+
+    if (slot >= 0 && slot < 4) {
+        g_boundConstantBuffersVS[slot] = bufferHandle;
+    }
+}
+
+/**
+ * Bind constant buffer range to pixel shader stage (D3D11.1 feature).
+ * Uses PSSetConstantBuffers1 to bind a portion of a buffer with offset.
+ */
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindConstantBufferRangePS
+    (JNIEnv* env, jclass clazz, jint slot, jlong bufferHandle, jlong offset, jlong length) {
+
+    if (!g_d3d11.initialized) return;
+
+    auto it = g_constantBuffers.find(bufferHandle);
+    if (it == g_constantBuffers.end()) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "[CB_RANGE_ERROR] PS constant buffer handle 0x%llx not found", (unsigned long long)bufferHandle);
+        logToJava(env, msg);
+        return;
+    }
+
+    // D3D11.1 uses 16-byte (4 float) units for offset and size
+    UINT firstConstant = static_cast<UINT>(offset / 16);
+    UINT numConstants = static_cast<UINT>(length / 16);
+    
+    if (numConstants == 0) numConstants = 1;
+
+    // Log first few binds for debugging
+    static int rangeBindCountPS = 0;
+    if (rangeBindCountPS < 5) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "[CB_BIND_RANGE_PS %d] slot=%d, handle=0x%llx, offset=%lld (first=%u), length=%lld (num=%u)", 
+            rangeBindCountPS, slot, (unsigned long long)bufferHandle, 
+            (long long)offset, firstConstant, (long long)length, numConstants);
+        logToJava(env, msg);
+        rangeBindCountPS++;
+    }
+
+    // Use D3D11.1 context for range binding
+    ComPtr<ID3D11DeviceContext1> context1;
+    HRESULT hr = g_d3d11.context->QueryInterface(__uuidof(ID3D11DeviceContext1), (void**)&context1);
+    if (SUCCEEDED(hr) && context1) {
+        ID3D11Buffer* buffers[] = { it->second.Get() };
+        UINT firstConstants[] = { firstConstant };
+        UINT numConstantsArr[] = { numConstants };
+        context1->PSSetConstantBuffers1(slot, 1, buffers, firstConstants, numConstantsArr);
+    } else {
+        // Fall back to standard binding (no offset support)
+        ID3D11Buffer* buffers[] = { it->second.Get() };
+        g_d3d11.context->PSSetConstantBuffers(slot, 1, buffers);
+    }
+
+    if (slot >= 0 && slot < 4) {
+        g_boundConstantBuffersPS[slot] = bufferHandle;
+    }
 }
 
 /**

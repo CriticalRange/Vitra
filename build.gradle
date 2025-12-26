@@ -207,9 +207,7 @@ task compileShaders {
 // Native Library Compilation Tasks
 // ============================================================================
 
-// RenderDoc configuration (optional - only required for RenderDoc integration)
-// RenderDoc.dll will be loaded dynamically at runtime if present
-// No build-time dependency required for RenderDoc integration
+// Native library compilation for DirectX 11 and DirectX 12
 
 // D3D 11 native library compilation task - Incremental
 task compileNativeDX11 {
@@ -258,7 +256,7 @@ task compileNativeDX11 {
 
 		println "Using vswhere: ${vsWhere}"
 		println "Compiling D3D 11 native library with Visual Studio at: ${vsPath}"
-		println "RenderDoc integration: Enabled (runtime dynamic loading)"
+
 
 		// Build the command dynamically with the detected VS path
 		def compileCommand = "call \"${vcvarsPath}\" && " +
@@ -335,7 +333,7 @@ task compileNativeDX12 {
 
 		println "Using vswhere: ${vsWhere}"
 		println "Compiling D3D 12 Ultimate native library with Visual Studio at: ${vsPath}"
-		println "RenderDoc integration: Enabled (runtime dynamic loading)"
+
 
 		// Build the command dynamically with the detected VS path
 		def compileCommand = "call \"${vcvarsPath}\" && " +

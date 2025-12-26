@@ -130,10 +130,84 @@ public class VitraRenderPass implements RenderPass {
     
     @Override
     public void bindTexture(String name, GpuTextureView textureView, GpuSampler sampler) {
+        // Map sampler name to texture slot
+        int slot = getSamplerSlot(name);
+        
         if (textureView instanceof VitraGpuTextureView vitraView) {
-            // TODO: Map name to slot and bind texture
-            VitraD3D11Renderer.bindTexture(0, vitraView.getNativeHandle());
+            long handle = vitraView.getNativeHandle();
+            if (handle != 0) {
+                VitraD3D11Renderer.bindTexture(slot, handle);
+                LOGGER.debug("bindTexture '{}' slot={} handle=0x{}", name, slot, Long.toHexString(handle));
+            } else {
+                LOGGER.debug("bindTexture '{}' slot={} - handle is 0, texture may not be created", name, slot);
+            }
+        } else if (textureView != null) {
+            // CRITICAL: Handle MC's GlTextureView by looking up D3D11Texture via texture ID
+            // GlTextureView wraps GlTexture which has an int 'id' field
+            try {
+                // Get the underlying texture
+                var texture = textureView.texture();
+                
+                // Check if it's a GlTexture (MC's default)
+                if (texture instanceof com.mojang.blaze3d.opengl.GlTexture glTexture) {
+                    int textureId = glTexture.glId();
+                    
+                    // Look up in D3D11Texture system (where GlStateManager routes textures)
+                    com.vitra.render.D3D11Texture d3dTexture = 
+                        com.vitra.render.D3D11Texture.getTexture(textureId);
+                    
+                    if (d3dTexture != null && d3dTexture.getNativeHandle() != 0) {
+                        // Bind using the native D3D11 handle
+                        VitraD3D11Renderer.bindTexture(slot, d3dTexture.getNativeHandle());
+                        LOGGER.debug("bindTexture '{}' slot={} (GlTexture id={}, d3dHandle=0x{})", 
+                            name, slot, textureId, Long.toHexString(d3dTexture.getNativeHandle()));
+                    } else {
+                        // Use OpenGL-style bind (texture ID directly)
+                        VitraD3D11Renderer.bindTexture(slot, textureId);
+                        LOGGER.debug("bindTexture '{}' slot={} (GlTexture id={}, via ID)", name, slot, textureId);
+                    }
+                } else {
+                    LOGGER.debug("bindTexture '{}' slot={} - non-Vitra texture: {}", 
+                        name, slot, textureView.getClass().getSimpleName());
+                }
+            } catch (Exception e) {
+                LOGGER.warn("bindTexture '{}' slot={} - failed to extract texture ID: {}", 
+                    name, slot, e.getMessage());
+            }
         }
+        
+        // TODO: Bind sampler if provided - needs bindSampler JNI method
+        // For now, samplers are set via texture parameters in D3D11
+    }
+    
+    /**
+     * Map sampler name to texture slot.
+     * Minecraft 26.1 uses sampler names like "Sampler0", "Sampler1", etc.
+     * Also handles special names like "DiffuseSampler", "LightmapSampler".
+     */
+    private int getSamplerSlot(String name) {
+        return switch (name) {
+            case "Sampler0", "DiffuseSampler", "BlockAtlasSampler" -> 0;
+            case "Sampler1", "LightmapSampler" -> 1;
+            case "Sampler2", "OverlaySampler" -> 2;
+            case "Sampler3" -> 3;
+            case "Sampler4" -> 4;
+            case "Sampler5" -> 5;
+            case "Sampler6" -> 6;
+            case "Sampler7" -> 7;
+            default -> {
+                // Try to extract number from sampler name
+                if (name.startsWith("Sampler") && name.length() > 7) {
+                    try {
+                        yield Integer.parseInt(name.substring(7));
+                    } catch (NumberFormatException e) {
+                        yield 0;
+                    }
+                }
+                LOGGER.debug("Unknown sampler name '{}', using slot 0", name);
+                yield 0;
+            }
+        };
     }
     
     @Override
@@ -190,7 +264,31 @@ public class VitraRenderPass implements RenderPass {
     
     @Override
     public void setUniform(String name, GpuBufferSlice bufferSlice) {
-        setUniform(name, bufferSlice.buffer());
+        // CRITICAL: We must use the slice's offset and length!
+        // OpenGL uses glBindBufferRange(target, binding, buffer, offset, size)
+        // D3D11 needs to use VSSetConstantBuffers1/PSSetConstantBuffers1 with offset
+        if (bufferSlice.buffer() instanceof VitraGpuBuffer vitraBuffer) {
+            vitraBuffer.ensureCreated();
+            
+            long handle = vitraBuffer.getNativeHandle();
+            long offset = bufferSlice.offset();
+            long length = bufferSlice.length();
+            
+            if (handle != 0) {
+                int slot = getSlotForUniform(name);
+                // Pass offset and length to native for proper D3D11.1 constant buffer binding
+                VitraD3D11Renderer.bindConstantBufferRangeVS(slot, handle, offset, length);
+                VitraD3D11Renderer.bindConstantBufferRangePS(slot, handle, offset, length);
+                
+                if (uniformLogCount < 5) {
+                    LOGGER.debug("setUniform (slice) '{}' slot={} handle=0x{} offset={} length={}", 
+                        name, slot, Long.toHexString(handle), offset, length);
+                }
+            }
+        } else {
+            // Fallback for non-Vitra buffers
+            setUniform(name, bufferSlice.buffer());
+        }
     }
     
     @Override

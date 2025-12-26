@@ -954,6 +954,14 @@ JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindConstant
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindConstantBufferPS
     (JNIEnv* env, jclass clazz, jint slot, jlong bufferHandle);
 
+// Bind constant buffer range to vertex shader stage (D3D11.1 feature)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindConstantBufferRangeVS
+    (JNIEnv* env, jclass clazz, jint slot, jlong bufferHandle, jlong offset, jlong length);
+
+// Bind constant buffer range to pixel shader stage (D3D11.1 feature)
+JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_bindConstantBufferRangePS
+    (JNIEnv* env, jclass clazz, jint slot, jlong bufferHandle, jlong offset, jlong length);
+
 // Upload and bind all UBOs (Uniform Buffer Objects / Constant Buffers)
 JNIEXPORT void JNICALL Java_com_vitra_render_jni_VitraD3D11Renderer_uploadAndBindUBOs
     (JNIEnv* env, jclass clazz);

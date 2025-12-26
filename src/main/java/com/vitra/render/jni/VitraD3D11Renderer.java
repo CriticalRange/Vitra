@@ -714,6 +714,28 @@ public class VitraD3D11Renderer {
     public static native void bindConstantBufferPS(int slot, long bufferHandle);
 
     /**
+     * Bind constant buffer range to vertex shader stage (D3D11.1 feature).
+     * Uses VSSetConstantBuffers1 to bind a portion of a buffer.
+     *
+     * @param slot - Buffer slot (b0-b4)
+     * @param bufferHandle - Constant buffer handle
+     * @param offset - Offset in bytes (must be 16-byte aligned)
+     * @param length - Length in bytes (must be 16-byte aligned)
+     */
+    public static native void bindConstantBufferRangeVS(int slot, long bufferHandle, long offset, long length);
+
+    /**
+     * Bind constant buffer range to pixel shader stage (D3D11.1 feature).
+     * Uses PSSetConstantBuffers1 to bind a portion of a buffer.
+     *
+     * @param slot - Buffer slot (b0-b4)
+     * @param bufferHandle - Constant buffer handle
+     * @param offset - Offset in bytes (must be 16-byte aligned)
+     * @param length - Length in bytes (must be 16-byte aligned)
+     */
+    public static native void bindConstantBufferRangePS(int slot, long bufferHandle, long offset, long length);
+
+    /**
      * Get the last shader compilation error message.
      *
      * @return Error message string, or null if no error

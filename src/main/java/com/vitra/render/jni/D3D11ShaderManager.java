@@ -13,6 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * DirectX shader manager that replaces BGFX shader loading
  */
 public class D3D11ShaderManager extends AbstractShaderManager {
+    private static final Logger LOGGER = LoggerFactory.getLogger(D3D11ShaderManager.class);
+    
+    // Singleton instance for easy static access
+    private static D3D11ShaderManager INSTANCE;
+    
     private final Map<String, Long> shaderCache = new ConcurrentHashMap<>();
     private final Map<String, Long> pipelineCache = new ConcurrentHashMap<>();
     
@@ -21,6 +26,32 @@ public class D3D11ShaderManager extends AbstractShaderManager {
 
     public D3D11ShaderManager() {
         super(D3D11ShaderManager.class);
+        INSTANCE = this;
+    }
+    
+    /**
+     * Get or create a D3D11 pipeline for the given shader name and vertex format.
+     * This is the main entry point for GlProgramMixin.
+     * 
+     * @param shaderName HLSL shader name (e.g., "position_tex_color")
+     * @param vertexFormat Minecraft vertex format (used for input layout)
+     * @return Pipeline handle, or 0 if shader not available
+     */
+    public static long getOrCreatePipeline(String shaderName, com.mojang.blaze3d.vertex.VertexFormat vertexFormat) {
+        if (INSTANCE == null) {
+            INSTANCE = new D3D11ShaderManager();
+        }
+        return INSTANCE.createPipeline(shaderName);
+    }
+    
+    /**
+     * Get the singleton instance.
+     */
+    public static D3D11ShaderManager getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new D3D11ShaderManager();
+        }
+        return INSTANCE;
     }
 
     /**

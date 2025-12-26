@@ -28,7 +28,9 @@ public class VitraMappedView implements GpuBuffer.MappedView {
         this.targetBuffer = targetBuffer;
         this.size = size;
         // Allocate direct memory for the mapped buffer
-        this.nativePtr = MemoryUtil.nmemAlloc(size);
+        // CRITICAL FIX: Use nmemCalloc instead of nmemAlloc to zero-initialize memory
+        // This prevents garbage data (FLT_MAX values) in constant buffers
+        this.nativePtr = MemoryUtil.nmemCalloc(1, size);
         this.data = MemoryUtil.memByteBuffer(nativePtr, (int) size);
     }
     

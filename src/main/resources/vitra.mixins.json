@@ -28,6 +28,9 @@
     "render.GameRendererMixin",
     "render.vertex.BufferBuilderMixin",
     "render.shader.GlProgramMixin",
+    "render.shader.ShaderManagerMixin",
+    "render.pipeline.RenderPipelinesMixin",
+    "render.uniform.DynamicUniformsMixin",
     "screen.ScreenMixin",
     "render.SamplerCacheMixin"
   ],
