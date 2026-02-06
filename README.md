@@ -189,6 +189,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-- Report issues on [GitHub Issues](https://github.com/your-repo/vitra/issues)
-- Join our [Discord](https://discord.gg/your-discord) for community support
-- Check the [Wiki](https://github.com/your-repo/vitra/wiki) for detailed documentation
+- Report issues on [GitHub Issues](https://github.com/my-repo/vitra/issues)
+- Join our [Discord](https://discord.gg/my-discord) for community support
+- Check the [Wiki](https://github.com/my-repo/vitra/wiki) for detailed documentation
